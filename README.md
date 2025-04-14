@@ -22,7 +22,8 @@ The entrypoint for learning about Blockchain Data Standards working group, manif
 * Adam Fuller ([azfuller.com](https://www.azfuller.com/)) - The Graph
 * Karel Balogh ([x/karelxfi](https://x.com/karelxfi)) - SQD
 * Wesley Blake ([github/wesleycharlesblake](https://github.com/wesleycharlesblake)) - Chronicles
-* Keri ([github/kclowes](https://github.com/kclowes)) - Ethereum / web3.py 
+* Keri ([github/kclowes](https://github.com/kclowes)) - Ethereum / web3.py
+* Preston Van Loon ([github/prestonvanloon](https://github.com/prestonvanloon)) - Prysm
 * ...
 
 > If you contribute to the conversations, manifesto, catalog, or libraries feel free to create a PR add your name and personal bio link
