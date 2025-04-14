@@ -21,6 +21,8 @@ The entrypoint for learning about Blockchain Data Standards working group, manif
 * Sam Bacha ([github/sambacha](https://github.com/sambacha)) - Manifold
 * Adam Fuller ([azfuller.com](https://www.azfuller.com/)) - The Graph
 * Karel Balogh ([x/karelxfi](https://x.com/karelxfi)) - SQD
+* Wesley Blake ([github/wesleycharlesblake](https://github.com/wesleycharlesblake)) - Chronicles
+* Keri ([github/kclowes](https://github.com/kclowes)) - Ethereum / web3.py 
 * ...
 
 > If you contribute to the conversations, manifesto, catalog, or libraries feel free to create a PR add your name and personal bio link
@@ -52,8 +54,8 @@ Current state of blockchain data is fragmented and silod on one hand (with so ma
 Here are some of the challenges and problems that the BDS working group aims to address:
 
 1. JSON-RPC is plain-text and usually over HTTP which means:
-  - **High bandwidth usage** for providers and consumers (vs a compact binary solution)
-  - **High resources consumption** (Memory/CPU) for serializing and deserializing the data
+    - **High bandwidth usage** for providers and consumers (vs a compact binary solution)
+    - **High resources consumption** (Memory/CPU) for serializing and deserializing the data
 2. RPC's standard JSON-RPC lacks advanced **querying or filtering capabilities** (e.g. all tokens of a wallet, transfers history etc).
 3. High-throughput use-cases such as indexing full blockchain history is very costly and **time-consuming** on RPC nodes (vs columnar binary data solution such as Apache Arrow, or simple Parquet files).
 4. Each 3rd party provider or open-source have their own special flavor of **their own Data Schema** and transport solutions which fragments the ecosystem.
