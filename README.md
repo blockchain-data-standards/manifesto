@@ -35,9 +35,9 @@ This working group aims to unify blockchain data efforts by creating common stan
 
 At the moment, the focus is:
 
-- **(3) Schema / Structure / Semantics** is the main focus of the group, which is to create a common taxonomy for blockchain "raw data" so that providers of data, and consumers of data have lower barriers to entry.
-- **(4) Querying / Filtering** efforts are focused on common use-cases and access patterns based on real-world production applications. The BDS working group mainly provides best-practice conventions and specs but will NOT get into implementation details.
-- **(5) Transport** is how the data is technically delivered to consumers. The BDS working group will only offer recommendations and potentially useful libraries and tools (e.g. a translation tool between a gRPC data provider and a Subgraph which requires JSON-RPC)
+- ** 3️⃣ Schema / Structure / Semantics** is the main focus of the group, which is to create a common taxonomy for blockchain "raw data" so that providers of data, and consumers of data have lower barriers to entry.
+- ** 4️⃣ Querying / Filtering** efforts are focused on common use-cases and access patterns based on real-world production applications. The BDS working group mainly provides best-practice conventions and specs but will NOT get into implementation details.
+- ** 5️⃣ Transport** is how the data is technically delivered to consumers. The BDS working group will only offer recommendations and potentially useful libraries and tools (e.g. a translation tool between a gRPC data provider and a Subgraph which requires JSON-RPC)
 
 ### Quick Glossary
 
@@ -57,8 +57,8 @@ Here are some of the challenges and problems that the BDS working group aims to 
     - **High bandwidth usage** for providers and consumers (vs a compact binary solution)
     - **High resources consumption** (Memory/CPU) for serializing and deserializing the data
 2. RPC's standard JSON-RPC lacks advanced **querying or filtering capabilities** (e.g. all tokens of a wallet, transfers history etc).
-3. High-throughput use-cases such as indexing full blockchain history is very costly and **time-consuming** on RPC nodes (vs columnar binary data solution such as Apache Arrow, or simple Parquet files).
-4. Each 3rd party provider or open-source have their own special flavor of **their own Data Schema** and transport solutions which fragments the ecosystem.
+3. High-throughput use-cases such as indexing full blockchain history is very costly and **time-consuming** via RPC nodes (vs streaming columnar binary data solutions such as Apache Arrow, or simple Parquet files).
+4. Every 3rd-party provider or open-source tool has their own special flavor of **Data Schema and Transport** solution which, fragments the ecosystem. The only commonly adopted protocol is JSON-RPC, which has a lot of limitations, as described above.
 
 ## 🧘 Beliefs
 
@@ -100,6 +100,7 @@ Here are some of the challenges and problems that the BDS working group aims to 
 _TODO schemas to be added to the catalog based on existing work of top data providers_
 
 ![./images/bds-ecosystem.svg](./images/bds-ecosystem.svg)
+> ^ How the blockchain data ecosystem will look like with BDS adoption.
 
 
 ### 🙏 Acknowledgements
