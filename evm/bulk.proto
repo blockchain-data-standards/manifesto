@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package bds.evm;
+option go_package = "github.com/blockchain-data-standards/manifesto/evm";
+
+import "models.proto";
+
+// Service for bulk EVM blockchain data operations
+// Designed for high-throughput data extraction and analytics use cases
+service BulkQueryService {
+  // Get multiple blocks within a range in a single request
+  rpc GetBlocksByRange(GetBlocksByRangeRequest) returns (GetBlocksByRangeResponse);
+}
+
+// Request for getting multiple blocks in a range
+message GetBlocksByRangeRequest {
+  // Starting block number (inclusive)
+  uint64 fromBlock = 1;
+  
+  // Ending block number (inclusive)
+  uint64 toBlock = 2;
+  
+  // Whether to include full transaction details for each block
+  bool includeTransactions = 3;
+  
+  // Maximum number of blocks to return (for pagination)
+  optional uint32 limit = 4;
+}
+
+// Response containing blocks within the requested range
+message GetBlocksByRangeResponse {
+  // Array of blocks within the range
+  repeated BlockWithTransactions blocks = 1;
+  
+  // Whether more blocks exist beyond the limit
+  bool hasMore = 2;
+}

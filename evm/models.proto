@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package bds.evm;
+option go_package = "github.com/blockchain-data-standards/manifesto/evm";
+
+// A confirmed block on an EVM-compatible blockchain containing transactions and state changes
+message BlockHeader {
+  // The block height - sequential position of this block in the blockchain starting from genesis (0). This is the primary identifier for blocks and is used for chain synchronization, determining finality depth, and calculating confirmations. Every valid block must have a unique number that is exactly one greater than its parent
+  uint64 number = 1;
+
+  // Unix timestamp (seconds since epoch) when this block was mined/produced. Set by the block producer and used for calculating block time intervals, time-based logic in smart contracts (block.timestamp), and difficulty adjustments. Must be greater than parent's timestamp. Manipulatable by miners/validators within protocol limits (typically ±15 seconds)
+  uint64 timestamp = 2;
+
+  // Maximum total gas that can be consumed by all transactions in this block. Set by miners/validators based on network capacity and protocol rules. Prevents blocks from becoming too large/slow to process. Dynamically adjusted on some chains (e.g., Ethereum targets 15M gas with EIP-1559 allowing up to 30M)
+  uint64 gasLimit = 3;
+
+  // Sum of gas actually consumed by all transactions in this block. Always less than or equal to gasLimit. Used to calculate block utilization, network congestion, and in EIP-1559 chains to adjust the base fee. Critical for gas analytics and optimization
+  uint64 gasUsed = 4;
+
+  // Total size of the block in bytes including header and all transactions. Used to enforce block size limits, calculate network bandwidth requirements, and storage costs. Ethereum soft limit ~1.875MB (gas limit / 16). Different from gas limit as it measures actual data size
+  uint64 size = 5;
+
+  // The Keccak-256 hash of the block header (parentHash, unclesHash, miner, stateRoot, transactionsRoot, receiptsRoot, logsBloom, difficulty, number, gasLimit, gasUsed, timestamp, extraData, mixHash, nonce). This serves as a unique identifier and cryptographic fingerprint that proves the block's integrity. Used in the PoW/PoS consensus to link blocks and detect chain reorganizations
+  bytes hash = 6;
+
+  // The Keccak-256 hash of the parent block's header. This creates the blockchain's linked structure where each block references its predecessor. The genesis block has a parent hash of 0x0. Used by nodes to validate chain continuity and detect forks or reorganizations
+  bytes parentHash = 7;
+
+  // Root hash of the global state trie (Patricia Merkle Tree) after executing all transactions in this block. Represents the entire Ethereum state (all accounts, balances, storage, code). Enables light clients to verify state without storing it. Critical for state proofs and cross-chain bridges
+  bytes stateRoot = 8;
+
+  // Root hash of the transactions trie containing all transactions included in this block. Enables Merkle proofs of transaction inclusion. Transactions are indexed by their position in the block. Essential for light clients and SPV (Simplified Payment Verification)
+  bytes transactionsRoot = 9;
+
+  // Root hash of the receipts trie containing transaction receipts (status, logs, gas used) for all transactions in this block. Enables Merkle proofs of transaction execution results and emitted events. Critical for proving transaction success/failure and log inclusion
+  bytes receiptsRoot = 10;
+
+  // Keccak-256 hash of the uncles (ommer blocks) list. Uncle blocks are valid blocks mined at the same height but not included in the main chain. Ethereum rewards uncle blocks to reduce mining centralization. Always 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347 (empty uncle list hash) post-merge
+  bytes sha3Uncles = 11;
+
+  // The 20-byte Ethereum address that received the block reward and transaction fees. In PoW chains, this is the miner who found the valid nonce. In PoS chains, this is the validator who proposed the block. In L2s, this is typically the sequencer address. Also called 'author' or 'coinbase' in some contexts
+  bytes miner = 12;
+
+  // 2048-bit (256 bytes) bloom filter of all log topics and addresses from all transactions in the block. Enables efficient filtering of logs without processing all transactions. Each log adds its address and topics to the bloom filter. Used by eth_getLogs to quickly skip irrelevant blocks
+  bytes logsBloom = 13;
+
+  // Arbitrary data included by the block producer. Limited to 32 bytes in Ethereum mainnet. Often contains miner/pool identification, voting data, or protocol-specific information. In Clique PoA networks contains validator signatures. L2s may use for additional protocol data
+  bytes extraData = 14;
+
+  // [DEPRECATED: Deprecated for consensus after Ethereum's transition to Proof-of-Stake, always zero in PoS blocks] PoW mining nonce - 64-bit value miners increment to find a valid block hash below the difficulty target. Combined with mixHash to prove work. Always 0x0000000000000000 in PoS blocks. Some PoA networks use for validator voting
+  optional uint64 nonce = 15;
+
+  // Total blob gas consumed by blob-carrying transactions (EIP-4844) in this block. Each blob consumes 131072 gas units. Used to calculate blob fees separately from regular gas. Introduced in Dencun upgrade for proto-danksharding. Maximum 786432 (6 blobs) per block
+  optional uint64 blobGasUsed = 16;
+
+  // Running total of blob gas consumed above the target (393216 gas, 3 blobs) from previous block. Used in EIP-4844 to calculate blob base fee similar to EIP-1559. Increases when blob usage is high, decreases when low. Enables dynamic blob pricing independent of regular gas
+  optional uint64 excessBlobGas = 17;
+
+  // The L1 (Ethereum mainnet) block number that this L2 block is anchored to. Used by L2 sequencers to establish data availability and finality. Critical for L2->L1 messaging, challenge periods, and state root submissions. Timing varies by L2 design (optimistic vs zk rollups)
+  optional uint64 l1BlockNumber = 18;
+
+  // Beacon chain epoch number (32 slots, ~6.4 minutes). Groups slots for validator duties, finality checkpoints, and validator set changes. Ethereum-specific post-merge concept. Epoch 0 started at beacon chain genesis (Dec 1, 2020). Used for staking analytics
+  optional uint64 epoch = 19;
+
+  // Beacon chain slot number (12 seconds). The primary time unit in PoS Ethereum. Each slot has one assigned validator to propose a block (though slots can be missed). Started at 0 with beacon chain genesis. Maps to execution layer blocks post-merge
+  optional uint64 slot = 20;
+
+  // Beacon chain validator index that proposed this block. Identifies which of the hundreds of thousands of validators created this block. Used for validator performance tracking, MEV analysis, and slashing detection. Only available from beacon chain data
+  optional uint64 proposerIndex = 21;
+
+  // Arbitrum-specific field tracking the number of L2-to-L1 messages sent in this block. Used for cross-chain message tracking and calculating merkle proofs for the outbox. Critical for Arbitrum's optimistic rollup message passing system
+  optional uint64 sendCount = 22;
+
+  // Number of transactions included in this block. Derived from transactions array length but stored separately by some indexers for query efficiency. Includes all transaction types (legacy, EIP-1559, blob transactions). Zero for empty blocks
+  optional uint32 transactionCount = 23;
+
+  // [DEPRECATED: Original PoW purpose deprecated, now repurposed for beacon chain RANDAO in PoS] PoW mining mix hash used with nonce to prove work was done. Part of Ethash algorithm preventing ASIC optimization. Post-merge contains the RANDAO value from the beacon chain providing randomness for PoS consensus. Sometimes called 'prevRandao' in PoS context
+  optional bytes mixHash = 24;
+
+  // Hash of the parent beacon chain block root. Introduced in EIP-4788 (Dencun) to enable trustless access to beacon chain state from the EVM. Stored in a system contract at 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02. Enables staking pools and bridges to verify consensus layer data on-chain
+  optional bytes parentBeaconBlockRoot = 25;
+
+  // Root hash of the withdrawals trie containing validator withdrawals from the beacon chain. Introduced with Shanghai upgrade enabling staked ETH withdrawals. Empty/null for pre-Shanghai blocks and non-Ethereum chains. Each withdrawal moves ETH from consensus to execution layer
+  optional bytes withdrawalsRoot = 26;
+
+  // Arbitrum-specific merkle root of all L2-to-L1 messages sent up to and including this block. Enables efficient proof generation for message inclusion. Updated incrementally as new messages are sent. Used during the challenge period for optimistic rollup security
+  optional bytes sendRoot = 27;
+
+  // Minimum fee per gas unit (in wei) required for transaction inclusion in this block. Introduced in EIP-1559 (London fork). Algorithmically determined based on parent block's gas usage - increases when blocks are full, decreases when empty. Burned rather than paid to miners. Not applicable to pre-EIP-1559 chains or some L2s with different fee models
+  optional string baseFeePerGas = 28;
+
+  // [DEPRECATED: Deprecated after Ethereum's transition to Proof-of-Stake (The Merge) in September 2022] PoW mining difficulty - how hard it was to find a valid nonce for this block. Adjusted every block to maintain target block time. Post-merge Ethereum sets this to 0. Still relevant for PoW chains (Ethereum Classic, some testnets). Replaced by randao in PoS
+  optional string difficulty = 29;
+
+  // [DEPRECATED: Deprecated after Ethereum's transition to Proof-of-Stake (The Merge) in September 2022] Cumulative sum of all block difficulties from genesis to this block. Used to determine the canonical chain (highest total difficulty wins). Critical for PoW consensus and handling reorganizations. Post-merge this is frozen at the merge block's value. Only available from archive nodes as it requires historical computation
+  optional string totalDifficulty = 30;
+
+  // BLS12-381 public key of the beacon chain validator that proposed this block. 48-byte hex-encoded key used in consensus layer cryptography. Enables attribution without querying validator registry. Used for distributed validator technology and staking pool analytics
+  optional string proposerPublicKey = 31;
+
+  // Encoded withdrawal operations from beacon chain validators. Introduced in Shanghai upgrade. Contains validator index, withdrawal address, and amount. Usually RLP-encoded array. Empty for pre-Shanghai blocks. Envio stores as binary encoding
+  optional bytes withdrawals = 32;
+
+  // RLP (Recursive Length Prefix) encoded canonical block header. This is the exact bytes that when hashed produce the block hash. Used for block verification, light client proofs, and cross-chain bridges. Critical for trustless block validation
+  optional bytes canonicalRlp = 33;
+
+  // Array of uncle (ommer) block hashes included in this block. Uncle blocks are valid blocks mined at the same height but not included in the canonical chain. Ethereum rewarded up to 2 uncles per block to reduce mining centralization. Always empty post-merge. Some indexers store as JSON array
+  repeated bytes uncles = 34;
+
+}
+
+// An event emitted by a smart contract during transaction execution on an EVM-compatible blockchain. Logs are the primary mechanism for smart contracts to communicate with external applications, enabling event-driven architectures and efficient querying of on-chain activity
+message Log {
+  // The 20-byte address of the smart contract that emitted this log. This is the contract whose code contained the LOG opcode (LOG0-LOG4) that generated this event. Used to filter logs by source contract and is included in the logs bloom filter for efficient block-level filtering
+  bytes address = 1;
+
+  // Array of indexed event parameters (max 4 topics). Topic[0] is the keccak256 hash of the event signature (e.g., 'Transfer(address,address,uint256)'). Topics[1-3] contain indexed event parameters. Indexed parameters enable efficient filtering but are limited to 32 bytes each. Dynamic types (strings, arrays) are hashed when indexed
+  repeated bytes topics = 2;
+
+  // The non-indexed data of the log containing event parameters that are not indexed. While indexed parameters (topics) are limited to 32 bytes and enable filtering, non-indexed data can contain arbitrary length data including dynamic types. ABI-encoded according to the event definition in the contract ABI
+  bytes data = 3;
+
+  // The block number where this log was emitted. Used for querying logs within block ranges, calculating confirmations, and determining the chronological order of events. Essential for applications that need to track state changes over time or react to events with specific finality requirements
+  uint64 blockNumber = 4;
+
+  // The hash of the block containing this log. Provides a direct link to the block and enables verification that the log hasn't been altered. Can be null for pending logs. Used in conjunction with logIndex to uniquely identify a log and detect reorganizations when the hash changes
+  bytes blockHash = 5;
+
+  // The hash of the transaction that emitted this log. Links the log to its originating transaction, enabling retrieval of transaction details like sender, input data, and gas used. Multiple logs can share the same transaction hash if emitted by the same transaction
+  bytes transactionHash = 6;
+
+  // The zero-based index position of the transaction within its block. Combined with blockNumber/blockHash, this uniquely identifies the transaction. Used for maintaining order and understanding transaction execution sequence. Earlier transactions have lower indices
+  uint32 transactionIndex = 7;
+
+  // The zero-based index position of this log within the block. Unique within a block and assigned sequentially as logs are emitted during transaction execution. Combined with blockHash, this provides a unique identifier for the log. Used for pagination and maintaining log order
+  uint32 logIndex = 8;
+
+  // Unix timestamp of the block containing this log. Denormalized from block data for query convenience. Enables time-based filtering and analysis without joining block data. Same timestamp for all logs in a block
+  optional uint64 blockTimestamp = 11;
+}
+
+// Block with its transactions
+message BlockWithTransactions {
+  // The block header
+  BlockHeader block = 1;
+  
+  // Transaction data (format depends on includeTransactions flag in request)
+  repeated bytes transactions = 2;
+}

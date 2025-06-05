@@ -1349,13 +1349,13 @@
       "updated": 1744637691410,
       "link": null,
       "locked": false,
-      "text": "Index and process raw normalized BDS-compatible data to generated business-specific entities.\nSubgraph and Ponder are at this level focused on end-user products.",
+      "text": "Index and process raw normalized BDS-compatible data to generated business-specific models.\nSubgraph and Ponder are at this level focused on end-user products.",
       "fontSize": 16,
       "fontFamily": 5,
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "Index and process raw normalized BDS-compatible data to generated business-specific entities.\nSubgraph and Ponder are at this level focused on end-user products.",
+      "originalText": "Index and process raw normalized BDS-compatible data to generated business-specific models.\nSubgraph and Ponder are at this level focused on end-user products.",
       "autoResize": true,
       "lineHeight": 1.25
     }

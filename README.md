@@ -46,7 +46,7 @@ At the moment, the focus is:
 - **Data Provider** - A company or open-source tool responsible for extracting raw blockchain data, enriching, massaging and post-processing to comply with the BDS specs.
 - **Raw Data Indexing** - Process of extracting raw blockchain data (e.g. from underyling node leveldb, or via json-rpc) and normalizing it according to the BDS specs.
 - **Data Consumer** - A consumer is interested in normalized blockchain data according to the BDS specs, with the purpose of building products on top of it.
-- **Business Data Indexing** - Reading and processing of an already normalized BDS-compatible data to create high-level product-specific entities (e.g. Subgraph or Ponder indexers, your custom data pipeline, etc).
+- **Business Data Indexing** - Reading and processing of an already normalized BDS-compatible data to create high-level product-specific models (e.g. Subgraph or Ponder indexers, your custom data pipeline, etc).
 
 ## 🐞 Problems
 

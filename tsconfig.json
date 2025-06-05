@@ -1,0 +1,62 @@
+{
+  "compilerOptions": {
+    // Language and Environment
+    "target": "es2022",                                  // Modern JavaScript output
+    "lib": ["es2022"],                                   // Include modern JS library features
+    "module": "esnext",                                  // Use ESNext modules (Bun supports this)
+    "moduleResolution": "bundler",                       // Use bundler module resolution (best for Bun)
+    
+    // Type Checking (relaxed for existing code)
+    "strict": false,                                     // Disable strict mode to be more permissive
+    "noImplicitAny": false,                             // Allow 'any' type (for string indexing)
+    "strictNullChecks": true,                           // Enable strict null checks
+    "strictFunctionTypes": true,                        // Enable strict function types
+    "strictBindCallApply": true,                        // Enable strict bind/call/apply
+    "strictPropertyInitialization": false,              // Disable strict property initialization
+    "noImplicitThis": true,                             // Error on 'this' with 'any' type
+    "alwaysStrict": true,                               // Parse in strict mode
+    
+    // Module Resolution
+    "esModuleInterop": true,                            // Enable interop between CommonJS and ES modules
+    "allowSyntheticDefaultImports": true,               // Allow default imports from modules without default export
+    "resolveJsonModule": true,                          // Include modules imported with .json extension
+    "forceConsistentCasingInFileNames": true,          // Ensure consistent casing in file names
+    
+    // Emit
+    "noEmit": true,                                     // Don't emit files (Bun handles this)
+    "skipLibCheck": true,                               // Skip type checking of declaration files
+    
+    // Interop Constraints
+    "allowJs": true,                                    // Allow JavaScript files
+    "checkJs": false,                                   // Don't type check JavaScript files
+    
+    // Advanced
+    "useDefineForClassFields": true,                   // Use define for class fields
+    "types": ["bun", "node"],                           // Include Bun and Node.js types
+    
+    // Completeness (relaxed for better DX)
+    "noUncheckedIndexedAccess": false,                 // Don't add undefined to index signatures
+    "noPropertyAccessFromIndexSignature": false,       // Allow property access from index signatures
+    "allowUnusedLabels": false,                        // Don't allow unused labels
+    "allowUnreachableCode": false,                     // Don't allow unreachable code
+    "exactOptionalPropertyTypes": false,               // Don't interpret optional properties exactly
+    "noFallthroughCasesInSwitch": true,               // Report errors for fallthrough in switch
+    "noImplicitOverride": false,                       // Don't require override modifier
+    "noImplicitReturns": true,                         // Report missing returns
+    "noUnusedLocals": false,                           // Don't report unused locals
+    "noUnusedParameters": false                         // Don't report unused parameters
+  },
+  
+  // Files Configuration
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "dist",
+    "build",
+    "out"
+  ]
+}

@@ -1,0 +1,325 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blockchain-data-standards.org/schemas/catalog.spec.json",
+  "title": "Blockchain Data Standards Catalog Specification",
+  "description": "Specification for defining blockchain data entity schemas",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Version of the catalog specification",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "blockchain": {
+      "type": "string",
+      "description": "Blockchain architecture (e.g., evm, solana, cosmos, etc.)",
+      "enum": ["evm", "solana", "cosmos", "bitcoin"]
+    },
+    "models": {
+      "type": "object",
+      "description": "Map of entity names to their definitions",
+      "patternProperties": {
+        "^[A-Z][a-zA-Z0-9]*$": {
+          "$ref": "#/definitions/entity"
+        }
+      },
+      "additionalProperties": false
+    },
+    "types": {
+      "type": "object",
+      "description": "Custom type definitions used in this catalog",
+      "patternProperties": {
+        "^[A-Z][a-zA-Z0-9]*$": {
+          "$ref": "#/definitions/typeDefinition"
+        }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "description": "Map of provider slugs to their definitions",
+      "patternProperties": {
+        "^[a-z][a-z0-9-]*$": {
+          "$ref": "#/definitions/provider"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["version", "blockchain", "models"],
+  "definitions": {
+    "entity": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the entity"
+        },
+        "fields": {
+          "type": "object",
+          "description": "Map of field names to their definitions",
+          "patternProperties": {
+            "^[a-z][a-zA-Z0-9_]*$": {
+              "$ref": "#/definitions/field"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["description", "fields"]
+    },
+    "field": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Data type of the field",
+          "enum": [
+            "Bytes",
+            "Bytes20",
+            "Bytes32",
+            "Bytes64",
+            "Uint256",
+            "Uint64",
+            "Uint32",
+            "Uint8",
+            "Int256",
+            "Int64",
+            "Int32",
+            "Boolean",
+            "String",
+            "Timestamp",
+            "BigDecimal",
+            "Array",
+            "Object"
+          ]
+        },
+        "arrayType": {
+          "type": "string",
+          "description": "If type is Array, specifies the type of array elements"
+        },
+        "objectSchema": {
+          "type": "object",
+          "description": "If type is Object, defines the schema for the object"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the field"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether this field is required",
+          "default": false
+        },
+        "nullable": {
+          "type": "boolean",
+          "description": "Whether this field can be null",
+          "default": true
+        },
+        "chains": {
+          "type": "array",
+          "description": "List of chains where this field is relevant (* for all)",
+          "items": {
+            "type": "string"
+          },
+          "default": ["*"]
+        },
+        "nodeType": {
+          "type": "array",
+          "description": "Node types that provide this field",
+          "items": {
+            "type": "string",
+            "enum": ["full", "archive", "light", "pruned"]
+          },
+          "default": ["full", "archive"]
+        },
+        "engines": {
+          "type": "array",
+          "description": "Engines/providers that generate this field (* for all)",
+          "items": {
+            "type": "string"
+          },
+          "default": ["*"]
+        },
+        "examples": {
+          "type": "array",
+          "description": "Example values for this field",
+          "items": {}
+        },
+        "libraryHints": {
+          "type": "object",
+          "description": "Library-specific type hints or overrides for rare cases",
+          "properties": {
+            "go": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "imports": { "type": "array", "items": { "type": "string" } },
+                "tags": { "type": "string" }
+              }
+            },
+            "typescript": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "imports": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "rust": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "imports": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "proto": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "fieldNumber": { "type": "integer", "minimum": 1 }
+              }
+            }
+          }
+        },
+        "validation": {
+          "type": "object",
+          "description": "Validation rules for the field",
+          "properties": {
+            "pattern": { "type": "string" },
+            "min": { "type": "number" },
+            "max": { "type": "number" },
+            "minLength": { "type": "integer" },
+            "maxLength": { "type": "integer" }
+          }
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "Whether this field is deprecated",
+          "default": false
+        },
+        "deprecationNote": {
+          "type": "string",
+          "description": "Note about deprecation if deprecated is true"
+        }
+      },
+      "required": ["type", "description"]
+    },
+    "typeDefinition": {
+      "type": "object",
+      "properties": {
+        "baseType": {
+          "type": "string",
+          "description": "Base type this custom type extends"
+        },
+        "description": {
+          "type": "string"
+        },
+        "validation": {
+          "$ref": "#/definitions/field/properties/validation"
+        },
+        "libraryHints": {
+          "$ref": "#/definitions/field/properties/libraryHints"
+        }
+      },
+      "required": ["baseType", "description"]
+    },
+    "provider": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Human-readable name of the provider"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the provider and its capabilities"
+        },
+        "siteUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Official website URL"
+        },
+        "githubUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "GitHub repository URL (if open source)"
+        },
+        "logoUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to provider's logo image"
+        },
+        "supportedModels": {
+          "type": "object",
+          "description": "Defines which chains, models, and fields this provider supports",
+          "patternProperties": {
+            "^[a-z][a-z0-9-]*$": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": ["*"],
+                  "description": "Supports all models and fields for this chain"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "models": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "enum": ["*"],
+                          "description": "Supports all models for this chain"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "List of specific models supported"
+                        },
+                        {
+                          "type": "object",
+                          "patternProperties": {
+                            "^[A-Z][a-zA-Z0-9]*$": {
+                              "oneOf": [
+                                {
+                                  "type": "string",
+                                  "enum": ["*"],
+                                  "description": "Supports all fields for this model"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "description": "List of specific fields supported for this model"
+                                }
+                              ]
+                            }
+                          },
+                          "description": "Map of model names to their supported fields"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["models"]
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "supportedTransports": {
+          "type": "string",
+          "enum": ["rest", "graphql", "websocket", "grpc"],
+          "description": "Primary API type offered by the provider"
+        },
+        "pricingModel": {
+          "type": "string",
+          "enum": ["free", "freemium", "paid", "open-source"],
+          "description": "Pricing model of the provider"
+        }
+      },
+      "required": ["title", "description", "supportedModels"]
+    }
+  }
+}
