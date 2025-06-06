@@ -1,0 +1,140 @@
+{
+  "provider": {
+    "info": {
+      "slug": "example-provider",
+      "name": "Example Blockchain Data Provider",
+      "description": "A provider offering comprehensive blockchain data access",
+      "websiteUrl": "https://example-provider.com",
+      "docsUrl": "https://docs.example-provider.com",
+      "logoUrl": "https://example-provider.com/logo.png",
+      "pricingModel": "freemium"
+    },
+    "networks": [
+      {
+        "uuid": "evm:1:0x88e96d",
+        "architecture": "evm",
+        "name": "Ethereum Mainnet",
+        "evm": {
+          "chainId": 1,
+          "genesisBlockHash": "0x88e96d4537bea4d9c05d12549907b32561d3bf31f45aae734cdc119f13406cb6"
+        },
+        "capabilities": {
+          "detailedOperationSupport": {
+            "services": {
+              "RPCQueryService": {
+                "allMethods": true,
+                "availability": {
+                  "allBlocks": true
+                }
+              },
+              "BulkQueryService": {
+                "specificMethods": {
+                  "methods": ["GetBlocksByRange", "GetTransactionsByRange"],
+                  "defaultAvailability": {
+                    "lastNBlocks": 10000
+                  }
+                }
+              }
+            }
+          },
+          "detailedSupport": {
+            "models": {
+              "Block": {
+                "allFields": true,
+                "availability": {
+                  "ranges": [
+                    { "fromBlock": 0, "toBlock": 1000000 },
+                    { "fromBlock": 15000000 }
+                  ]
+                }
+              },
+              "Transaction": {
+                "specificFields": {
+                  "fieldInfos": [
+                    {
+                      "name": "hash",
+                      "availability": {
+                        "allBlocks": true
+                      }
+                    },
+                    {
+                      "name": "from",
+                      "availability": {
+                        "allBlocks": true
+                      }
+                    },
+                    {
+                      "name": "to",
+                      "availability": {
+                        "allBlocks": true
+                      }
+                    },
+                    {
+                      "name": "value",
+                      "availability": {
+                        "allBlocks": true
+                      }
+                    },
+                    {
+                      "name": "input",
+                      "availability": {
+                        "lastNBlocks": 1000000
+                      }
+                    }
+                  ]
+                }
+              },
+              "Log": {
+                "allFields": true,
+                "availability": {
+                  "finalizedBlocks": true
+                }
+              }
+            }
+          },
+          "defaultAvailability": {
+            "lastNBlocks": 1000
+          }
+        }
+      },
+      {
+        "uuid": "evm:137:0xa9c28c",
+        "architecture": "evm",
+        "name": "Polygon PoS",
+        "evm": {
+          "chainId": 137,
+          "genesisBlockHash": "0xa9c28ce2141b56c474f1dc504bee9b01eb1bd7d1a507580d5519d4437a97de1b"
+        },
+        "capabilities": {
+          "allOperations": true,
+          "specificModels": {
+            "models": ["Block", "Transaction", "Log", "Receipt"]
+          },
+          "defaultAvailability": {
+            "lastNBlocks": 100000,
+            "note": "Extended history available on request"
+          }
+        }
+      },
+      {
+        "uuid": "sol:101:0x3973e3",
+        "architecture": "solana",
+        "name": "Solana Mainnet",
+        "solana": {
+          "genesisHash": "0x3973e3700e1332c3c3ccf0e1c44e8e1ae279e3a7fffe2944c926cb53a12af8a6",
+          "cluster": "mainnet-beta",
+          "slotTimeMs": 400
+        },
+        "capabilities": {
+          "specificServices": {
+            "services": ["RPCQueryService"],
+            "defaultAvailability": {
+              "lastNBlocks": 50000
+            }
+          },
+          "allModels": true
+        }
+      }
+    ]
+  }
+} 

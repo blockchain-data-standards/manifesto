@@ -85,16 +85,3 @@ message GetLogsResponse {
   // Array of logs matching the filter criteria
   repeated Log logs = 1;
 }
-
-// ========================================
-// COMMON MESSAGE TYPES
-// ========================================
-
-// Block with its transactions
-message BlockWithTransactions {
-  // The block header
-  BlockHeader block = 1;
-  
-  // Transaction data (format depends on includeTransactions flag in request)
-  repeated bytes transactions = 2;
-}

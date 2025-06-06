@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        v5.29.3
-// source: query.proto
+// source: rpc.proto
 
 package evm
 
@@ -21,134 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Request for getting multiple blocks in a range
-type GetBlocksByRangeRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Starting block number (inclusive)
-	FromBlock uint64 `protobuf:"varint,1,opt,name=fromBlock,proto3" json:"fromBlock,omitempty"`
-	// Ending block number (inclusive)
-	ToBlock uint64 `protobuf:"varint,2,opt,name=toBlock,proto3" json:"toBlock,omitempty"`
-	// Whether to include full transaction details for each block
-	IncludeTransactions bool `protobuf:"varint,3,opt,name=includeTransactions,proto3" json:"includeTransactions,omitempty"`
-	// Maximum number of blocks to return (for pagination)
-	Limit         *uint32 `protobuf:"varint,4,opt,name=limit,proto3,oneof" json:"limit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetBlocksByRangeRequest) Reset() {
-	*x = GetBlocksByRangeRequest{}
-	mi := &file_query_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetBlocksByRangeRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetBlocksByRangeRequest) ProtoMessage() {}
-
-func (x *GetBlocksByRangeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetBlocksByRangeRequest.ProtoReflect.Descriptor instead.
-func (*GetBlocksByRangeRequest) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *GetBlocksByRangeRequest) GetFromBlock() uint64 {
-	if x != nil {
-		return x.FromBlock
-	}
-	return 0
-}
-
-func (x *GetBlocksByRangeRequest) GetToBlock() uint64 {
-	if x != nil {
-		return x.ToBlock
-	}
-	return 0
-}
-
-func (x *GetBlocksByRangeRequest) GetIncludeTransactions() bool {
-	if x != nil {
-		return x.IncludeTransactions
-	}
-	return false
-}
-
-func (x *GetBlocksByRangeRequest) GetLimit() uint32 {
-	if x != nil && x.Limit != nil {
-		return *x.Limit
-	}
-	return 0
-}
-
-// Response containing blocks within the requested range
-type GetBlocksByRangeResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Array of blocks within the range
-	Blocks []*BlockWithTransactions `protobuf:"bytes,1,rep,name=blocks,proto3" json:"blocks,omitempty"`
-	// Whether more blocks exist beyond the limit
-	HasMore       bool `protobuf:"varint,2,opt,name=hasMore,proto3" json:"hasMore,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetBlocksByRangeResponse) Reset() {
-	*x = GetBlocksByRangeResponse{}
-	mi := &file_query_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetBlocksByRangeResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetBlocksByRangeResponse) ProtoMessage() {}
-
-func (x *GetBlocksByRangeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetBlocksByRangeResponse.ProtoReflect.Descriptor instead.
-func (*GetBlocksByRangeResponse) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *GetBlocksByRangeResponse) GetBlocks() []*BlockWithTransactions {
-	if x != nil {
-		return x.Blocks
-	}
-	return nil
-}
-
-func (x *GetBlocksByRangeResponse) GetHasMore() bool {
-	if x != nil {
-		return x.HasMore
-	}
-	return false
-}
-
 // Request for getting a block by number
 type GetBlockByNumberRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -162,7 +34,7 @@ type GetBlockByNumberRequest struct {
 
 func (x *GetBlockByNumberRequest) Reset() {
 	*x = GetBlockByNumberRequest{}
-	mi := &file_query_proto_msgTypes[2]
+	mi := &file_rpc_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -174,7 +46,7 @@ func (x *GetBlockByNumberRequest) String() string {
 func (*GetBlockByNumberRequest) ProtoMessage() {}
 
 func (x *GetBlockByNumberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[2]
+	mi := &file_rpc_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -187,7 +59,7 @@ func (x *GetBlockByNumberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBlockByNumberRequest.ProtoReflect.Descriptor instead.
 func (*GetBlockByNumberRequest) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{2}
+	return file_rpc_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GetBlockByNumberRequest) GetBlockNumber() uint64 {
@@ -217,7 +89,7 @@ type GetBlockByNumberResponse struct {
 
 func (x *GetBlockByNumberResponse) Reset() {
 	*x = GetBlockByNumberResponse{}
-	mi := &file_query_proto_msgTypes[3]
+	mi := &file_rpc_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -229,7 +101,7 @@ func (x *GetBlockByNumberResponse) String() string {
 func (*GetBlockByNumberResponse) ProtoMessage() {}
 
 func (x *GetBlockByNumberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[3]
+	mi := &file_rpc_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -242,7 +114,7 @@ func (x *GetBlockByNumberResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBlockByNumberResponse.ProtoReflect.Descriptor instead.
 func (*GetBlockByNumberResponse) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{3}
+	return file_rpc_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GetBlockByNumberResponse) GetBlock() *BlockHeader {
@@ -272,7 +144,7 @@ type GetBlockByHashRequest struct {
 
 func (x *GetBlockByHashRequest) Reset() {
 	*x = GetBlockByHashRequest{}
-	mi := &file_query_proto_msgTypes[4]
+	mi := &file_rpc_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -284,7 +156,7 @@ func (x *GetBlockByHashRequest) String() string {
 func (*GetBlockByHashRequest) ProtoMessage() {}
 
 func (x *GetBlockByHashRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[4]
+	mi := &file_rpc_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -297,7 +169,7 @@ func (x *GetBlockByHashRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBlockByHashRequest.ProtoReflect.Descriptor instead.
 func (*GetBlockByHashRequest) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{4}
+	return file_rpc_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetBlockByHashRequest) GetBlockHash() []byte {
@@ -327,7 +199,7 @@ type GetBlockByHashResponse struct {
 
 func (x *GetBlockByHashResponse) Reset() {
 	*x = GetBlockByHashResponse{}
-	mi := &file_query_proto_msgTypes[5]
+	mi := &file_rpc_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -339,7 +211,7 @@ func (x *GetBlockByHashResponse) String() string {
 func (*GetBlockByHashResponse) ProtoMessage() {}
 
 func (x *GetBlockByHashResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[5]
+	mi := &file_rpc_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -352,7 +224,7 @@ func (x *GetBlockByHashResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBlockByHashResponse.ProtoReflect.Descriptor instead.
 func (*GetBlockByHashResponse) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{5}
+	return file_rpc_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetBlockByHashResponse) GetBlock() *BlockHeader {
@@ -390,7 +262,7 @@ type GetLogsRequest struct {
 
 func (x *GetLogsRequest) Reset() {
 	*x = GetLogsRequest{}
-	mi := &file_query_proto_msgTypes[6]
+	mi := &file_rpc_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -402,7 +274,7 @@ func (x *GetLogsRequest) String() string {
 func (*GetLogsRequest) ProtoMessage() {}
 
 func (x *GetLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[6]
+	mi := &file_rpc_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,7 +287,7 @@ func (x *GetLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLogsRequest.ProtoReflect.Descriptor instead.
 func (*GetLogsRequest) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{6}
+	return file_rpc_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetLogsRequest) GetFromBlock() uint64 {
@@ -464,7 +336,7 @@ type TopicFilter struct {
 
 func (x *TopicFilter) Reset() {
 	*x = TopicFilter{}
-	mi := &file_query_proto_msgTypes[7]
+	mi := &file_rpc_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -476,7 +348,7 @@ func (x *TopicFilter) String() string {
 func (*TopicFilter) ProtoMessage() {}
 
 func (x *TopicFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[7]
+	mi := &file_rpc_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -489,7 +361,7 @@ func (x *TopicFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopicFilter.ProtoReflect.Descriptor instead.
 func (*TopicFilter) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{7}
+	return file_rpc_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *TopicFilter) GetValues() [][]byte {
@@ -510,7 +382,7 @@ type GetLogsResponse struct {
 
 func (x *GetLogsResponse) Reset() {
 	*x = GetLogsResponse{}
-	mi := &file_query_proto_msgTypes[8]
+	mi := &file_rpc_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -522,7 +394,7 @@ func (x *GetLogsResponse) String() string {
 func (*GetLogsResponse) ProtoMessage() {}
 
 func (x *GetLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[8]
+	mi := &file_rpc_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -535,7 +407,7 @@ func (x *GetLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLogsResponse.ProtoReflect.Descriptor instead.
 func (*GetLogsResponse) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{8}
+	return file_rpc_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetLogsResponse) GetLogs() []*Log {
@@ -545,75 +417,11 @@ func (x *GetLogsResponse) GetLogs() []*Log {
 	return nil
 }
 
-// Block with its transactions
-type BlockWithTransactions struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The block header
-	Block *BlockHeader `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
-	// Transaction data (format depends on includeTransactions flag in request)
-	Transactions  [][]byte `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+var File_rpc_proto protoreflect.FileDescriptor
 
-func (x *BlockWithTransactions) Reset() {
-	*x = BlockWithTransactions{}
-	mi := &file_query_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BlockWithTransactions) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BlockWithTransactions) ProtoMessage() {}
-
-func (x *BlockWithTransactions) ProtoReflect() protoreflect.Message {
-	mi := &file_query_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BlockWithTransactions.ProtoReflect.Descriptor instead.
-func (*BlockWithTransactions) Descriptor() ([]byte, []int) {
-	return file_query_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *BlockWithTransactions) GetBlock() *BlockHeader {
-	if x != nil {
-		return x.Block
-	}
-	return nil
-}
-
-func (x *BlockWithTransactions) GetTransactions() [][]byte {
-	if x != nil {
-		return x.Transactions
-	}
-	return nil
-}
-
-var File_query_proto protoreflect.FileDescriptor
-
-const file_query_proto_rawDesc = "" +
+const file_rpc_proto_rawDesc = "" +
 	"\n" +
-	"\vquery.proto\x12\abds.evm\x1a\fmodels.proto\"\xa8\x01\n" +
-	"\x17GetBlocksByRangeRequest\x12\x1c\n" +
-	"\tfromBlock\x18\x01 \x01(\x04R\tfromBlock\x12\x18\n" +
-	"\atoBlock\x18\x02 \x01(\x04R\atoBlock\x120\n" +
-	"\x13includeTransactions\x18\x03 \x01(\bR\x13includeTransactions\x12\x19\n" +
-	"\x05limit\x18\x04 \x01(\rH\x00R\x05limit\x88\x01\x01B\b\n" +
-	"\x06_limit\"l\n" +
-	"\x18GetBlocksByRangeResponse\x126\n" +
-	"\x06blocks\x18\x01 \x03(\v2\x1e.bds.evm.BlockWithTransactionsR\x06blocks\x12\x18\n" +
-	"\ahasMore\x18\x02 \x01(\bR\ahasMore\"m\n" +
+	"\trpc.proto\x12\abds.evm\x1a\fmodels.proto\"m\n" +
 	"\x17GetBlockByNumberRequest\x12 \n" +
 	"\vblockNumber\x18\x01 \x01(\x04R\vblockNumber\x120\n" +
 	"\x13includeTransactions\x18\x02 \x01(\bR\x13includeTransactions\"j\n" +
@@ -641,88 +449,76 @@ const file_query_proto_rawDesc = "" +
 	"\vTopicFilter\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\fR\x06values\"3\n" +
 	"\x0fGetLogsResponse\x12 \n" +
-	"\x04logs\x18\x01 \x03(\v2\f.bds.evm.LogR\x04logs\"g\n" +
-	"\x15BlockWithTransactions\x12*\n" +
-	"\x05block\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x05block\x12\"\n" +
-	"\ftransactions\x18\x02 \x03(\fR\ftransactions2\xd1\x02\n" +
-	"\fQueryService\x12W\n" +
-	"\x10GetBlocksByRange\x12 .bds.evm.GetBlocksByRangeRequest\x1a!.bds.evm.GetBlocksByRangeResponse\x12W\n" +
+	"\x04logs\x18\x01 \x03(\v2\f.bds.evm.LogR\x04logs2\xfb\x01\n" +
+	"\x0fRPCQueryService\x12W\n" +
 	"\x10GetBlockByNumber\x12 .bds.evm.GetBlockByNumberRequest\x1a!.bds.evm.GetBlockByNumberResponse\x12Q\n" +
 	"\x0eGetBlockByHash\x12\x1e.bds.evm.GetBlockByHashRequest\x1a\x1f.bds.evm.GetBlockByHashResponse\x12<\n" +
 	"\aGetLogs\x12\x17.bds.evm.GetLogsRequest\x1a\x18.bds.evm.GetLogsResponseB4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
 
 var (
-	file_query_proto_rawDescOnce sync.Once
-	file_query_proto_rawDescData []byte
+	file_rpc_proto_rawDescOnce sync.Once
+	file_rpc_proto_rawDescData []byte
 )
 
-func file_query_proto_rawDescGZIP() []byte {
-	file_query_proto_rawDescOnce.Do(func() {
-		file_query_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_query_proto_rawDesc), len(file_query_proto_rawDesc)))
+func file_rpc_proto_rawDescGZIP() []byte {
+	file_rpc_proto_rawDescOnce.Do(func() {
+		file_rpc_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_rpc_proto_rawDesc), len(file_rpc_proto_rawDesc)))
 	})
-	return file_query_proto_rawDescData
+	return file_rpc_proto_rawDescData
 }
 
-var file_query_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
-var file_query_proto_goTypes = []any{
-	(*GetBlocksByRangeRequest)(nil),  // 0: bds.evm.GetBlocksByRangeRequest
-	(*GetBlocksByRangeResponse)(nil), // 1: bds.evm.GetBlocksByRangeResponse
-	(*GetBlockByNumberRequest)(nil),  // 2: bds.evm.GetBlockByNumberRequest
-	(*GetBlockByNumberResponse)(nil), // 3: bds.evm.GetBlockByNumberResponse
-	(*GetBlockByHashRequest)(nil),    // 4: bds.evm.GetBlockByHashRequest
-	(*GetBlockByHashResponse)(nil),   // 5: bds.evm.GetBlockByHashResponse
-	(*GetLogsRequest)(nil),           // 6: bds.evm.GetLogsRequest
-	(*TopicFilter)(nil),              // 7: bds.evm.TopicFilter
-	(*GetLogsResponse)(nil),          // 8: bds.evm.GetLogsResponse
-	(*BlockWithTransactions)(nil),    // 9: bds.evm.BlockWithTransactions
-	(*BlockHeader)(nil),              // 10: bds.evm.BlockHeader
-	(*Log)(nil),                      // 11: bds.evm.Log
+var file_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_rpc_proto_goTypes = []any{
+	(*GetBlockByNumberRequest)(nil),  // 0: bds.evm.GetBlockByNumberRequest
+	(*GetBlockByNumberResponse)(nil), // 1: bds.evm.GetBlockByNumberResponse
+	(*GetBlockByHashRequest)(nil),    // 2: bds.evm.GetBlockByHashRequest
+	(*GetBlockByHashResponse)(nil),   // 3: bds.evm.GetBlockByHashResponse
+	(*GetLogsRequest)(nil),           // 4: bds.evm.GetLogsRequest
+	(*TopicFilter)(nil),              // 5: bds.evm.TopicFilter
+	(*GetLogsResponse)(nil),          // 6: bds.evm.GetLogsResponse
+	(*BlockHeader)(nil),              // 7: bds.evm.BlockHeader
+	(*Log)(nil),                      // 8: bds.evm.Log
 }
-var file_query_proto_depIdxs = []int32{
-	9,  // 0: bds.evm.GetBlocksByRangeResponse.blocks:type_name -> bds.evm.BlockWithTransactions
-	10, // 1: bds.evm.GetBlockByNumberResponse.block:type_name -> bds.evm.BlockHeader
-	10, // 2: bds.evm.GetBlockByHashResponse.block:type_name -> bds.evm.BlockHeader
-	7,  // 3: bds.evm.GetLogsRequest.topics:type_name -> bds.evm.TopicFilter
-	11, // 4: bds.evm.GetLogsResponse.logs:type_name -> bds.evm.Log
-	10, // 5: bds.evm.BlockWithTransactions.block:type_name -> bds.evm.BlockHeader
-	0,  // 6: bds.evm.QueryService.GetBlocksByRange:input_type -> bds.evm.GetBlocksByRangeRequest
-	2,  // 7: bds.evm.QueryService.GetBlockByNumber:input_type -> bds.evm.GetBlockByNumberRequest
-	4,  // 8: bds.evm.QueryService.GetBlockByHash:input_type -> bds.evm.GetBlockByHashRequest
-	6,  // 9: bds.evm.QueryService.GetLogs:input_type -> bds.evm.GetLogsRequest
-	1,  // 10: bds.evm.QueryService.GetBlocksByRange:output_type -> bds.evm.GetBlocksByRangeResponse
-	3,  // 11: bds.evm.QueryService.GetBlockByNumber:output_type -> bds.evm.GetBlockByNumberResponse
-	5,  // 12: bds.evm.QueryService.GetBlockByHash:output_type -> bds.evm.GetBlockByHashResponse
-	8,  // 13: bds.evm.QueryService.GetLogs:output_type -> bds.evm.GetLogsResponse
-	10, // [10:14] is the sub-list for method output_type
-	6,  // [6:10] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+var file_rpc_proto_depIdxs = []int32{
+	7, // 0: bds.evm.GetBlockByNumberResponse.block:type_name -> bds.evm.BlockHeader
+	7, // 1: bds.evm.GetBlockByHashResponse.block:type_name -> bds.evm.BlockHeader
+	5, // 2: bds.evm.GetLogsRequest.topics:type_name -> bds.evm.TopicFilter
+	8, // 3: bds.evm.GetLogsResponse.logs:type_name -> bds.evm.Log
+	0, // 4: bds.evm.RPCQueryService.GetBlockByNumber:input_type -> bds.evm.GetBlockByNumberRequest
+	2, // 5: bds.evm.RPCQueryService.GetBlockByHash:input_type -> bds.evm.GetBlockByHashRequest
+	4, // 6: bds.evm.RPCQueryService.GetLogs:input_type -> bds.evm.GetLogsRequest
+	1, // 7: bds.evm.RPCQueryService.GetBlockByNumber:output_type -> bds.evm.GetBlockByNumberResponse
+	3, // 8: bds.evm.RPCQueryService.GetBlockByHash:output_type -> bds.evm.GetBlockByHashResponse
+	6, // 9: bds.evm.RPCQueryService.GetLogs:output_type -> bds.evm.GetLogsResponse
+	7, // [7:10] is the sub-list for method output_type
+	4, // [4:7] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_query_proto_init() }
-func file_query_proto_init() {
-	if File_query_proto != nil {
+func init() { file_rpc_proto_init() }
+func file_rpc_proto_init() {
+	if File_rpc_proto != nil {
 		return
 	}
 	file_models_proto_init()
-	file_query_proto_msgTypes[0].OneofWrappers = []any{}
-	file_query_proto_msgTypes[6].OneofWrappers = []any{}
+	file_rpc_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_query_proto_rawDesc), len(file_query_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_rpc_proto_rawDesc), len(file_rpc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_query_proto_goTypes,
-		DependencyIndexes: file_query_proto_depIdxs,
-		MessageInfos:      file_query_proto_msgTypes,
+		GoTypes:           file_rpc_proto_goTypes,
+		DependencyIndexes: file_rpc_proto_depIdxs,
+		MessageInfos:      file_rpc_proto_msgTypes,
 	}.Build()
-	File_query_proto = out.File
-	file_query_proto_goTypes = nil
-	file_query_proto_depIdxs = nil
+	File_rpc_proto = out.File
+	file_rpc_proto_goTypes = nil
+	file_rpc_proto_depIdxs = nil
 }
