@@ -21,6 +21,128 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Enum for transaction types based on EIP-2718.
+type TransactionType int32
+
+const (
+	// Pre-EIP-2718
+	TransactionType_LEGACY TransactionType = 0
+	// EIP-2930
+	TransactionType_ACCESS_LIST TransactionType = 1
+	// EIP-1559
+	TransactionType_DYNAMIC_FEE TransactionType = 2
+	// EIP-4844
+	TransactionType_BLOB TransactionType = 3
+	// EIP-7702
+	TransactionType_SET_CODE TransactionType = 4
+)
+
+// Enum value maps for TransactionType.
+var (
+	TransactionType_name = map[int32]string{
+		0: "LEGACY",
+		1: "ACCESS_LIST",
+		2: "DYNAMIC_FEE",
+		3: "BLOB",
+		4: "SET_CODE",
+	}
+	TransactionType_value = map[string]int32{
+		"LEGACY":      0,
+		"ACCESS_LIST": 1,
+		"DYNAMIC_FEE": 2,
+		"BLOB":        3,
+		"SET_CODE":    4,
+	}
+)
+
+func (x TransactionType) Enum() *TransactionType {
+	p := new(TransactionType)
+	*p = x
+	return p
+}
+
+func (x TransactionType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TransactionType) Descriptor() protoreflect.EnumDescriptor {
+	return file_models_proto_enumTypes[0].Descriptor()
+}
+
+func (TransactionType) Type() protoreflect.EnumType {
+	return &file_models_proto_enumTypes[0]
+}
+
+func (x TransactionType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TransactionType.Descriptor instead.
+func (TransactionType) EnumDescriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{0}
+}
+
+// A reference to a block on an EVM-compatible blockchain. This is used to identify a block without storing the full block data.
+type BlockRef struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Number        uint64                 `protobuf:"varint,1,opt,name=number,proto3" json:"number,omitempty"`
+	Hash          []byte                 `protobuf:"bytes,2,opt,name=hash,proto3" json:"hash,omitempty"`
+	ParentHash    []byte                 `protobuf:"bytes,3,opt,name=parentHash,proto3" json:"parentHash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockRef) Reset() {
+	*x = BlockRef{}
+	mi := &file_models_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockRef) ProtoMessage() {}
+
+func (x *BlockRef) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockRef.ProtoReflect.Descriptor instead.
+func (*BlockRef) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *BlockRef) GetNumber() uint64 {
+	if x != nil {
+		return x.Number
+	}
+	return 0
+}
+
+func (x *BlockRef) GetHash() []byte {
+	if x != nil {
+		return x.Hash
+	}
+	return nil
+}
+
+func (x *BlockRef) GetParentHash() []byte {
+	if x != nil {
+		return x.ParentHash
+	}
+	return nil
+}
+
 // A confirmed block on an EVM-compatible blockchain containing transactions and state changes
 type BlockHeader struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -98,7 +220,7 @@ type BlockHeader struct {
 
 func (x *BlockHeader) Reset() {
 	*x = BlockHeader{}
-	mi := &file_models_proto_msgTypes[0]
+	mi := &file_models_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -110,7 +232,7 @@ func (x *BlockHeader) String() string {
 func (*BlockHeader) ProtoMessage() {}
 
 func (x *BlockHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_models_proto_msgTypes[0]
+	mi := &file_models_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -123,7 +245,7 @@ func (x *BlockHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockHeader.ProtoReflect.Descriptor instead.
 func (*BlockHeader) Descriptor() ([]byte, []int) {
-	return file_models_proto_rawDescGZIP(), []int{0}
+	return file_models_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *BlockHeader) GetNumber() uint64 {
@@ -364,6 +486,568 @@ func (x *BlockHeader) GetUncles() [][]byte {
 	return nil
 }
 
+// A full block with its header, transactions, and logs.
+type Block struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The block header including number, hash, timestamp, etc
+	Header *BlockHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
+	// Array of transaction data. Can be empty (omitted). When present, contains the raw transaction bytes for each transaction in the block
+	Transactions []*Transaction `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	// Array of logs emitted by all transactions in this block. Can be empty (omitted). Logs are ordered by transaction index and then by log index within each transaction
+	Logs []*Log `protobuf:"bytes,3,rep,name=logs,proto3" json:"logs,omitempty"`
+	// Array of withdrawal operations from beacon chain validators. Introduced in Shanghai upgrade. Contains validator index, withdrawal address, and amount. Usually RLP-encoded array. Empty for pre-Shanghai blocks.
+	Withdrawals   []*Withdrawal `protobuf:"bytes,4,rep,name=withdrawals,proto3" json:"withdrawals,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Block) Reset() {
+	*x = Block{}
+	mi := &file_models_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Block) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Block) ProtoMessage() {}
+
+func (x *Block) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Block.ProtoReflect.Descriptor instead.
+func (*Block) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Block) GetHeader() *BlockHeader {
+	if x != nil {
+		return x.Header
+	}
+	return nil
+}
+
+func (x *Block) GetTransactions() []*Transaction {
+	if x != nil {
+		return x.Transactions
+	}
+	return nil
+}
+
+func (x *Block) GetLogs() []*Log {
+	if x != nil {
+		return x.Logs
+	}
+	return nil
+}
+
+func (x *Block) GetWithdrawals() []*Withdrawal {
+	if x != nil {
+		return x.Withdrawals
+	}
+	return nil
+}
+
+// A minimal reference to a transaction of a block.
+type TransactionRef struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The block reference that contains the transaction.
+	Block *BlockRef `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
+	// The index of the transaction in the block.
+	TransactionIndex uint32 `protobuf:"varint,2,opt,name=transactionIndex,proto3" json:"transactionIndex,omitempty"`
+	// The hash of the transaction.
+	TransactionHash []byte `protobuf:"bytes,3,opt,name=transactionHash,proto3" json:"transactionHash,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *TransactionRef) Reset() {
+	*x = TransactionRef{}
+	mi := &file_models_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransactionRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransactionRef) ProtoMessage() {}
+
+func (x *TransactionRef) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransactionRef.ProtoReflect.Descriptor instead.
+func (*TransactionRef) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *TransactionRef) GetBlock() *BlockRef {
+	if x != nil {
+		return x.Block
+	}
+	return nil
+}
+
+func (x *TransactionRef) GetTransactionIndex() uint32 {
+	if x != nil {
+		return x.TransactionIndex
+	}
+	return 0
+}
+
+func (x *TransactionRef) GetTransactionHash() []byte {
+	if x != nil {
+		return x.TransactionHash
+	}
+	return nil
+}
+
+// Represents a transaction on an EVM-compatible blockchain. This comprehensive model captures all transaction types from legacy to the latest EIPs (1559, 2930, 4844, 7702) and includes both the transaction envelope and receipt data for a complete view of transaction lifecycle
+type Transaction struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Unique 256-bit Keccak hash of the RLP-encoded signed transaction. This serves as the transaction's permanent identifier across all systems. Calculated by hashing the serialized transaction data including signature. Used for tracking transaction status, linking logs/receipts, and as a content-addressed identifier
+	Hash []byte `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
+	// Sequential counter of transactions sent from the sender's address. Prevents replay attacks and ensures transaction ordering. Each account's nonce starts at 0 and must increment by 1 for each transaction. Transactions with incorrect nonces are rejected. Critical for transaction pool management and account state transitions
+	Nonce uint64 `protobuf:"varint,2,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	// The 20-byte address of the account that created and signed this transaction. Recovered from the transaction signature (v, r, s values). Pays for gas fees and any value transfer. For contract creation transactions, this becomes the creator/deployer address. Must have sufficient balance for gas + value
+	From []byte `protobuf:"bytes,3,opt,name=from,proto3" json:"from,omitempty"`
+	// The 20-byte address of the recipient account or contract. For EOA transfers, this is the destination address. For contract calls, this is the contract address. NULL/empty for contract creation transactions where the contract address is derived from sender + nonce. L2s may have system addresses for special operations
+	To []byte `protobuf:"bytes,4,opt,name=to,proto3,oneof" json:"to,omitempty"`
+	// Amount of native currency (ETH on Ethereum, in wei) to transfer from sender to recipient. 1 ETH = 10^18 wei. Can be 0 for pure contract calls. For contract creation, this becomes the initial balance. Uses 256-bit precision to prevent overflow. Sent value must be <= sender's balance minus gas costs
+	Value string `protobuf:"bytes,5,opt,name=value,proto3" json:"value,omitempty"`
+	// Arbitrary byte data payload. For EOA transfers, typically empty. For contract calls, contains ABI-encoded function selector and parameters. For contract creation, contains the contract deployment bytecode + constructor parameters. Limited by block gas limit. Critical for all smart contract interactions
+	Input []byte `protobuf:"bytes,6,opt,name=input,proto3" json:"input,omitempty"`
+	// Transaction type identifier following EIP-2718. 0=Legacy (pre-EIP-1559), 1=EIP-2930 (access list), 2=EIP-1559 (dynamic fees), 3=EIP-4844 (blob transactions), 4=EIP-7702 (set code). L2s may define custom types (e.g., Arbitrum 100-120, Optimism 126). Determines transaction format and features available
+	Type uint32 `protobuf:"varint,7,opt,name=type,proto3" json:"type,omitempty"`
+	// Maximum gas units this transaction can consume. Set by sender as a cap on computation/storage operations. Unused gas is refunded. Must be >= 21000 (base transaction cost) plus additional for data/computation. If execution exceeds this limit, transaction reverts but gas is still paid
+	GasLimit uint64 `protobuf:"varint,8,opt,name=gasLimit,proto3" json:"gasLimit,omitempty"`
+	// Price per gas unit for legacy (type 0) transactions, in wei. For EIP-1559 transactions, this field contains the effective price paid (min(maxFeePerGas, baseFeePerGas + maxPriorityFeePerGas)). Market-driven in legacy, algorithmic in EIP-1559. Critical for transaction prioritization and miner/validator economics
+	GasPrice *string `protobuf:"bytes,9,opt,name=gasPrice,proto3,oneof" json:"gasPrice,omitempty"`
+	// Maximum total fee per gas unit sender is willing to pay (EIP-1559), in wei. Includes both base fee and priority fee. Must be >= block's baseFeePerGas for inclusion. Replaces gasPrice for type 2+ transactions. Protects users from sudden fee spikes. Excess above base fee + priority fee is refunded
+	MaxFeePerGas *string `protobuf:"bytes,10,opt,name=maxFeePerGas,proto3,oneof" json:"maxFeePerGas,omitempty"`
+	// Maximum priority fee (tip) per gas unit for miners/validators (EIP-1559), in wei. This is paid on top of the base fee to incentivize inclusion. Goes directly to block producer. Replaces legacy gas price bidding. During congestion, higher tips get priority. Can be 0 but may result in slower inclusion
+	MaxPriorityFeePerGas *string `protobuf:"bytes,11,opt,name=maxPriorityFeePerGas,proto3,oneof" json:"maxPriorityFeePerGas,omitempty"`
+	// Actual gas units consumed by this transaction's execution. Always <= gasLimit. Determined by EVM execution including base cost (21000), calldata cost, computation, and storage operations. Used to calculate actual fee paid. Essential for gas optimization and debugging failed transactions
+	GasUsed *uint64 `protobuf:"varint,12,opt,name=gasUsed,proto3,oneof" json:"gasUsed,omitempty"`
+	// The actual price per gas unit paid for this transaction, in wei. For legacy transactions equals gasPrice. For EIP-1559, equals baseFeePerGas + min(maxPriorityFeePerGas, maxFeePerGas - baseFeePerGas). Used to calculate total transaction cost. May be less than maxFeePerGas when base fee is low
+	EffectiveGasPrice *string `protobuf:"bytes,13,opt,name=effectiveGasPrice,proto3,oneof" json:"effectiveGasPrice,omitempty"`
+	// ECDSA signature R value - X coordinate point on the elliptic curve (32 bytes). Part of the cryptographic signature proving the sender authorized this transaction. Combined with S and V to recover the signer's public key and derive the from address. Must be within valid curve range
+	R []byte `protobuf:"bytes,14,opt,name=r,proto3" json:"r,omitempty"`
+	// ECDSA signature S value - signature proof value (32 bytes). Second part of the signature. Must be in the lower half of the curve order range to prevent malleability (EIP-2). Together with R and V allows anyone to verify the transaction was signed by the private key corresponding to the from address
+	S []byte `protobuf:"bytes,15,opt,name=s,proto3" json:"s,omitempty"`
+	// ECDSA recovery ID including chain ID for replay protection. For legacy transactions: 27/28 (no replay protection) or {chain_id * 2 + 35/36} (EIP-155). For typed transactions: 0/1 (y-parity). Used to recover the public key from signature and prevent cross-chain replay attacks
+	V []byte `protobuf:"bytes,16,opt,name=v,proto3,oneof" json:"v,omitempty"`
+	// Y-parity of the signature (0 or 1) for typed transactions (EIP-2718). Replaces the v field for transaction types >= 1. Indicates which of two possible Y coordinates to use when recovering the public key. More explicit than legacy v encoding
+	YParity *uint32 `protobuf:"varint,17,opt,name=yParity,proto3,oneof" json:"yParity,omitempty"`
+	// Chain ID for replay protection (EIP-155). Prevents signed transactions from being valid on other EVM chains. Mainnet=1, Goerli=5, Sepolia=11155111, etc. Incorporated into v for legacy transactions. Explicit field for typed transactions. Critical for multi-chain environments
+	ChainId *uint64 `protobuf:"varint,18,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
+	// Block number containing this transaction. NULL for pending transactions. Used for determining transaction finality, calculating confirmations, and ordering transactions chronologically. Essential for applications tracking transaction lifecycle and handling reorgs
+	BlockNumber *uint64 `protobuf:"varint,19,opt,name=blockNumber,proto3,oneof" json:"blockNumber,omitempty"`
+	// Hash of the block containing this transaction. NULL for pending transactions. Links transaction to specific block for verification. Can change during chain reorganizations. Used with transactionIndex to locate transaction within blockchain data structure
+	BlockHash []byte `protobuf:"bytes,20,opt,name=blockHash,proto3,oneof" json:"blockHash,omitempty"`
+	// Zero-based index position of this transaction within its block. NULL for pending transactions. Determines execution order within block - lower indices execute first. Used with blockHash/blockNumber to uniquely identify transaction position. Essential for light clients and proof generation
+	TransactionIndex *uint32 `protobuf:"varint,21,opt,name=transactionIndex,proto3,oneof" json:"transactionIndex,omitempty"`
+	// Unix timestamp of the block containing this transaction. Denormalized from block data for query convenience. NULL for pending transactions. Enables time-based queries and analysis. All transactions in a block share the same timestamp. May be manipulated by miners within protocol limits
+	BlockTimestamp *uint64 `protobuf:"varint,22,opt,name=blockTimestamp,proto3,oneof" json:"blockTimestamp,omitempty"`
+	// List of addresses and storage slots the transaction will access (EIP-2930). Enables gas savings by pre-declaring state access. Each accessed address costs 2400 gas, each slot 1900 gas - but discounted if in access list. Optional for type 1 & 2 transactions. Helps prevent breaking changes from state access repricing
+	AccessList []*AccessListItem `protobuf:"bytes,23,rep,name=accessList,proto3" json:"accessList,omitempty"`
+	// Maximum fee per blob gas unit for blob transactions (EIP-4844), in wei. Similar to maxFeePerGas but for blob data. Blobs are priced separately from execution gas. Must be >= blob base fee for inclusion. Each blob is 128KB. Used for L2 data availability
+	MaxFeePerBlobGas *string `protobuf:"bytes,24,opt,name=maxFeePerBlobGas,proto3,oneof" json:"maxFeePerBlobGas,omitempty"`
+	// List of versioned blob hashes for this transaction (EIP-4844). Each hash is kzg_to_versioned_hash(kzg_commitment) = BLOB_COMMITMENT_VERSION_KZG + sha256(commitment)[1:]. Maximum 6 blobs per transaction. Enables L2s to post data cheaply. Blobs are pruned after ~2 weeks
+	BlobVersionedHashes [][]byte `protobuf:"bytes,25,rep,name=blobVersionedHashes,proto3" json:"blobVersionedHashes,omitempty"`
+	// Total blob gas consumed by this transaction. Each blob uses 131,072 gas units (2^17). Charged separately from execution gas. Used to calculate blob fee: blobGasUsed * blobGasPrice. Only for type 3 transactions. Enables cheap L2 data availability
+	BlobGasUsed *uint64 `protobuf:"varint,26,opt,name=blobGasUsed,proto3,oneof" json:"blobGasUsed,omitempty"`
+	// Actual price per blob gas unit paid, in wei. Dynamically adjusted based on network blob usage similar to EIP-1559. Calculated as base blob fee when transaction was included. Lower than regular gas prices to incentivize L2 adoption
+	BlobGasPrice *string `protobuf:"bytes,27,opt,name=blobGasPrice,proto3,oneof" json:"blobGasPrice,omitempty"`
+	// List of authorizations to set code for EOAs (EIP-7702). Allows EOAs to temporarily act like smart contracts by delegating to contract code. Each authorization is signed by the EOA owner. Enables account abstraction and smart wallet features without deploying contracts
+	AuthorizationList []*AuthorizationListItem `protobuf:"bytes,28,rep,name=authorizationList,proto3" json:"authorizationList,omitempty"`
+	// Fee paid for L1 data availability on L2s, in wei. Covers the cost of posting transaction data to L1. Calculated as L1GasPrice * L1GasUsed * L1FeeScalar. Significant portion of L2 transaction costs. Only applicable on L2s like Optimism/Arbitrum
+	L1Fee *string `protobuf:"bytes,29,opt,name=l1Fee,proto3,oneof" json:"l1Fee,omitempty"`
+	// L1 gas price used to calculate L1 fee on L2s, in wei. Tracks Ethereum mainnet gas prices. L2 sequencers update this based on L1 conditions. Used to ensure L2 transactions cover their L1 data costs. Can be significant during L1 congestion
+	L1GasPrice *string `protobuf:"bytes,30,opt,name=l1GasPrice,proto3,oneof" json:"l1GasPrice,omitempty"`
+	// Estimated L1 gas units used for this L2 transaction's data. Based on transaction size when compressed. Multiplied by L1 gas price to get L1 fee. Critical for L2 economics. Varies by L2 design (optimistic vs zk rollups)
+	L1GasUsed *string `protobuf:"bytes,31,opt,name=l1GasUsed,proto3,oneof" json:"l1GasUsed,omitempty"`
+	// Scalar multiplier for L1 fee calculation on L2s. Covers additional overhead and provides buffer for gas price volatility. Set by L2 operators. Usually between 1-2x. Adjustable to maintain L2 sustainability
+	L1FeeScalar *float64 `protobuf:"fixed64,32,opt,name=l1FeeScalar,proto3,oneof" json:"l1FeeScalar,omitempty"`
+	// Base fee for blob data on L1 used by L2s (EIP-4844). Enables cheaper L2 data posting via blobs instead of calldata. Dynamically adjusted like EIP-1559. Only relevant post-Dencun on L2s that support blob posting
+	L1BlobBaseFee *string `protobuf:"bytes,33,opt,name=l1BlobBaseFee,proto3,oneof" json:"l1BlobBaseFee,omitempty"`
+	// Scalar for L1 blob base fee calculations on L2s. Similar to l1FeeScalar but for blob data costs. Adjustable by L2 operators. Used after EIP-4844 activation to calculate data availability costs via blobs
+	L1BlobBaseFeeScalar *uint64 `protobuf:"varint,34,opt,name=l1BlobBaseFeeScalar,proto3,oneof" json:"l1BlobBaseFeeScalar,omitempty"`
+	// Additional fee for using a specific payment gateway or relayer. Common in meta-transaction systems where a third party pays gas. Denominated in fee currency. Supports gasless transactions and alternative payment methods
+	GatewayFee *string `protobuf:"bytes,35,opt,name=gatewayFee,proto3,oneof" json:"gatewayFee,omitempty"`
+	// Contract address of the ERC-20 token used for fee payment. Enables paying transaction fees in tokens other than native currency. Must be supported by the network/relayer. Common in L2s and sidechains for better UX (Celo)
+	FeeCurrency []byte `protobuf:"bytes,36,opt,name=feeCurrency,proto3,oneof" json:"feeCurrency,omitempty"`
+	// Address that receives gateway fees. Usually a relayer or protocol treasury. Only relevant when gatewayFee > 0. Enables sustainable meta-transaction infrastructure. Must be specified when using alternative fee payment
+	GatewayFeeRecipient []byte `protobuf:"bytes,37,opt,name=gatewayFeeRecipient,proto3,oneof" json:"gatewayFeeRecipient,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *Transaction) Reset() {
+	*x = Transaction{}
+	mi := &file_models_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Transaction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Transaction) ProtoMessage() {}
+
+func (x *Transaction) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Transaction.ProtoReflect.Descriptor instead.
+func (*Transaction) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Transaction) GetHash() []byte {
+	if x != nil {
+		return x.Hash
+	}
+	return nil
+}
+
+func (x *Transaction) GetNonce() uint64 {
+	if x != nil {
+		return x.Nonce
+	}
+	return 0
+}
+
+func (x *Transaction) GetFrom() []byte {
+	if x != nil {
+		return x.From
+	}
+	return nil
+}
+
+func (x *Transaction) GetTo() []byte {
+	if x != nil {
+		return x.To
+	}
+	return nil
+}
+
+func (x *Transaction) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *Transaction) GetInput() []byte {
+	if x != nil {
+		return x.Input
+	}
+	return nil
+}
+
+func (x *Transaction) GetType() uint32 {
+	if x != nil {
+		return x.Type
+	}
+	return 0
+}
+
+func (x *Transaction) GetGasLimit() uint64 {
+	if x != nil {
+		return x.GasLimit
+	}
+	return 0
+}
+
+func (x *Transaction) GetGasPrice() string {
+	if x != nil && x.GasPrice != nil {
+		return *x.GasPrice
+	}
+	return ""
+}
+
+func (x *Transaction) GetMaxFeePerGas() string {
+	if x != nil && x.MaxFeePerGas != nil {
+		return *x.MaxFeePerGas
+	}
+	return ""
+}
+
+func (x *Transaction) GetMaxPriorityFeePerGas() string {
+	if x != nil && x.MaxPriorityFeePerGas != nil {
+		return *x.MaxPriorityFeePerGas
+	}
+	return ""
+}
+
+func (x *Transaction) GetGasUsed() uint64 {
+	if x != nil && x.GasUsed != nil {
+		return *x.GasUsed
+	}
+	return 0
+}
+
+func (x *Transaction) GetEffectiveGasPrice() string {
+	if x != nil && x.EffectiveGasPrice != nil {
+		return *x.EffectiveGasPrice
+	}
+	return ""
+}
+
+func (x *Transaction) GetR() []byte {
+	if x != nil {
+		return x.R
+	}
+	return nil
+}
+
+func (x *Transaction) GetS() []byte {
+	if x != nil {
+		return x.S
+	}
+	return nil
+}
+
+func (x *Transaction) GetV() []byte {
+	if x != nil {
+		return x.V
+	}
+	return nil
+}
+
+func (x *Transaction) GetYParity() uint32 {
+	if x != nil && x.YParity != nil {
+		return *x.YParity
+	}
+	return 0
+}
+
+func (x *Transaction) GetChainId() uint64 {
+	if x != nil && x.ChainId != nil {
+		return *x.ChainId
+	}
+	return 0
+}
+
+func (x *Transaction) GetBlockNumber() uint64 {
+	if x != nil && x.BlockNumber != nil {
+		return *x.BlockNumber
+	}
+	return 0
+}
+
+func (x *Transaction) GetBlockHash() []byte {
+	if x != nil {
+		return x.BlockHash
+	}
+	return nil
+}
+
+func (x *Transaction) GetTransactionIndex() uint32 {
+	if x != nil && x.TransactionIndex != nil {
+		return *x.TransactionIndex
+	}
+	return 0
+}
+
+func (x *Transaction) GetBlockTimestamp() uint64 {
+	if x != nil && x.BlockTimestamp != nil {
+		return *x.BlockTimestamp
+	}
+	return 0
+}
+
+func (x *Transaction) GetAccessList() []*AccessListItem {
+	if x != nil {
+		return x.AccessList
+	}
+	return nil
+}
+
+func (x *Transaction) GetMaxFeePerBlobGas() string {
+	if x != nil && x.MaxFeePerBlobGas != nil {
+		return *x.MaxFeePerBlobGas
+	}
+	return ""
+}
+
+func (x *Transaction) GetBlobVersionedHashes() [][]byte {
+	if x != nil {
+		return x.BlobVersionedHashes
+	}
+	return nil
+}
+
+func (x *Transaction) GetBlobGasUsed() uint64 {
+	if x != nil && x.BlobGasUsed != nil {
+		return *x.BlobGasUsed
+	}
+	return 0
+}
+
+func (x *Transaction) GetBlobGasPrice() string {
+	if x != nil && x.BlobGasPrice != nil {
+		return *x.BlobGasPrice
+	}
+	return ""
+}
+
+func (x *Transaction) GetAuthorizationList() []*AuthorizationListItem {
+	if x != nil {
+		return x.AuthorizationList
+	}
+	return nil
+}
+
+func (x *Transaction) GetL1Fee() string {
+	if x != nil && x.L1Fee != nil {
+		return *x.L1Fee
+	}
+	return ""
+}
+
+func (x *Transaction) GetL1GasPrice() string {
+	if x != nil && x.L1GasPrice != nil {
+		return *x.L1GasPrice
+	}
+	return ""
+}
+
+func (x *Transaction) GetL1GasUsed() string {
+	if x != nil && x.L1GasUsed != nil {
+		return *x.L1GasUsed
+	}
+	return ""
+}
+
+func (x *Transaction) GetL1FeeScalar() float64 {
+	if x != nil && x.L1FeeScalar != nil {
+		return *x.L1FeeScalar
+	}
+	return 0
+}
+
+func (x *Transaction) GetL1BlobBaseFee() string {
+	if x != nil && x.L1BlobBaseFee != nil {
+		return *x.L1BlobBaseFee
+	}
+	return ""
+}
+
+func (x *Transaction) GetL1BlobBaseFeeScalar() uint64 {
+	if x != nil && x.L1BlobBaseFeeScalar != nil {
+		return *x.L1BlobBaseFeeScalar
+	}
+	return 0
+}
+
+func (x *Transaction) GetGatewayFee() string {
+	if x != nil && x.GatewayFee != nil {
+		return *x.GatewayFee
+	}
+	return ""
+}
+
+func (x *Transaction) GetFeeCurrency() []byte {
+	if x != nil {
+		return x.FeeCurrency
+	}
+	return nil
+}
+
+func (x *Transaction) GetGatewayFeeRecipient() []byte {
+	if x != nil {
+		return x.GatewayFeeRecipient
+	}
+	return nil
+}
+
+// Represents an entry in an EIP-2930 access list. Pre-declares addresses and storage slots that will be accessed during transaction execution, enabling gas savings through reduced cold access costs
+type AccessListItem struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The 20-byte address of the account or contract that will be accessed. Cold address access costs 2600 gas, but only 2400 gas if in access list. Includes both contracts called and addresses whose balance/nonce/code/storage will be read
+	Address []byte `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// List of 32-byte storage slot keys within the address that will be accessed. Cold storage access costs 2100 gas, but only 1900 gas if in access list. Empty list means only address access, not storage. Helps prevent breaking changes from gas repricing
+	StorageKeys   [][]byte `protobuf:"bytes,2,rep,name=storageKeys,proto3" json:"storageKeys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessListItem) Reset() {
+	*x = AccessListItem{}
+	mi := &file_models_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessListItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessListItem) ProtoMessage() {}
+
+func (x *AccessListItem) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessListItem.ProtoReflect.Descriptor instead.
+func (*AccessListItem) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AccessListItem) GetAddress() []byte {
+	if x != nil {
+		return x.Address
+	}
+	return nil
+}
+
+func (x *AccessListItem) GetStorageKeys() [][]byte {
+	if x != nil {
+		return x.StorageKeys
+	}
+	return nil
+}
+
 // An event emitted by a smart contract during transaction execution on an EVM-compatible blockchain. Logs are the primary mechanism for smart contracts to communicate with external applications, enabling event-driven architectures and efficient querying of on-chain activity
 type Log struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -384,14 +1068,14 @@ type Log struct {
 	// The zero-based index position of this log within the block. Unique within a block and assigned sequentially as logs are emitted during transaction execution. Combined with blockHash, this provides a unique identifier for the log. Used for pagination and maintaining log order
 	LogIndex uint32 `protobuf:"varint,8,opt,name=logIndex,proto3" json:"logIndex,omitempty"`
 	// Unix timestamp of the block containing this log. Denormalized from block data for query convenience. Enables time-based filtering and analysis without joining block data. Same timestamp for all logs in a block
-	BlockTimestamp *uint64 `protobuf:"varint,11,opt,name=blockTimestamp,proto3,oneof" json:"blockTimestamp,omitempty"`
+	BlockTimestamp *uint64 `protobuf:"varint,9,opt,name=blockTimestamp,proto3,oneof" json:"blockTimestamp,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Log) Reset() {
 	*x = Log{}
-	mi := &file_models_proto_msgTypes[1]
+	mi := &file_models_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -403,7 +1087,7 @@ func (x *Log) String() string {
 func (*Log) ProtoMessage() {}
 
 func (x *Log) ProtoReflect() protoreflect.Message {
-	mi := &file_models_proto_msgTypes[1]
+	mi := &file_models_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -416,7 +1100,7 @@ func (x *Log) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Log.ProtoReflect.Descriptor instead.
 func (*Log) Descriptor() ([]byte, []int) {
-	return file_models_proto_rawDescGZIP(), []int{1}
+	return file_models_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Log) GetAddress() []byte {
@@ -482,32 +1166,40 @@ func (x *Log) GetBlockTimestamp() uint64 {
 	return 0
 }
 
-// Block with its transactions
-type BlockWithTransactions struct {
+// Represents an authorization item for EIP-7702 Set Code transactions. Allows an EOA to authorize setting specific contract code to their account, enabling smart contract functionality without deployment
+type AuthorizationListItem struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The block header
-	Block *BlockHeader `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
-	// Transaction data (format depends on includeTransactions flag in request)
-	Transactions  [][]byte `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	// Chain ID where this authorization is valid. Prevents cross-chain replay of authorizations. Must match the transaction's chain ID. Ensures authorizations are network-specific
+	ChainId uint64 `protobuf:"varint,1,opt,name=chainId,proto3" json:"chainId,omitempty"`
+	// The 20-byte address of the contract code to set for the authorizing EOA. This contract's code will be used when calling the EOA. Enables account abstraction and smart wallet features
+	Address []byte `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	// Nonce of the authorization to prevent replay attacks. Must match the current nonce of the authorizing EOA. Ensures each authorization can only be used once
+	Nonce uint64 `protobuf:"varint,3,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	// ECDSA signature R value of the authorization (32 bytes). Signed by the EOA's private key to prove consent. Part of the authorization signature
+	R []byte `protobuf:"bytes,4,opt,name=r,proto3" json:"r,omitempty"`
+	// ECDSA signature S value of the authorization (32 bytes). Together with R and yParity, proves the EOA owner authorized this code setting
+	S []byte `protobuf:"bytes,5,opt,name=s,proto3" json:"s,omitempty"`
+	// Y-parity (0 or 1) of the authorization signature. Used to recover the signer's public key and verify the authorization came from the EOA owner
+	YParity       uint32 `protobuf:"varint,6,opt,name=yParity,proto3" json:"yParity,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *BlockWithTransactions) Reset() {
-	*x = BlockWithTransactions{}
-	mi := &file_models_proto_msgTypes[2]
+func (x *AuthorizationListItem) Reset() {
+	*x = AuthorizationListItem{}
+	mi := &file_models_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *BlockWithTransactions) String() string {
+func (x *AuthorizationListItem) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*BlockWithTransactions) ProtoMessage() {}
+func (*AuthorizationListItem) ProtoMessage() {}
 
-func (x *BlockWithTransactions) ProtoReflect() protoreflect.Message {
-	mi := &file_models_proto_msgTypes[2]
+func (x *AuthorizationListItem) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -518,30 +1210,363 @@ func (x *BlockWithTransactions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BlockWithTransactions.ProtoReflect.Descriptor instead.
-func (*BlockWithTransactions) Descriptor() ([]byte, []int) {
-	return file_models_proto_rawDescGZIP(), []int{2}
+// Deprecated: Use AuthorizationListItem.ProtoReflect.Descriptor instead.
+func (*AuthorizationListItem) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *BlockWithTransactions) GetBlock() *BlockHeader {
+func (x *AuthorizationListItem) GetChainId() uint64 {
 	if x != nil {
-		return x.Block
+		return x.ChainId
+	}
+	return 0
+}
+
+func (x *AuthorizationListItem) GetAddress() []byte {
+	if x != nil {
+		return x.Address
 	}
 	return nil
 }
 
-func (x *BlockWithTransactions) GetTransactions() [][]byte {
+func (x *AuthorizationListItem) GetNonce() uint64 {
 	if x != nil {
-		return x.Transactions
+		return x.Nonce
+	}
+	return 0
+}
+
+func (x *AuthorizationListItem) GetR() []byte {
+	if x != nil {
+		return x.R
 	}
 	return nil
+}
+
+func (x *AuthorizationListItem) GetS() []byte {
+	if x != nil {
+		return x.S
+	}
+	return nil
+}
+
+func (x *AuthorizationListItem) GetYParity() uint32 {
+	if x != nil {
+		return x.YParity
+	}
+	return 0
+}
+
+// Represents a validator withdrawal from the beacon chain to the execution layer. Part of Ethereum's proof-of-stake design allowing validators to withdraw staked ETH and rewards
+type Withdrawal struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Sequential index of this withdrawal in the global withdrawal queue. Unique across all withdrawals. Increments monotonically. Used to track withdrawal processing and prevent duplicates
+	Index uint64 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	// Beacon chain validator index that is withdrawing funds. Maps to a specific validator in the beacon state. Validators can have multiple withdrawals over time. Used to track validator lifecycle
+	ValidatorIndex uint64 `protobuf:"varint,2,opt,name=validatorIndex,proto3" json:"validatorIndex,omitempty"`
+	// The 20-byte execution layer address receiving the withdrawn ETH. Set by validator when setting withdrawal credentials. Can be an EOA or contract. Immutable once set. Critical for staking pool distributions
+	Address []byte `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	// Amount of ETH withdrawn in gwei (10^9 wei). Includes partial withdrawals (excess balance > 32 ETH) and full withdrawals (exited validators). Automatically processed by protocol. No gas cost for withdrawal transactions
+	Amount        uint64 `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Withdrawal) Reset() {
+	*x = Withdrawal{}
+	mi := &file_models_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Withdrawal) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Withdrawal) ProtoMessage() {}
+
+func (x *Withdrawal) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Withdrawal.ProtoReflect.Descriptor instead.
+func (*Withdrawal) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *Withdrawal) GetIndex() uint64 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *Withdrawal) GetValidatorIndex() uint64 {
+	if x != nil {
+		return x.ValidatorIndex
+	}
+	return 0
+}
+
+func (x *Withdrawal) GetAddress() []byte {
+	if x != nil {
+		return x.Address
+	}
+	return nil
+}
+
+func (x *Withdrawal) GetAmount() uint64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+// Represents the result of executing a transaction on an EVM blockchain. The receipt provides proof of transaction execution and its outcomes, including status, gas consumption, logs, and state changes. Generated after a transaction is included in a block and executed by the EVM
+type Receipt struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Transaction type (EIP-2718). 0=Legacy, 1=EIP-2930, 2=EIP-1559, 3=EIP-4844, 4=EIP-7702. L2s may have custom types. Denormalized from transaction for easier filtering and processing. Determines receipt format
+	Type uint32 `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
+	// Transaction execution status. 1 = success (all state changes applied), 0 = failure (only gas payment applied). Introduced in Byzantium fork. For pre-Byzantium transactions, check if gasUsed < gasLimit or use root field. Critical for determining transaction outcome
+	Status *uint32 `protobuf:"varint,2,opt,name=status,proto3,oneof" json:"status,omitempty"`
+	// Total gas units actually consumed by the transaction execution. Includes base transaction cost, calldata cost, and all operations. Always <= transaction gasLimit. Used to calculate actual transaction cost
+	GasUsed uint64 `protobuf:"varint,3,opt,name=gasUsed,proto3" json:"gasUsed,omitempty"`
+	// Cumulative gas used in the block up to and including this transaction. Increases monotonically within a block. Used to calculate block utilization and for merkle proof construction. Maximum value is block gasLimit
+	CumulativeGasUsed uint64 `protobuf:"varint,4,opt,name=cumulativeGasUsed,proto3" json:"cumulativeGasUsed,omitempty"`
+	// Effective price per gas unit paid for this transaction, in wei. For legacy tx: equals gasPrice. For EIP-1559: baseFeePerGas + min(maxPriorityFeePerGas, maxFeePerGas - baseFeePerGas). Used to calculate total cost: gasUsed * effectiveGasPrice
+	EffectiveGasPrice string `protobuf:"bytes,5,opt,name=effectiveGasPrice,proto3" json:"effectiveGasPrice,omitempty"`
+	// 2048-bit bloom filter of all log addresses and topics from this transaction. Enables efficient log filtering without parsing all logs. Each log address and topic is hashed and added to the bloom. Used by eth_getLogs for quick filtering
+	LogsBloom []byte `protobuf:"bytes,6,opt,name=logsBloom,proto3" json:"logsBloom,omitempty"`
+	// Address of newly deployed contract if this was a contract creation transaction. NULL for regular transfers and contract calls. Computed deterministically from sender address and nonce (CREATE) or sender, salt, and init code (CREATE2). Becomes active immediately if deployment succeeds
+	ContractAddress []byte `protobuf:"bytes,7,opt,name=contractAddress,proto3,oneof" json:"contractAddress,omitempty"`
+	// Post-execution state root (pre-Byzantium only). 32-byte Keccak hash of the global state trie after executing this transaction. Replaced by status field in Byzantium for gas efficiency. Still present in some chains and historical data
+	Root []byte `protobuf:"bytes,8,opt,name=root,proto3,oneof" json:"root,omitempty"`
+	// Unix timestamp when this transaction was executed. Denormalized from block data. All transactions in a block share the same timestamp. Useful for time-based queries without joining block data
+	BlockTimestamp *uint64 `protobuf:"varint,9,opt,name=blockTimestamp,proto3,oneof" json:"blockTimestamp,omitempty"`
+	// Total blob gas consumed by this transaction. Each blob uses 131,072 gas units. Only present for type 3 (blob) transactions. Used to calculate blob fees separately from execution gas. Maximum 786,432 (6 blobs)
+	BlobGasUsed *uint64 `protobuf:"varint,10,opt,name=blobGasUsed,proto3,oneof" json:"blobGasUsed,omitempty"`
+	// Price per blob gas unit when this transaction was executed, in wei. Set by protocol based on EIP-4844 blob gas market. Only for blob transactions. Usually much lower than regular gas price to incentivize L2 data availability
+	BlobGasPrice *string `protobuf:"bytes,11,opt,name=blobGasPrice,proto3,oneof" json:"blobGasPrice,omitempty"`
+	// Total L1 fee paid by this L2 transaction, in wei. Covers cost of posting transaction data to L1. Calculated as L1GasPrice * L1GasUsed * L1FeeScalar. Can be significant portion of total L2 transaction cost
+	L1Fee *string `protobuf:"bytes,12,opt,name=l1Fee,proto3,oneof" json:"l1Fee,omitempty"`
+	// L1 gas units attributed to this L2 transaction. Based on transaction size and encoding. Used to calculate L1 fee. Depends on L2's data availability method (calldata vs blobs)
+	L1GasUsed *string `protobuf:"bytes,13,opt,name=l1GasUsed,proto3,oneof" json:"l1GasUsed,omitempty"`
+	// L1 gas price at the time this L2 transaction was processed, in wei. Used to calculate L1 fee. Updated by L2 sequencer based on L1 conditions. Can spike during L1 congestion
+	L1GasPrice *string `protobuf:"bytes,14,opt,name=l1GasPrice,proto3,oneof" json:"l1GasPrice,omitempty"`
+	// Scalar applied to L1 gas calculations. Covers overhead and provides buffer for L1 gas volatility. Set by L2 operators. Used in L1 fee calculation: L1Fee = L1GasPrice * L1GasUsed * L1FeeScalar
+	L1FeeScalar *float64 `protobuf:"fixed64,15,opt,name=l1FeeScalar,proto3,oneof" json:"l1FeeScalar,omitempty"`
+	// Scalar applied to base fee for L1 data costs. Different from l1FeeScalar as it specifically applies to the base fee component. Used in newer L2 fee models for more granular control. Helps maintain predictable L2 costs
+	L1BaseFeeScalar *uint64 `protobuf:"varint,16,opt,name=l1BaseFeeScalar,proto3,oneof" json:"l1BaseFeeScalar,omitempty"`
+	// Gas specifically attributed to L1 data costs, measured in L2 gas units. Helps users understand fee breakdown on L2s. Calculated from transaction size and L1 gas price. Can be significant portion of total L2 gas used
+	GasUsedForL1 *uint64 `protobuf:"varint,17,opt,name=gasUsedForL1,proto3,oneof" json:"gasUsedForL1,omitempty"`
+	// L1 block number that this L2 transaction's data was posted to. Used for data availability proofs and finality. May lag behind L2 block number. Critical for L2 security and L1 state proofs
+	L1BlockNumber *uint64 `protobuf:"varint,18,opt,name=l1BlockNumber,proto3,oneof" json:"l1BlockNumber,omitempty"`
+	// Gateway fee charged for meta-transactions or relayed transactions. Paid to relayer or protocol. Only present when using alternative fee payment methods. Denominated in feeCurrency if specified
+	GatewayFee *string `protobuf:"bytes,19,opt,name=gatewayFee,proto3,oneof" json:"gatewayFee,omitempty"`
+	// Nonce of the deposit transaction. Only present when the receipt is for a deposit transaction.
+	DepositNonce *string `protobuf:"bytes,20,opt,name=depositNonce,proto3,oneof" json:"depositNonce,omitempty"`
+	// Version of the deposit receipt. Only present when the receipt is for a deposit transaction.
+	DepositReceiptVersion *string `protobuf:"bytes,21,opt,name=depositReceiptVersion,proto3,oneof" json:"depositReceiptVersion,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *Receipt) Reset() {
+	*x = Receipt{}
+	mi := &file_models_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Receipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Receipt) ProtoMessage() {}
+
+func (x *Receipt) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Receipt.ProtoReflect.Descriptor instead.
+func (*Receipt) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Receipt) GetType() uint32 {
+	if x != nil {
+		return x.Type
+	}
+	return 0
+}
+
+func (x *Receipt) GetStatus() uint32 {
+	if x != nil && x.Status != nil {
+		return *x.Status
+	}
+	return 0
+}
+
+func (x *Receipt) GetGasUsed() uint64 {
+	if x != nil {
+		return x.GasUsed
+	}
+	return 0
+}
+
+func (x *Receipt) GetCumulativeGasUsed() uint64 {
+	if x != nil {
+		return x.CumulativeGasUsed
+	}
+	return 0
+}
+
+func (x *Receipt) GetEffectiveGasPrice() string {
+	if x != nil {
+		return x.EffectiveGasPrice
+	}
+	return ""
+}
+
+func (x *Receipt) GetLogsBloom() []byte {
+	if x != nil {
+		return x.LogsBloom
+	}
+	return nil
+}
+
+func (x *Receipt) GetContractAddress() []byte {
+	if x != nil {
+		return x.ContractAddress
+	}
+	return nil
+}
+
+func (x *Receipt) GetRoot() []byte {
+	if x != nil {
+		return x.Root
+	}
+	return nil
+}
+
+func (x *Receipt) GetBlockTimestamp() uint64 {
+	if x != nil && x.BlockTimestamp != nil {
+		return *x.BlockTimestamp
+	}
+	return 0
+}
+
+func (x *Receipt) GetBlobGasUsed() uint64 {
+	if x != nil && x.BlobGasUsed != nil {
+		return *x.BlobGasUsed
+	}
+	return 0
+}
+
+func (x *Receipt) GetBlobGasPrice() string {
+	if x != nil && x.BlobGasPrice != nil {
+		return *x.BlobGasPrice
+	}
+	return ""
+}
+
+func (x *Receipt) GetL1Fee() string {
+	if x != nil && x.L1Fee != nil {
+		return *x.L1Fee
+	}
+	return ""
+}
+
+func (x *Receipt) GetL1GasUsed() string {
+	if x != nil && x.L1GasUsed != nil {
+		return *x.L1GasUsed
+	}
+	return ""
+}
+
+func (x *Receipt) GetL1GasPrice() string {
+	if x != nil && x.L1GasPrice != nil {
+		return *x.L1GasPrice
+	}
+	return ""
+}
+
+func (x *Receipt) GetL1FeeScalar() float64 {
+	if x != nil && x.L1FeeScalar != nil {
+		return *x.L1FeeScalar
+	}
+	return 0
+}
+
+func (x *Receipt) GetL1BaseFeeScalar() uint64 {
+	if x != nil && x.L1BaseFeeScalar != nil {
+		return *x.L1BaseFeeScalar
+	}
+	return 0
+}
+
+func (x *Receipt) GetGasUsedForL1() uint64 {
+	if x != nil && x.GasUsedForL1 != nil {
+		return *x.GasUsedForL1
+	}
+	return 0
+}
+
+func (x *Receipt) GetL1BlockNumber() uint64 {
+	if x != nil && x.L1BlockNumber != nil {
+		return *x.L1BlockNumber
+	}
+	return 0
+}
+
+func (x *Receipt) GetGatewayFee() string {
+	if x != nil && x.GatewayFee != nil {
+		return *x.GatewayFee
+	}
+	return ""
+}
+
+func (x *Receipt) GetDepositNonce() string {
+	if x != nil && x.DepositNonce != nil {
+		return *x.DepositNonce
+	}
+	return ""
+}
+
+func (x *Receipt) GetDepositReceiptVersion() string {
+	if x != nil && x.DepositReceiptVersion != nil {
+		return *x.DepositReceiptVersion
+	}
+	return ""
 }
 
 var File_models_proto protoreflect.FileDescriptor
 
 const file_models_proto_rawDesc = "" +
 	"\n" +
-	"\fmodels.proto\x12\abds.evm\"\xe9\v\n" +
+	"\fmodels.proto\x12\abds.evm\"V\n" +
+	"\bBlockRef\x12\x16\n" +
+	"\x06number\x18\x01 \x01(\x04R\x06number\x12\x12\n" +
+	"\x04hash\x18\x02 \x01(\fR\x04hash\x12\x1e\n" +
+	"\n" +
+	"parentHash\x18\x03 \x01(\fR\n" +
+	"parentHash\"\xe9\v\n" +
 	"\vBlockHeader\x12\x16\n" +
 	"\x06number\x18\x01 \x01(\x04R\x06number\x12\x1c\n" +
 	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x12\x1a\n" +
@@ -605,7 +1630,95 @@ const file_models_proto_rawDesc = "" +
 	"\x10_totalDifficultyB\x14\n" +
 	"\x12_proposerPublicKeyB\x0e\n" +
 	"\f_withdrawalsB\x0f\n" +
-	"\r_canonicalRlp\"\xbd\x02\n" +
+	"\r_canonicalRlp\"\xc8\x01\n" +
+	"\x05Block\x12,\n" +
+	"\x06header\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x06header\x128\n" +
+	"\ftransactions\x18\x02 \x03(\v2\x14.bds.evm.TransactionR\ftransactions\x12 \n" +
+	"\x04logs\x18\x03 \x03(\v2\f.bds.evm.LogR\x04logs\x125\n" +
+	"\vwithdrawals\x18\x04 \x03(\v2\x13.bds.evm.WithdrawalR\vwithdrawals\"\x8f\x01\n" +
+	"\x0eTransactionRef\x12'\n" +
+	"\x05block\x18\x01 \x01(\v2\x11.bds.evm.BlockRefR\x05block\x12*\n" +
+	"\x10transactionIndex\x18\x02 \x01(\rR\x10transactionIndex\x12(\n" +
+	"\x0ftransactionHash\x18\x03 \x01(\fR\x0ftransactionHash\"\xe1\r\n" +
+	"\vTransaction\x12\x12\n" +
+	"\x04hash\x18\x01 \x01(\fR\x04hash\x12\x14\n" +
+	"\x05nonce\x18\x02 \x01(\x04R\x05nonce\x12\x12\n" +
+	"\x04from\x18\x03 \x01(\fR\x04from\x12\x13\n" +
+	"\x02to\x18\x04 \x01(\fH\x00R\x02to\x88\x01\x01\x12\x14\n" +
+	"\x05value\x18\x05 \x01(\tR\x05value\x12\x14\n" +
+	"\x05input\x18\x06 \x01(\fR\x05input\x12\x12\n" +
+	"\x04type\x18\a \x01(\rR\x04type\x12\x1a\n" +
+	"\bgasLimit\x18\b \x01(\x04R\bgasLimit\x12\x1f\n" +
+	"\bgasPrice\x18\t \x01(\tH\x01R\bgasPrice\x88\x01\x01\x12'\n" +
+	"\fmaxFeePerGas\x18\n" +
+	" \x01(\tH\x02R\fmaxFeePerGas\x88\x01\x01\x127\n" +
+	"\x14maxPriorityFeePerGas\x18\v \x01(\tH\x03R\x14maxPriorityFeePerGas\x88\x01\x01\x12\x1d\n" +
+	"\agasUsed\x18\f \x01(\x04H\x04R\agasUsed\x88\x01\x01\x121\n" +
+	"\x11effectiveGasPrice\x18\r \x01(\tH\x05R\x11effectiveGasPrice\x88\x01\x01\x12\f\n" +
+	"\x01r\x18\x0e \x01(\fR\x01r\x12\f\n" +
+	"\x01s\x18\x0f \x01(\fR\x01s\x12\x11\n" +
+	"\x01v\x18\x10 \x01(\fH\x06R\x01v\x88\x01\x01\x12\x1d\n" +
+	"\ayParity\x18\x11 \x01(\rH\aR\ayParity\x88\x01\x01\x12\x1d\n" +
+	"\achainId\x18\x12 \x01(\x04H\bR\achainId\x88\x01\x01\x12%\n" +
+	"\vblockNumber\x18\x13 \x01(\x04H\tR\vblockNumber\x88\x01\x01\x12!\n" +
+	"\tblockHash\x18\x14 \x01(\fH\n" +
+	"R\tblockHash\x88\x01\x01\x12/\n" +
+	"\x10transactionIndex\x18\x15 \x01(\rH\vR\x10transactionIndex\x88\x01\x01\x12+\n" +
+	"\x0eblockTimestamp\x18\x16 \x01(\x04H\fR\x0eblockTimestamp\x88\x01\x01\x127\n" +
+	"\n" +
+	"accessList\x18\x17 \x03(\v2\x17.bds.evm.AccessListItemR\n" +
+	"accessList\x12/\n" +
+	"\x10maxFeePerBlobGas\x18\x18 \x01(\tH\rR\x10maxFeePerBlobGas\x88\x01\x01\x120\n" +
+	"\x13blobVersionedHashes\x18\x19 \x03(\fR\x13blobVersionedHashes\x12%\n" +
+	"\vblobGasUsed\x18\x1a \x01(\x04H\x0eR\vblobGasUsed\x88\x01\x01\x12'\n" +
+	"\fblobGasPrice\x18\x1b \x01(\tH\x0fR\fblobGasPrice\x88\x01\x01\x12L\n" +
+	"\x11authorizationList\x18\x1c \x03(\v2\x1e.bds.evm.AuthorizationListItemR\x11authorizationList\x12\x19\n" +
+	"\x05l1Fee\x18\x1d \x01(\tH\x10R\x05l1Fee\x88\x01\x01\x12#\n" +
+	"\n" +
+	"l1GasPrice\x18\x1e \x01(\tH\x11R\n" +
+	"l1GasPrice\x88\x01\x01\x12!\n" +
+	"\tl1GasUsed\x18\x1f \x01(\tH\x12R\tl1GasUsed\x88\x01\x01\x12%\n" +
+	"\vl1FeeScalar\x18  \x01(\x01H\x13R\vl1FeeScalar\x88\x01\x01\x12)\n" +
+	"\rl1BlobBaseFee\x18! \x01(\tH\x14R\rl1BlobBaseFee\x88\x01\x01\x125\n" +
+	"\x13l1BlobBaseFeeScalar\x18\" \x01(\x04H\x15R\x13l1BlobBaseFeeScalar\x88\x01\x01\x12#\n" +
+	"\n" +
+	"gatewayFee\x18# \x01(\tH\x16R\n" +
+	"gatewayFee\x88\x01\x01\x12%\n" +
+	"\vfeeCurrency\x18$ \x01(\fH\x17R\vfeeCurrency\x88\x01\x01\x125\n" +
+	"\x13gatewayFeeRecipient\x18% \x01(\fH\x18R\x13gatewayFeeRecipient\x88\x01\x01B\x05\n" +
+	"\x03_toB\v\n" +
+	"\t_gasPriceB\x0f\n" +
+	"\r_maxFeePerGasB\x17\n" +
+	"\x15_maxPriorityFeePerGasB\n" +
+	"\n" +
+	"\b_gasUsedB\x14\n" +
+	"\x12_effectiveGasPriceB\x04\n" +
+	"\x02_vB\n" +
+	"\n" +
+	"\b_yParityB\n" +
+	"\n" +
+	"\b_chainIdB\x0e\n" +
+	"\f_blockNumberB\f\n" +
+	"\n" +
+	"_blockHashB\x13\n" +
+	"\x11_transactionIndexB\x11\n" +
+	"\x0f_blockTimestampB\x13\n" +
+	"\x11_maxFeePerBlobGasB\x0e\n" +
+	"\f_blobGasUsedB\x0f\n" +
+	"\r_blobGasPriceB\b\n" +
+	"\x06_l1FeeB\r\n" +
+	"\v_l1GasPriceB\f\n" +
+	"\n" +
+	"_l1GasUsedB\x0e\n" +
+	"\f_l1FeeScalarB\x10\n" +
+	"\x0e_l1BlobBaseFeeB\x16\n" +
+	"\x14_l1BlobBaseFeeScalarB\r\n" +
+	"\v_gatewayFeeB\x0e\n" +
+	"\f_feeCurrencyB\x16\n" +
+	"\x14_gatewayFeeRecipient\"L\n" +
+	"\x0eAccessListItem\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\fR\aaddress\x12 \n" +
+	"\vstorageKeys\x18\x02 \x03(\fR\vstorageKeys\"\xbd\x02\n" +
 	"\x03Log\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\fR\aaddress\x12\x16\n" +
 	"\x06topics\x18\x02 \x03(\fR\x06topics\x12\x12\n" +
@@ -615,11 +1728,73 @@ const file_models_proto_rawDesc = "" +
 	"\x0ftransactionHash\x18\x06 \x01(\fR\x0ftransactionHash\x12*\n" +
 	"\x10transactionIndex\x18\a \x01(\rR\x10transactionIndex\x12\x1a\n" +
 	"\blogIndex\x18\b \x01(\rR\blogIndex\x12+\n" +
-	"\x0eblockTimestamp\x18\v \x01(\x04H\x00R\x0eblockTimestamp\x88\x01\x01B\x11\n" +
-	"\x0f_blockTimestamp\"g\n" +
-	"\x15BlockWithTransactions\x12*\n" +
-	"\x05block\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x05block\x12\"\n" +
-	"\ftransactions\x18\x02 \x03(\fR\ftransactionsB4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
+	"\x0eblockTimestamp\x18\t \x01(\x04H\x00R\x0eblockTimestamp\x88\x01\x01B\x11\n" +
+	"\x0f_blockTimestamp\"\x97\x01\n" +
+	"\x15AuthorizationListItem\x12\x18\n" +
+	"\achainId\x18\x01 \x01(\x04R\achainId\x12\x18\n" +
+	"\aaddress\x18\x02 \x01(\fR\aaddress\x12\x14\n" +
+	"\x05nonce\x18\x03 \x01(\x04R\x05nonce\x12\f\n" +
+	"\x01r\x18\x04 \x01(\fR\x01r\x12\f\n" +
+	"\x01s\x18\x05 \x01(\fR\x01s\x12\x18\n" +
+	"\ayParity\x18\x06 \x01(\rR\ayParity\"|\n" +
+	"\n" +
+	"Withdrawal\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x04R\x05index\x12&\n" +
+	"\x0evalidatorIndex\x18\x02 \x01(\x04R\x0evalidatorIndex\x12\x18\n" +
+	"\aaddress\x18\x03 \x01(\fR\aaddress\x12\x16\n" +
+	"\x06amount\x18\x04 \x01(\x04R\x06amount\"\xad\b\n" +
+	"\aReceipt\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\rR\x04type\x12\x1b\n" +
+	"\x06status\x18\x02 \x01(\rH\x00R\x06status\x88\x01\x01\x12\x18\n" +
+	"\agasUsed\x18\x03 \x01(\x04R\agasUsed\x12,\n" +
+	"\x11cumulativeGasUsed\x18\x04 \x01(\x04R\x11cumulativeGasUsed\x12,\n" +
+	"\x11effectiveGasPrice\x18\x05 \x01(\tR\x11effectiveGasPrice\x12\x1c\n" +
+	"\tlogsBloom\x18\x06 \x01(\fR\tlogsBloom\x12-\n" +
+	"\x0fcontractAddress\x18\a \x01(\fH\x01R\x0fcontractAddress\x88\x01\x01\x12\x17\n" +
+	"\x04root\x18\b \x01(\fH\x02R\x04root\x88\x01\x01\x12+\n" +
+	"\x0eblockTimestamp\x18\t \x01(\x04H\x03R\x0eblockTimestamp\x88\x01\x01\x12%\n" +
+	"\vblobGasUsed\x18\n" +
+	" \x01(\x04H\x04R\vblobGasUsed\x88\x01\x01\x12'\n" +
+	"\fblobGasPrice\x18\v \x01(\tH\x05R\fblobGasPrice\x88\x01\x01\x12\x19\n" +
+	"\x05l1Fee\x18\f \x01(\tH\x06R\x05l1Fee\x88\x01\x01\x12!\n" +
+	"\tl1GasUsed\x18\r \x01(\tH\aR\tl1GasUsed\x88\x01\x01\x12#\n" +
+	"\n" +
+	"l1GasPrice\x18\x0e \x01(\tH\bR\n" +
+	"l1GasPrice\x88\x01\x01\x12%\n" +
+	"\vl1FeeScalar\x18\x0f \x01(\x01H\tR\vl1FeeScalar\x88\x01\x01\x12-\n" +
+	"\x0fl1BaseFeeScalar\x18\x10 \x01(\x04H\n" +
+	"R\x0fl1BaseFeeScalar\x88\x01\x01\x12'\n" +
+	"\fgasUsedForL1\x18\x11 \x01(\x04H\vR\fgasUsedForL1\x88\x01\x01\x12)\n" +
+	"\rl1BlockNumber\x18\x12 \x01(\x04H\fR\rl1BlockNumber\x88\x01\x01\x12#\n" +
+	"\n" +
+	"gatewayFee\x18\x13 \x01(\tH\rR\n" +
+	"gatewayFee\x88\x01\x01\x12'\n" +
+	"\fdepositNonce\x18\x14 \x01(\tH\x0eR\fdepositNonce\x88\x01\x01\x129\n" +
+	"\x15depositReceiptVersion\x18\x15 \x01(\tH\x0fR\x15depositReceiptVersion\x88\x01\x01B\t\n" +
+	"\a_statusB\x12\n" +
+	"\x10_contractAddressB\a\n" +
+	"\x05_rootB\x11\n" +
+	"\x0f_blockTimestampB\x0e\n" +
+	"\f_blobGasUsedB\x0f\n" +
+	"\r_blobGasPriceB\b\n" +
+	"\x06_l1FeeB\f\n" +
+	"\n" +
+	"_l1GasUsedB\r\n" +
+	"\v_l1GasPriceB\x0e\n" +
+	"\f_l1FeeScalarB\x12\n" +
+	"\x10_l1BaseFeeScalarB\x0f\n" +
+	"\r_gasUsedForL1B\x10\n" +
+	"\x0e_l1BlockNumberB\r\n" +
+	"\v_gatewayFeeB\x0f\n" +
+	"\r_depositNonceB\x18\n" +
+	"\x16_depositReceiptVersion*W\n" +
+	"\x0fTransactionType\x12\n" +
+	"\n" +
+	"\x06LEGACY\x10\x00\x12\x0f\n" +
+	"\vACCESS_LIST\x10\x01\x12\x0f\n" +
+	"\vDYNAMIC_FEE\x10\x02\x12\b\n" +
+	"\x04BLOB\x10\x03\x12\f\n" +
+	"\bSET_CODE\x10\x04B4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
 
 var (
 	file_models_proto_rawDescOnce sync.Once
@@ -633,19 +1808,34 @@ func file_models_proto_rawDescGZIP() []byte {
 	return file_models_proto_rawDescData
 }
 
-var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_models_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_models_proto_goTypes = []any{
-	(*BlockHeader)(nil),           // 0: bds.evm.BlockHeader
-	(*Log)(nil),                   // 1: bds.evm.Log
-	(*BlockWithTransactions)(nil), // 2: bds.evm.BlockWithTransactions
+	(TransactionType)(0),          // 0: bds.evm.TransactionType
+	(*BlockRef)(nil),              // 1: bds.evm.BlockRef
+	(*BlockHeader)(nil),           // 2: bds.evm.BlockHeader
+	(*Block)(nil),                 // 3: bds.evm.Block
+	(*TransactionRef)(nil),        // 4: bds.evm.TransactionRef
+	(*Transaction)(nil),           // 5: bds.evm.Transaction
+	(*AccessListItem)(nil),        // 6: bds.evm.AccessListItem
+	(*Log)(nil),                   // 7: bds.evm.Log
+	(*AuthorizationListItem)(nil), // 8: bds.evm.AuthorizationListItem
+	(*Withdrawal)(nil),            // 9: bds.evm.Withdrawal
+	(*Receipt)(nil),               // 10: bds.evm.Receipt
 }
 var file_models_proto_depIdxs = []int32{
-	0, // 0: bds.evm.BlockWithTransactions.block:type_name -> bds.evm.BlockHeader
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2, // 0: bds.evm.Block.header:type_name -> bds.evm.BlockHeader
+	5, // 1: bds.evm.Block.transactions:type_name -> bds.evm.Transaction
+	7, // 2: bds.evm.Block.logs:type_name -> bds.evm.Log
+	9, // 3: bds.evm.Block.withdrawals:type_name -> bds.evm.Withdrawal
+	1, // 4: bds.evm.TransactionRef.block:type_name -> bds.evm.BlockRef
+	6, // 5: bds.evm.Transaction.accessList:type_name -> bds.evm.AccessListItem
+	8, // 6: bds.evm.Transaction.authorizationList:type_name -> bds.evm.AuthorizationListItem
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_models_proto_init() }
@@ -653,20 +1843,23 @@ func file_models_proto_init() {
 	if File_models_proto != nil {
 		return
 	}
-	file_models_proto_msgTypes[0].OneofWrappers = []any{}
 	file_models_proto_msgTypes[1].OneofWrappers = []any{}
+	file_models_proto_msgTypes[4].OneofWrappers = []any{}
+	file_models_proto_msgTypes[6].OneofWrappers = []any{}
+	file_models_proto_msgTypes[9].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_models_proto_rawDesc), len(file_models_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      1,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_models_proto_goTypes,
 		DependencyIndexes: file_models_proto_depIdxs,
+		EnumInfos:         file_models_proto_enumTypes,
 		MessageInfos:      file_models_proto_msgTypes,
 	}.Build()
 	File_models_proto = out.File

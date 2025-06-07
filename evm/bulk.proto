@@ -30,8 +30,23 @@ message GetBlocksByRangeRequest {
 // Response containing blocks within the requested range
 message GetBlocksByRangeResponse {
   // Array of blocks within the range
-  repeated BlockWithTransactions blocks = 1;
+  repeated Block blocks = 1;
   
-  // Whether more blocks exist beyond the limit
-  bool hasMore = 2;
+  // Cursor for the next page of results. If empty, no more results are available.
+  // This is typically the block number after the last block in the current response
+  optional string nextCursor = 2;
+  
+  // Indicates if the response is partial due to size limits, timeouts, or other constraints
+  bool isPartial = 3;
+  
+  // Unix timestamp (milliseconds) when this response was generated
+  // Useful for cache invalidation and staleness detection
+  uint64 timestamp = 4;
+  
+  // Processing time in milliseconds
+  // Useful for performance monitoring and optimization
+  uint32 processingTimeMs = 5;
+  
+  // Optional metadata about the response
+  map<string, string> metadata = 6;
 }

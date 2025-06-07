@@ -98,9 +98,20 @@ func (x *GetBlocksByRangeRequest) GetLimit() uint32 {
 type GetBlocksByRangeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Array of blocks within the range
-	Blocks []*BlockWithTransactions `protobuf:"bytes,1,rep,name=blocks,proto3" json:"blocks,omitempty"`
-	// Whether more blocks exist beyond the limit
-	HasMore       bool `protobuf:"varint,2,opt,name=hasMore,proto3" json:"hasMore,omitempty"`
+	Blocks []*Block `protobuf:"bytes,1,rep,name=blocks,proto3" json:"blocks,omitempty"`
+	// Cursor for the next page of results. If empty, no more results are available.
+	// This is typically the block number after the last block in the current response
+	NextCursor *string `protobuf:"bytes,2,opt,name=nextCursor,proto3,oneof" json:"nextCursor,omitempty"`
+	// Indicates if the response is partial due to size limits, timeouts, or other constraints
+	IsPartial bool `protobuf:"varint,3,opt,name=isPartial,proto3" json:"isPartial,omitempty"`
+	// Unix timestamp (milliseconds) when this response was generated
+	// Useful for cache invalidation and staleness detection
+	Timestamp uint64 `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Processing time in milliseconds
+	// Useful for performance monitoring and optimization
+	ProcessingTimeMs uint32 `protobuf:"varint,5,opt,name=processingTimeMs,proto3" json:"processingTimeMs,omitempty"`
+	// Optional metadata about the response
+	Metadata      map[string]string `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -135,18 +146,46 @@ func (*GetBlocksByRangeResponse) Descriptor() ([]byte, []int) {
 	return file_bulk_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetBlocksByRangeResponse) GetBlocks() []*BlockWithTransactions {
+func (x *GetBlocksByRangeResponse) GetBlocks() []*Block {
 	if x != nil {
 		return x.Blocks
 	}
 	return nil
 }
 
-func (x *GetBlocksByRangeResponse) GetHasMore() bool {
+func (x *GetBlocksByRangeResponse) GetNextCursor() string {
+	if x != nil && x.NextCursor != nil {
+		return *x.NextCursor
+	}
+	return ""
+}
+
+func (x *GetBlocksByRangeResponse) GetIsPartial() bool {
 	if x != nil {
-		return x.HasMore
+		return x.IsPartial
 	}
 	return false
+}
+
+func (x *GetBlocksByRangeResponse) GetTimestamp() uint64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+func (x *GetBlocksByRangeResponse) GetProcessingTimeMs() uint32 {
+	if x != nil {
+		return x.ProcessingTimeMs
+	}
+	return 0
+}
+
+func (x *GetBlocksByRangeResponse) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 var File_bulk_proto protoreflect.FileDescriptor
@@ -160,10 +199,20 @@ const file_bulk_proto_rawDesc = "" +
 	"\atoBlock\x18\x02 \x01(\x04R\atoBlock\x120\n" +
 	"\x13includeTransactions\x18\x03 \x01(\bR\x13includeTransactions\x12\x19\n" +
 	"\x05limit\x18\x04 \x01(\rH\x00R\x05limit\x88\x01\x01B\b\n" +
-	"\x06_limit\"l\n" +
-	"\x18GetBlocksByRangeResponse\x126\n" +
-	"\x06blocks\x18\x01 \x03(\v2\x1e.bds.evm.BlockWithTransactionsR\x06blocks\x12\x18\n" +
-	"\ahasMore\x18\x02 \x01(\bR\ahasMore2k\n" +
+	"\x06_limit\"\xe8\x02\n" +
+	"\x18GetBlocksByRangeResponse\x12&\n" +
+	"\x06blocks\x18\x01 \x03(\v2\x0e.bds.evm.BlockR\x06blocks\x12#\n" +
+	"\n" +
+	"nextCursor\x18\x02 \x01(\tH\x00R\n" +
+	"nextCursor\x88\x01\x01\x12\x1c\n" +
+	"\tisPartial\x18\x03 \x01(\bR\tisPartial\x12\x1c\n" +
+	"\ttimestamp\x18\x04 \x01(\x04R\ttimestamp\x12*\n" +
+	"\x10processingTimeMs\x18\x05 \x01(\rR\x10processingTimeMs\x12K\n" +
+	"\bmetadata\x18\x06 \x03(\v2/.bds.evm.GetBlocksByRangeResponse.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\r\n" +
+	"\v_nextCursor2k\n" +
 	"\x10BulkQueryService\x12W\n" +
 	"\x10GetBlocksByRange\x12 .bds.evm.GetBlocksByRangeRequest\x1a!.bds.evm.GetBlocksByRangeResponseB4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
 
@@ -179,21 +228,23 @@ func file_bulk_proto_rawDescGZIP() []byte {
 	return file_bulk_proto_rawDescData
 }
 
-var file_bulk_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_bulk_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_bulk_proto_goTypes = []any{
 	(*GetBlocksByRangeRequest)(nil),  // 0: bds.evm.GetBlocksByRangeRequest
 	(*GetBlocksByRangeResponse)(nil), // 1: bds.evm.GetBlocksByRangeResponse
-	(*BlockWithTransactions)(nil),    // 2: bds.evm.BlockWithTransactions
+	nil,                              // 2: bds.evm.GetBlocksByRangeResponse.MetadataEntry
+	(*Block)(nil),                    // 3: bds.evm.Block
 }
 var file_bulk_proto_depIdxs = []int32{
-	2, // 0: bds.evm.GetBlocksByRangeResponse.blocks:type_name -> bds.evm.BlockWithTransactions
-	0, // 1: bds.evm.BulkQueryService.GetBlocksByRange:input_type -> bds.evm.GetBlocksByRangeRequest
-	1, // 2: bds.evm.BulkQueryService.GetBlocksByRange:output_type -> bds.evm.GetBlocksByRangeResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	3, // 0: bds.evm.GetBlocksByRangeResponse.blocks:type_name -> bds.evm.Block
+	2, // 1: bds.evm.GetBlocksByRangeResponse.metadata:type_name -> bds.evm.GetBlocksByRangeResponse.MetadataEntry
+	0, // 2: bds.evm.BulkQueryService.GetBlocksByRange:input_type -> bds.evm.GetBlocksByRangeRequest
+	1, // 3: bds.evm.BulkQueryService.GetBlocksByRange:output_type -> bds.evm.GetBlocksByRangeResponse
+	3, // [3:4] is the sub-list for method output_type
+	2, // [2:3] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_bulk_proto_init() }
@@ -203,13 +254,14 @@ func file_bulk_proto_init() {
 	}
 	file_models_proto_init()
 	file_bulk_proto_msgTypes[0].OneofWrappers = []any{}
+	file_bulk_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_bulk_proto_rawDesc), len(file_bulk_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
