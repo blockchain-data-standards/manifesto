@@ -3,6 +3,7 @@ package evm
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -40,6 +41,59 @@ func MustHexToAddress(s string) Address {
 		panic(fmt.Sprintf("invalid address hex: %s", s))
 	}
 	return addr
+}
+
+
+func HexToUint32(hex string) (uint32, error) {
+	if len(hex) < 2 || hex[:2] != "0x" {
+		return 0, fmt.Errorf("invalid hex string: %s", hex)
+	}
+	var result uint32
+	_, err := fmt.Sscanf(hex, "0x%x", &result)
+	return result, err
+}
+
+func HexToUint64(hex string) (uint64, error) {
+	if len(hex) < 2 || hex[:2] != "0x" {
+		return 0, fmt.Errorf("invalid hex string: %s", hex)
+	}
+	var result uint64
+	_, err := fmt.Sscanf(hex, "0x%x", &result)
+	return result, err
+}
+
+func MustHexToUint64(hex string) uint64 {
+	result, err := HexToUint64(hex)
+	if err != nil {
+		panic(fmt.Sprintf("invalid hex string: %s", hex))
+	}
+	return result
+}
+
+func MustHexToUint32(hex string) uint32 {
+	result, err := HexToUint32(hex)
+	if err != nil {
+		panic(fmt.Sprintf("invalid hex string: %s", hex))
+	}
+	return result
+}
+
+func NumberishToUint64(s string) (uint64, error) {
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		return HexToUint64(s)
+	}
+	return strconv.ParseUint(s, 10, 64)
+}
+
+func NumberishToUint32(s string) (uint32, error) {
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		return HexToUint32(s)
+	}
+	u, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(u), nil
 }
 
 // HexToHash converts a hex string to a Hash
