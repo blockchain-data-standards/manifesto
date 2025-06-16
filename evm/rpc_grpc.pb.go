@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	RPCQueryService_ChainId_FullMethodName          = "/bds.evm.RPCQueryService/ChainId"
 	RPCQueryService_GetBlockByNumber_FullMethodName = "/bds.evm.RPCQueryService/GetBlockByNumber"
 	RPCQueryService_GetBlockByHash_FullMethodName   = "/bds.evm.RPCQueryService/GetBlockByHash"
 	RPCQueryService_GetLogs_FullMethodName          = "/bds.evm.RPCQueryService/GetLogs"
@@ -31,6 +32,7 @@ const (
 // Service for standard EVM RPC operations
 // Equivalent to Ethereum JSON-RPC methods for node interactions
 type RPCQueryServiceClient interface {
+	ChainId(ctx context.Context, in *ChainIdRequest, opts ...grpc.CallOption) (*ChainIdResponse, error)
 	// Get a block by its number (equivalent to eth_getBlockByNumber)
 	GetBlockByNumber(ctx context.Context, in *GetBlockByNumberRequest, opts ...grpc.CallOption) (*GetBlockByNumberResponse, error)
 	// Get a block by its hash (equivalent to eth_getBlockByHash)
@@ -45,6 +47,16 @@ type rPCQueryServiceClient struct {
 
 func NewRPCQueryServiceClient(cc grpc.ClientConnInterface) RPCQueryServiceClient {
 	return &rPCQueryServiceClient{cc}
+}
+
+func (c *rPCQueryServiceClient) ChainId(ctx context.Context, in *ChainIdRequest, opts ...grpc.CallOption) (*ChainIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChainIdResponse)
+	err := c.cc.Invoke(ctx, RPCQueryService_ChainId_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *rPCQueryServiceClient) GetBlockByNumber(ctx context.Context, in *GetBlockByNumberRequest, opts ...grpc.CallOption) (*GetBlockByNumberResponse, error) {
@@ -84,6 +96,7 @@ func (c *rPCQueryServiceClient) GetLogs(ctx context.Context, in *GetLogsRequest,
 // Service for standard EVM RPC operations
 // Equivalent to Ethereum JSON-RPC methods for node interactions
 type RPCQueryServiceServer interface {
+	ChainId(context.Context, *ChainIdRequest) (*ChainIdResponse, error)
 	// Get a block by its number (equivalent to eth_getBlockByNumber)
 	GetBlockByNumber(context.Context, *GetBlockByNumberRequest) (*GetBlockByNumberResponse, error)
 	// Get a block by its hash (equivalent to eth_getBlockByHash)
@@ -100,6 +113,9 @@ type RPCQueryServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedRPCQueryServiceServer struct{}
 
+func (UnimplementedRPCQueryServiceServer) ChainId(context.Context, *ChainIdRequest) (*ChainIdResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ChainId not implemented")
+}
 func (UnimplementedRPCQueryServiceServer) GetBlockByNumber(context.Context, *GetBlockByNumberRequest) (*GetBlockByNumberResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBlockByNumber not implemented")
 }
@@ -128,6 +144,24 @@ func RegisterRPCQueryServiceServer(s grpc.ServiceRegistrar, srv RPCQueryServiceS
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&RPCQueryService_ServiceDesc, srv)
+}
+
+func _RPCQueryService_ChainId_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChainIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RPCQueryServiceServer).ChainId(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RPCQueryService_ChainId_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RPCQueryServiceServer).ChainId(ctx, req.(*ChainIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _RPCQueryService_GetBlockByNumber_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -191,6 +225,10 @@ var RPCQueryService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "bds.evm.RPCQueryService",
 	HandlerType: (*RPCQueryServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ChainId",
+			Handler:    _RPCQueryService_ChainId_Handler,
+		},
 		{
 			MethodName: "GetBlockByNumber",
 			Handler:    _RPCQueryService_GetBlockByNumber_Handler,

@@ -21,20 +21,115 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Request for getting the chain ID
+type ChainIdRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChainIdRequest) Reset() {
+	*x = ChainIdRequest{}
+	mi := &file_rpc_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChainIdRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChainIdRequest) ProtoMessage() {}
+
+func (x *ChainIdRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChainIdRequest.ProtoReflect.Descriptor instead.
+func (*ChainIdRequest) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{0}
+}
+
+// Response containing the chain ID
+type ChainIdResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// EIP-155 chain ID
+	ChainId       uint64 `protobuf:"varint,1,opt,name=chainId,proto3" json:"chainId,omitempty"`
+	GenesisHash   []byte `protobuf:"bytes,2,opt,name=genesisHash,proto3" json:"genesisHash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChainIdResponse) Reset() {
+	*x = ChainIdResponse{}
+	mi := &file_rpc_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChainIdResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChainIdResponse) ProtoMessage() {}
+
+func (x *ChainIdResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChainIdResponse.ProtoReflect.Descriptor instead.
+func (*ChainIdResponse) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ChainIdResponse) GetChainId() uint64 {
+	if x != nil {
+		return x.ChainId
+	}
+	return 0
+}
+
+func (x *ChainIdResponse) GetGenesisHash() []byte {
+	if x != nil {
+		return x.GenesisHash
+	}
+	return nil
+}
+
 // Request for getting a block by number
 type GetBlockByNumberRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The block number to retrieve
-	BlockNumber uint64 `protobuf:"varint,1,opt,name=blockNumber,proto3" json:"blockNumber,omitempty"`
+	// The block number to retrieve (hex number or "latest", "earliest", "pending" tags)
+	BlockNumber string `protobuf:"bytes,1,opt,name=blockNumber,proto3" json:"blockNumber,omitempty"`
 	// Whether to include full transaction details (if false, only transaction hashes are returned)
 	IncludeTransactions bool `protobuf:"varint,2,opt,name=includeTransactions,proto3" json:"includeTransactions,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Optional chain ID to use for the request
+	ChainId *uint64 `protobuf:"varint,3,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
+	// Optional genesis hash to narrow down identical networks with the same chain ID
+	ChainGenesisHash []byte `protobuf:"bytes,4,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetBlockByNumberRequest) Reset() {
 	*x = GetBlockByNumberRequest{}
-	mi := &file_rpc_proto_msgTypes[0]
+	mi := &file_rpc_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -46,7 +141,7 @@ func (x *GetBlockByNumberRequest) String() string {
 func (*GetBlockByNumberRequest) ProtoMessage() {}
 
 func (x *GetBlockByNumberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[0]
+	mi := &file_rpc_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,14 +154,14 @@ func (x *GetBlockByNumberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBlockByNumberRequest.ProtoReflect.Descriptor instead.
 func (*GetBlockByNumberRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{0}
+	return file_rpc_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetBlockByNumberRequest) GetBlockNumber() uint64 {
+func (x *GetBlockByNumberRequest) GetBlockNumber() string {
 	if x != nil {
 		return x.BlockNumber
 	}
-	return 0
+	return ""
 }
 
 func (x *GetBlockByNumberRequest) GetIncludeTransactions() bool {
@@ -74,6 +169,20 @@ func (x *GetBlockByNumberRequest) GetIncludeTransactions() bool {
 		return x.IncludeTransactions
 	}
 	return false
+}
+
+func (x *GetBlockByNumberRequest) GetChainId() uint64 {
+	if x != nil && x.ChainId != nil {
+		return *x.ChainId
+	}
+	return 0
+}
+
+func (x *GetBlockByNumberRequest) GetChainGenesisHash() []byte {
+	if x != nil {
+		return x.ChainGenesisHash
+	}
+	return nil
 }
 
 // Response containing the requested block
@@ -89,7 +198,7 @@ type GetBlockByNumberResponse struct {
 
 func (x *GetBlockByNumberResponse) Reset() {
 	*x = GetBlockByNumberResponse{}
-	mi := &file_rpc_proto_msgTypes[1]
+	mi := &file_rpc_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -101,7 +210,7 @@ func (x *GetBlockByNumberResponse) String() string {
 func (*GetBlockByNumberResponse) ProtoMessage() {}
 
 func (x *GetBlockByNumberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[1]
+	mi := &file_rpc_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -114,7 +223,7 @@ func (x *GetBlockByNumberResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBlockByNumberResponse.ProtoReflect.Descriptor instead.
 func (*GetBlockByNumberResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{1}
+	return file_rpc_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetBlockByNumberResponse) GetBlock() *BlockHeader {
@@ -138,13 +247,17 @@ type GetBlockByHashRequest struct {
 	BlockHash []byte `protobuf:"bytes,1,opt,name=blockHash,proto3" json:"blockHash,omitempty"`
 	// Whether to include full transaction details (if false, only transaction hashes are returned)
 	IncludeTransactions bool `protobuf:"varint,2,opt,name=includeTransactions,proto3" json:"includeTransactions,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Optional chain ID to use for the request
+	ChainId *uint64 `protobuf:"varint,3,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
+	// Optional genesis hash to narrow down identical networks with the same chain ID
+	ChainGenesisHash []byte `protobuf:"bytes,4,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetBlockByHashRequest) Reset() {
 	*x = GetBlockByHashRequest{}
-	mi := &file_rpc_proto_msgTypes[2]
+	mi := &file_rpc_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -156,7 +269,7 @@ func (x *GetBlockByHashRequest) String() string {
 func (*GetBlockByHashRequest) ProtoMessage() {}
 
 func (x *GetBlockByHashRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[2]
+	mi := &file_rpc_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -169,7 +282,7 @@ func (x *GetBlockByHashRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBlockByHashRequest.ProtoReflect.Descriptor instead.
 func (*GetBlockByHashRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{2}
+	return file_rpc_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetBlockByHashRequest) GetBlockHash() []byte {
@@ -186,20 +299,38 @@ func (x *GetBlockByHashRequest) GetIncludeTransactions() bool {
 	return false
 }
 
+func (x *GetBlockByHashRequest) GetChainId() uint64 {
+	if x != nil && x.ChainId != nil {
+		return *x.ChainId
+	}
+	return 0
+}
+
+func (x *GetBlockByHashRequest) GetChainGenesisHash() []byte {
+	if x != nil {
+		return x.ChainGenesisHash
+	}
+	return nil
+}
+
 // Response containing the requested block
 type GetBlockByHashResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The requested block, null if not found
 	Block *BlockHeader `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
 	// Transaction data (format depends on includeTransactions flag in request)
-	Transactions  [][]byte `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Transactions [][]byte `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	// Optional chain ID to use for the request
+	ChainId *uint64 `protobuf:"varint,5,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
+	// Optional genesis hash to narrow down identical networks with the same chain ID
+	ChainGenesisHash []byte `protobuf:"bytes,6,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetBlockByHashResponse) Reset() {
 	*x = GetBlockByHashResponse{}
-	mi := &file_rpc_proto_msgTypes[3]
+	mi := &file_rpc_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -211,7 +342,7 @@ func (x *GetBlockByHashResponse) String() string {
 func (*GetBlockByHashResponse) ProtoMessage() {}
 
 func (x *GetBlockByHashResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[3]
+	mi := &file_rpc_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -224,7 +355,7 @@ func (x *GetBlockByHashResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBlockByHashResponse.ProtoReflect.Descriptor instead.
 func (*GetBlockByHashResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{3}
+	return file_rpc_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetBlockByHashResponse) GetBlock() *BlockHeader {
@@ -237,6 +368,20 @@ func (x *GetBlockByHashResponse) GetBlock() *BlockHeader {
 func (x *GetBlockByHashResponse) GetTransactions() [][]byte {
 	if x != nil {
 		return x.Transactions
+	}
+	return nil
+}
+
+func (x *GetBlockByHashResponse) GetChainId() uint64 {
+	if x != nil && x.ChainId != nil {
+		return *x.ChainId
+	}
+	return 0
+}
+
+func (x *GetBlockByHashResponse) GetChainGenesisHash() []byte {
+	if x != nil {
+		return x.ChainGenesisHash
 	}
 	return nil
 }
@@ -255,14 +400,18 @@ type GetLogsRequest struct {
 	// topics[1] is an array of possible values for the second topic, etc.
 	Topics []*TopicFilter `protobuf:"bytes,4,rep,name=topics,proto3" json:"topics,omitempty"`
 	// Block hash to filter by (alternative to fromBlock/toBlock)
-	BlockHash     []byte `protobuf:"bytes,5,opt,name=blockHash,proto3,oneof" json:"blockHash,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	BlockHash []byte `protobuf:"bytes,5,opt,name=blockHash,proto3,oneof" json:"blockHash,omitempty"`
+	// Optional chain ID to use for the request
+	ChainId *uint64 `protobuf:"varint,6,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
+	// Optional genesis hash to narrow down identical networks with the same chain ID
+	ChainGenesisHash []byte `protobuf:"bytes,7,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetLogsRequest) Reset() {
 	*x = GetLogsRequest{}
-	mi := &file_rpc_proto_msgTypes[4]
+	mi := &file_rpc_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -274,7 +423,7 @@ func (x *GetLogsRequest) String() string {
 func (*GetLogsRequest) ProtoMessage() {}
 
 func (x *GetLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[4]
+	mi := &file_rpc_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -287,7 +436,7 @@ func (x *GetLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLogsRequest.ProtoReflect.Descriptor instead.
 func (*GetLogsRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{4}
+	return file_rpc_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetLogsRequest) GetFromBlock() uint64 {
@@ -325,6 +474,20 @@ func (x *GetLogsRequest) GetBlockHash() []byte {
 	return nil
 }
 
+func (x *GetLogsRequest) GetChainId() uint64 {
+	if x != nil && x.ChainId != nil {
+		return *x.ChainId
+	}
+	return 0
+}
+
+func (x *GetLogsRequest) GetChainGenesisHash() []byte {
+	if x != nil {
+		return x.ChainGenesisHash
+	}
+	return nil
+}
+
 // Filter for log topics at a specific position
 type TopicFilter struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -336,7 +499,7 @@ type TopicFilter struct {
 
 func (x *TopicFilter) Reset() {
 	*x = TopicFilter{}
-	mi := &file_rpc_proto_msgTypes[5]
+	mi := &file_rpc_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -348,7 +511,7 @@ func (x *TopicFilter) String() string {
 func (*TopicFilter) ProtoMessage() {}
 
 func (x *TopicFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[5]
+	mi := &file_rpc_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -361,7 +524,7 @@ func (x *TopicFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopicFilter.ProtoReflect.Descriptor instead.
 func (*TopicFilter) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{5}
+	return file_rpc_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *TopicFilter) GetValues() [][]byte {
@@ -382,7 +545,7 @@ type GetLogsResponse struct {
 
 func (x *GetLogsResponse) Reset() {
 	*x = GetLogsResponse{}
-	mi := &file_rpc_proto_msgTypes[6]
+	mi := &file_rpc_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -394,7 +557,7 @@ func (x *GetLogsResponse) String() string {
 func (*GetLogsResponse) ProtoMessage() {}
 
 func (x *GetLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[6]
+	mi := &file_rpc_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -407,7 +570,7 @@ func (x *GetLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLogsResponse.ProtoReflect.Descriptor instead.
 func (*GetLogsResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{6}
+	return file_rpc_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetLogsResponse) GetLogs() []*Log {
@@ -421,36 +584,61 @@ var File_rpc_proto protoreflect.FileDescriptor
 
 const file_rpc_proto_rawDesc = "" +
 	"\n" +
-	"\trpc.proto\x12\abds.evm\x1a\fmodels.proto\"m\n" +
+	"\trpc.proto\x12\abds.evm\x1a\fmodels.proto\"\x10\n" +
+	"\x0eChainIdRequest\"M\n" +
+	"\x0fChainIdResponse\x12\x18\n" +
+	"\achainId\x18\x01 \x01(\x04R\achainId\x12 \n" +
+	"\vgenesisHash\x18\x02 \x01(\fR\vgenesisHash\"\xde\x01\n" +
 	"\x17GetBlockByNumberRequest\x12 \n" +
-	"\vblockNumber\x18\x01 \x01(\x04R\vblockNumber\x120\n" +
-	"\x13includeTransactions\x18\x02 \x01(\bR\x13includeTransactions\"j\n" +
+	"\vblockNumber\x18\x01 \x01(\tR\vblockNumber\x120\n" +
+	"\x13includeTransactions\x18\x02 \x01(\bR\x13includeTransactions\x12\x1d\n" +
+	"\achainId\x18\x03 \x01(\x04H\x00R\achainId\x88\x01\x01\x12/\n" +
+	"\x10chainGenesisHash\x18\x04 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01B\n" +
+	"\n" +
+	"\b_chainIdB\x13\n" +
+	"\x11_chainGenesisHash\"j\n" +
 	"\x18GetBlockByNumberResponse\x12*\n" +
 	"\x05block\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x05block\x12\"\n" +
-	"\ftransactions\x18\x02 \x03(\fR\ftransactions\"g\n" +
+	"\ftransactions\x18\x02 \x03(\fR\ftransactions\"\xd8\x01\n" +
 	"\x15GetBlockByHashRequest\x12\x1c\n" +
 	"\tblockHash\x18\x01 \x01(\fR\tblockHash\x120\n" +
-	"\x13includeTransactions\x18\x02 \x01(\bR\x13includeTransactions\"h\n" +
+	"\x13includeTransactions\x18\x02 \x01(\bR\x13includeTransactions\x12\x1d\n" +
+	"\achainId\x18\x03 \x01(\x04H\x00R\achainId\x88\x01\x01\x12/\n" +
+	"\x10chainGenesisHash\x18\x04 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01B\n" +
+	"\n" +
+	"\b_chainIdB\x13\n" +
+	"\x11_chainGenesisHash\"\xd9\x01\n" +
 	"\x16GetBlockByHashResponse\x12*\n" +
 	"\x05block\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x05block\x12\"\n" +
-	"\ftransactions\x18\x02 \x03(\fR\ftransactions\"\xe9\x01\n" +
+	"\ftransactions\x18\x02 \x03(\fR\ftransactions\x12\x1d\n" +
+	"\achainId\x18\x05 \x01(\x04H\x00R\achainId\x88\x01\x01\x12/\n" +
+	"\x10chainGenesisHash\x18\x06 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01B\n" +
+	"\n" +
+	"\b_chainIdB\x13\n" +
+	"\x11_chainGenesisHash\"\xda\x02\n" +
 	"\x0eGetLogsRequest\x12!\n" +
 	"\tfromBlock\x18\x01 \x01(\x04H\x00R\tfromBlock\x88\x01\x01\x12\x1d\n" +
 	"\atoBlock\x18\x02 \x01(\x04H\x01R\atoBlock\x88\x01\x01\x12\x1c\n" +
 	"\taddresses\x18\x03 \x03(\fR\taddresses\x12,\n" +
 	"\x06topics\x18\x04 \x03(\v2\x14.bds.evm.TopicFilterR\x06topics\x12!\n" +
-	"\tblockHash\x18\x05 \x01(\fH\x02R\tblockHash\x88\x01\x01B\f\n" +
+	"\tblockHash\x18\x05 \x01(\fH\x02R\tblockHash\x88\x01\x01\x12\x1d\n" +
+	"\achainId\x18\x06 \x01(\x04H\x03R\achainId\x88\x01\x01\x12/\n" +
+	"\x10chainGenesisHash\x18\a \x01(\fH\x04R\x10chainGenesisHash\x88\x01\x01B\f\n" +
 	"\n" +
 	"_fromBlockB\n" +
 	"\n" +
 	"\b_toBlockB\f\n" +
 	"\n" +
-	"_blockHash\"%\n" +
+	"_blockHashB\n" +
+	"\n" +
+	"\b_chainIdB\x13\n" +
+	"\x11_chainGenesisHash\"%\n" +
 	"\vTopicFilter\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\fR\x06values\"3\n" +
 	"\x0fGetLogsResponse\x12 \n" +
-	"\x04logs\x18\x01 \x03(\v2\f.bds.evm.LogR\x04logs2\xfb\x01\n" +
-	"\x0fRPCQueryService\x12W\n" +
+	"\x04logs\x18\x01 \x03(\v2\f.bds.evm.LogR\x04logs2\xb9\x02\n" +
+	"\x0fRPCQueryService\x12<\n" +
+	"\aChainId\x12\x17.bds.evm.ChainIdRequest\x1a\x18.bds.evm.ChainIdResponse\x12W\n" +
 	"\x10GetBlockByNumber\x12 .bds.evm.GetBlockByNumberRequest\x1a!.bds.evm.GetBlockByNumberResponse\x12Q\n" +
 	"\x0eGetBlockByHash\x12\x1e.bds.evm.GetBlockByHashRequest\x1a\x1f.bds.evm.GetBlockByHashResponse\x12<\n" +
 	"\aGetLogs\x12\x17.bds.evm.GetLogsRequest\x1a\x18.bds.evm.GetLogsResponseB4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
@@ -467,34 +655,38 @@ func file_rpc_proto_rawDescGZIP() []byte {
 	return file_rpc_proto_rawDescData
 }
 
-var file_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_rpc_proto_goTypes = []any{
-	(*GetBlockByNumberRequest)(nil),  // 0: bds.evm.GetBlockByNumberRequest
-	(*GetBlockByNumberResponse)(nil), // 1: bds.evm.GetBlockByNumberResponse
-	(*GetBlockByHashRequest)(nil),    // 2: bds.evm.GetBlockByHashRequest
-	(*GetBlockByHashResponse)(nil),   // 3: bds.evm.GetBlockByHashResponse
-	(*GetLogsRequest)(nil),           // 4: bds.evm.GetLogsRequest
-	(*TopicFilter)(nil),              // 5: bds.evm.TopicFilter
-	(*GetLogsResponse)(nil),          // 6: bds.evm.GetLogsResponse
-	(*BlockHeader)(nil),              // 7: bds.evm.BlockHeader
-	(*Log)(nil),                      // 8: bds.evm.Log
+	(*ChainIdRequest)(nil),           // 0: bds.evm.ChainIdRequest
+	(*ChainIdResponse)(nil),          // 1: bds.evm.ChainIdResponse
+	(*GetBlockByNumberRequest)(nil),  // 2: bds.evm.GetBlockByNumberRequest
+	(*GetBlockByNumberResponse)(nil), // 3: bds.evm.GetBlockByNumberResponse
+	(*GetBlockByHashRequest)(nil),    // 4: bds.evm.GetBlockByHashRequest
+	(*GetBlockByHashResponse)(nil),   // 5: bds.evm.GetBlockByHashResponse
+	(*GetLogsRequest)(nil),           // 6: bds.evm.GetLogsRequest
+	(*TopicFilter)(nil),              // 7: bds.evm.TopicFilter
+	(*GetLogsResponse)(nil),          // 8: bds.evm.GetLogsResponse
+	(*BlockHeader)(nil),              // 9: bds.evm.BlockHeader
+	(*Log)(nil),                      // 10: bds.evm.Log
 }
 var file_rpc_proto_depIdxs = []int32{
-	7, // 0: bds.evm.GetBlockByNumberResponse.block:type_name -> bds.evm.BlockHeader
-	7, // 1: bds.evm.GetBlockByHashResponse.block:type_name -> bds.evm.BlockHeader
-	5, // 2: bds.evm.GetLogsRequest.topics:type_name -> bds.evm.TopicFilter
-	8, // 3: bds.evm.GetLogsResponse.logs:type_name -> bds.evm.Log
-	0, // 4: bds.evm.RPCQueryService.GetBlockByNumber:input_type -> bds.evm.GetBlockByNumberRequest
-	2, // 5: bds.evm.RPCQueryService.GetBlockByHash:input_type -> bds.evm.GetBlockByHashRequest
-	4, // 6: bds.evm.RPCQueryService.GetLogs:input_type -> bds.evm.GetLogsRequest
-	1, // 7: bds.evm.RPCQueryService.GetBlockByNumber:output_type -> bds.evm.GetBlockByNumberResponse
-	3, // 8: bds.evm.RPCQueryService.GetBlockByHash:output_type -> bds.evm.GetBlockByHashResponse
-	6, // 9: bds.evm.RPCQueryService.GetLogs:output_type -> bds.evm.GetLogsResponse
-	7, // [7:10] is the sub-list for method output_type
-	4, // [4:7] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	9,  // 0: bds.evm.GetBlockByNumberResponse.block:type_name -> bds.evm.BlockHeader
+	9,  // 1: bds.evm.GetBlockByHashResponse.block:type_name -> bds.evm.BlockHeader
+	7,  // 2: bds.evm.GetLogsRequest.topics:type_name -> bds.evm.TopicFilter
+	10, // 3: bds.evm.GetLogsResponse.logs:type_name -> bds.evm.Log
+	0,  // 4: bds.evm.RPCQueryService.ChainId:input_type -> bds.evm.ChainIdRequest
+	2,  // 5: bds.evm.RPCQueryService.GetBlockByNumber:input_type -> bds.evm.GetBlockByNumberRequest
+	4,  // 6: bds.evm.RPCQueryService.GetBlockByHash:input_type -> bds.evm.GetBlockByHashRequest
+	6,  // 7: bds.evm.RPCQueryService.GetLogs:input_type -> bds.evm.GetLogsRequest
+	1,  // 8: bds.evm.RPCQueryService.ChainId:output_type -> bds.evm.ChainIdResponse
+	3,  // 9: bds.evm.RPCQueryService.GetBlockByNumber:output_type -> bds.evm.GetBlockByNumberResponse
+	5,  // 10: bds.evm.RPCQueryService.GetBlockByHash:output_type -> bds.evm.GetBlockByHashResponse
+	8,  // 11: bds.evm.RPCQueryService.GetLogs:output_type -> bds.evm.GetLogsResponse
+	8,  // [8:12] is the sub-list for method output_type
+	4,  // [4:8] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_rpc_proto_init() }
@@ -503,14 +695,17 @@ func file_rpc_proto_init() {
 		return
 	}
 	file_models_proto_init()
+	file_rpc_proto_msgTypes[2].OneofWrappers = []any{}
 	file_rpc_proto_msgTypes[4].OneofWrappers = []any{}
+	file_rpc_proto_msgTypes[5].OneofWrappers = []any{}
+	file_rpc_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_rpc_proto_rawDesc), len(file_rpc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
