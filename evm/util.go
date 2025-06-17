@@ -43,7 +43,6 @@ func MustHexToAddress(s string) Address {
 	return addr
 }
 
-
 func HexToUint32(hex string) (uint32, error) {
 	if len(hex) < 2 || hex[:2] != "0x" {
 		return 0, fmt.Errorf("invalid hex string: %s", hex)
@@ -187,7 +186,7 @@ func NewTopicFilter(values ...string) (*TopicFilter, error) {
 	filter := &TopicFilter{
 		Values: make([][]byte, 0, len(values)),
 	}
-	
+
 	for _, v := range values {
 		b, err := HexToBytes(v)
 		if err != nil {
@@ -195,7 +194,7 @@ func NewTopicFilter(values ...string) (*TopicFilter, error) {
 		}
 		filter.Values = append(filter.Values, b)
 	}
-	
+
 	return filter, nil
 }
 
@@ -217,7 +216,7 @@ func BuildTransferLogQuery(fromBlock, toBlock uint64, contractAddresses []string
 		ToBlock:   &toBlock,
 		Addresses: make([][]byte, 0, len(contractAddresses)),
 	}
-	
+
 	// Add contract addresses
 	for _, addr := range contractAddresses {
 		b, err := HexToBytes(addr)
@@ -226,14 +225,14 @@ func BuildTransferLogQuery(fromBlock, toBlock uint64, contractAddresses []string
 		}
 		req.Addresses = append(req.Addresses, b)
 	}
-	
+
 	// Add Transfer event signature as first topic
 	transferTopic, err := NewTopicFilter(TransferEventSignature)
 	if err != nil {
 		return nil, err
 	}
 	req.Topics = []*TopicFilter{transferTopic}
-	
+
 	return req, nil
 }
 

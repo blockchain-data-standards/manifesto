@@ -77,15 +77,15 @@ func (b *JsonRpcBlock) ToProto() (*BlockHeader, error) {
 }
 
 type JsonRpcReceipt struct {
-	BlockHash        string `json:"blockHash"`
-	BlockNumber      string `json:"blockNumber"`
-	From             string `json:"from"`
-	GasUsed          string `json:"gasUsed"`
+	BlockHash        string        `json:"blockHash"`
+	BlockNumber      string        `json:"blockNumber"`
+	From             string        `json:"from"`
+	GasUsed          string        `json:"gasUsed"`
 	Logs             []*JsonRpcLog `json:"logs"`
-	LogsBloom        string `json:"logsBloom"`
-	To               string `json:"to"`
-	TransactionHash  string `json:"transactionHash"`
-	TransactionIndex string `json:"transactionIndex"`
+	LogsBloom        string        `json:"logsBloom"`
+	To               string        `json:"to"`
+	TransactionHash  string        `json:"transactionHash"`
+	TransactionIndex string        `json:"transactionIndex"`
 }
 
 func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
@@ -122,26 +122,26 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 		logs = append(logs, protoLog)
 	}
 	return &Receipt{
-		BlockNumber: blockNumber,
+		BlockNumber:      blockNumber,
 		TransactionIndex: uint32(transactionIndex),
-		GasUsed: gasUsed,
-		LogsBloom: logsBloom,
-		BlockHash: blockHash,
-		TransactionHash: transactionHash,
-		Logs: logs,
+		GasUsed:          gasUsed,
+		LogsBloom:        logsBloom,
+		BlockHash:        blockHash,
+		TransactionHash:  transactionHash,
+		Logs:             logs,
 	}, nil
 }
 
 type JsonRpcLog struct {
-	Address string `json:"address"`
-	BlockHash string `json:"blockHash"`
-	BlockNumber string `json:"blockNumber"`
-	BlockTimestamp string `json:"blockTimestamp"`
-	Data    string `json:"data"`
-	LogIndex string `json:"logIndex"`
-	Topics  []string `json:"topics"`
-	TransactionHash string `json:"transactionHash"`
-	TransactionIndex string `json:"transactionIndex"`
+	Address          string   `json:"address"`
+	BlockHash        string   `json:"blockHash"`
+	BlockNumber      string   `json:"blockNumber"`
+	BlockTimestamp   string   `json:"blockTimestamp"`
+	Data             string   `json:"data"`
+	LogIndex         string   `json:"logIndex"`
+	Topics           []string `json:"topics"`
+	TransactionHash  string   `json:"transactionHash"`
+	TransactionIndex string   `json:"transactionIndex"`
 }
 
 func (l *JsonRpcLog) ToProto() (*Log, error) {
@@ -190,14 +190,14 @@ func (l *JsonRpcLog) ToProto() (*Log, error) {
 		topics = append(topics, topicBytes)
 	}
 	return &Log{
-		Address: address,
-		BlockHash: blockHash,
-		BlockNumber: blockNumber,
-		BlockTimestamp: blockTimestamp,
-		Data: data,
-		LogIndex: logIndex,
-		Topics: topics,
-		TransactionHash: transactionHash,
+		Address:          address,
+		BlockHash:        blockHash,
+		BlockNumber:      blockNumber,
+		BlockTimestamp:   blockTimestamp,
+		Data:             data,
+		LogIndex:         logIndex,
+		Topics:           topics,
+		TransactionHash:  transactionHash,
 		TransactionIndex: transactionIndex,
 	}, nil
 }

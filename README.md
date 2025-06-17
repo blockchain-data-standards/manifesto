@@ -3,6 +3,10 @@ The entrypoint for learning about Blockchain Data Standards working group, manif
 
 * Telegram Group: http://t.me/blockchain_data_standards
 
+## Current State: DRAFT 🧘
+
+This manifest is in draft mode, meaning the inital idea is being put in place and comments and suggestions are welcome as nothing is yet committed.
+
 ## Participants
 
 * Ozgur ([github/ozgrakkurt](https://github.com/ozgrakkurt)) - Steel Cake
@@ -36,9 +40,9 @@ This working group aims to unify blockchain data efforts by creating common stan
 
 At the moment, the focus is:
 
-- ** 3️⃣ Schema / Structure / Semantics** is the main focus of the group, which is to create a common taxonomy for blockchain "raw data" so that providers of data, and consumers of data have lower barriers to entry.
-- ** 4️⃣ Querying / Filtering** efforts are focused on common use-cases and access patterns based on real-world production applications. The BDS working group mainly provides best-practice conventions and specs but will NOT get into implementation details.
-- ** 5️⃣ Transport** is how the data is technically delivered to consumers. The BDS working group will only offer recommendations and potentially useful libraries and tools (e.g. a translation tool between a gRPC data provider and a Subgraph which requires JSON-RPC)
+- **3️⃣ Schema / Structure / Semantics** is the main focus of the group, which is to create a common taxonomy for blockchain "raw data" so that providers of data, and consumers of data have lower barriers to entry.
+- **4️⃣ Querying / Filtering** efforts are focused on common use-cases and access patterns based on real-world production applications. The BDS working group mainly provides best-practice conventions and specs but will NOT get into implementation details.
+- **5️⃣ Transport** is how the data is technically delivered to consumers. The BDS working group will only offer recommendations and potentially useful libraries and tools (e.g. a translation tool between a gRPC data provider and a Subgraph which requires JSON-RPC)
 
 ### Quick Glossary
 

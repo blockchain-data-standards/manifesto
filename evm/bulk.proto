@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package bds.evm;
+
 option go_package = "github.com/blockchain-data-standards/manifesto/evm";
 
 import "models.proto";
