@@ -1,0 +1,529 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blockchain-data-standards.org/schemas/provider-capabilities.json",
+  "title": "Provider Capabilities Schema",
+  "description": "Schema for static definition of a provider's supported networks, services, models, fields, and availabilities",
+  "type": "object",
+  "required": ["provider"],
+  "properties": {
+    "provider": {
+      "type": "object",
+      "required": ["info", "networks"],
+      "properties": {
+        "info": {
+          "$ref": "#/definitions/ProviderInfo"
+        },
+        "networks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Network"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "ProviderInfo": {
+      "type": "object",
+      "required": ["slug", "name"],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "Provider slug (e.g., 'alchemy', 'infura', 'quicknode')"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable provider name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Provider description"
+        },
+        "websiteUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Provider website URL"
+        },
+        "docsUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "API documentation URL"
+        },
+        "logoUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Provider logo URL"
+        },
+        "pricingModel": {
+          "type": "string",
+          "enum": ["free", "freemium", "paid", "open-source"],
+          "description": "Pricing model"
+        }
+      }
+    },
+    "Network": {
+      "type": "object",
+      "required": ["uuid", "architecture", "name"],
+      "properties": {
+        "uuid": {
+          "type": "string",
+          "description": "Globally unique identifier for a blockchain in format ARCH:CHAINID[:GENESIS_SHORT_HASH]",
+          "examples": ["evm:1:0x88e96d", "sol:101:0x3973e3"]
+        },
+        "architecture": {
+          "type": "string",
+          "enum": ["evm", "solana", "bitcoin", "cosmos"],
+          "description": "Blockchain architecture type"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable network name (e.g., 'Ethereum Mainnet', 'Avalanche C-Chain')"
+        },
+        "evm": {
+          "$ref": "#/definitions/EvmNetworkInfo",
+          "description": "EVM-specific network information (only if architecture is 'evm')"
+        },
+        "solana": {
+          "$ref": "#/definitions/SolanaNetworkInfo",
+          "description": "Solana-specific network information (only if architecture is 'solana')"
+        },
+        "bitcoin": {
+          "$ref": "#/definitions/BitcoinNetworkInfo",
+          "description": "Bitcoin-specific network information (only if architecture is 'bitcoin')"
+        },
+        "cosmos": {
+          "$ref": "#/definitions/CosmosNetworkInfo",
+          "description": "Cosmos-specific network information (only if architecture is 'cosmos')"
+        },
+        "capabilities": {
+          "$ref": "#/definitions/NetworkCapabilities",
+          "description": "Provider capabilities for this network"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "architecture": { "const": "evm" }
+          },
+          "required": ["evm"]
+        },
+        {
+          "properties": {
+            "architecture": { "const": "solana" }
+          },
+          "required": ["solana"]
+        },
+        {
+          "properties": {
+            "architecture": { "const": "bitcoin" }
+          },
+          "required": ["bitcoin"]
+        },
+        {
+          "properties": {
+            "architecture": { "const": "cosmos" }
+          },
+          "required": ["cosmos"]
+        }
+      ]
+    },
+    "EvmNetworkInfo": {
+      "type": "object",
+      "required": ["chainId"],
+      "properties": {
+        "chainId": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Chain ID as defined in EIP-155"
+        },
+        "genesisBlockHash": {
+          "type": "string",
+          "description": "Genesis block hash (full hash) - used to disambiguate networks with same chainId"
+        }
+      }
+    },
+    "SolanaNetworkInfo": {
+      "type": "object",
+      "properties": {
+        "genesisHash": {
+          "type": "string",
+          "description": "Genesis hash of the network"
+        },
+        "cluster": {
+          "type": "string",
+          "description": "Cluster type (mainnet-beta, testnet, devnet, localnet)"
+        },
+        "slotTimeMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Slot time in milliseconds"
+        }
+      }
+    },
+    "BitcoinNetworkInfo": {
+      "type": "object",
+      "properties": {
+        "magicBytes": {
+          "type": "string",
+          "description": "Network magic bytes (mainnet: 0xD9B4BEF9, testnet: 0x0709110B)"
+        },
+        "genesisBlockHash": {
+          "type": "string",
+          "description": "Genesis block hash"
+        },
+        "segwitEnabled": {
+          "type": "boolean",
+          "description": "Whether this network uses SegWit"
+        }
+      }
+    },
+    "CosmosNetworkInfo": {
+      "type": "object",
+      "properties": {
+        "chainId": {
+          "type": "string",
+          "description": "Chain ID as used in Cosmos SDK"
+        },
+        "bech32Prefix": {
+          "type": "string",
+          "description": "Bech32 address prefix (e.g., 'cosmos', 'osmo')"
+        },
+        "genesisHash": {
+          "type": "string",
+          "description": "Genesis file hash"
+        }
+      }
+    },
+    "NetworkCapabilities": {
+      "type": "object",
+      "properties": {
+        "allOperations": {
+          "type": "boolean",
+          "description": "Supports all methods of all services for this network"
+        },
+        "specificServices": {
+          "$ref": "#/definitions/ServiceList",
+          "description": "Supports all methods of specific services"
+        },
+        "detailedOperationSupport": {
+          "$ref": "#/definitions/DetailedOperationSupport",
+          "description": "Detailed method-level support for services"
+        },
+        "allModels": {
+          "type": "boolean",
+          "description": "Supports all models and all fields for this network"
+        },
+        "specificModels": {
+          "$ref": "#/definitions/ModelList",
+          "description": "Supports specific models (with all their fields)"
+        },
+        "detailedSupport": {
+          "$ref": "#/definitions/DetailedModelSupport",
+          "description": "Detailed field-level support for models"
+        },
+        "defaultAvailability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Default availability for this network (can be overridden at service/model/method/field level)"
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            { "required": ["allOperations"] },
+            { "required": ["specificServices"] },
+            { "required": ["detailedOperationSupport"] }
+          ]
+        },
+        {
+          "oneOf": [
+            { "required": ["allModels"] },
+            { "required": ["specificModels"] },
+            { "required": ["detailedSupport"] }
+          ]
+        }
+      ]
+    },
+    "AvailabilityInfo": {
+      "type": "object",
+      "properties": {
+        "allBlocks": {
+          "type": "boolean",
+          "description": "Data is available for all blocks"
+        },
+        "lastNBlocks": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Data is available for the last N blocks from chain tip"
+        },
+        "ranges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BlockRange"
+          },
+          "description": "Data is available for specific block ranges"
+        },
+        "finalizedBlocks": {
+          "type": "boolean",
+          "description": "Data is available only for finalized blocks"
+        },
+        "unfinalizedBlocks": {
+          "type": "boolean",
+          "description": "Data is available only for unfinalized blocks (pending finality)"
+        },
+        "lastUpdatedTimestamp": {
+          "type": "integer",
+          "description": "Optional timestamp when this availability info was last updated"
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional note about availability (e.g., 'Historical data before block 1000000 available on request')"
+        }
+      },
+      "oneOf": [
+        { "required": ["allBlocks"] },
+        { "required": ["lastNBlocks"] },
+        { "required": ["ranges"] },
+        { "required": ["finalizedBlocks"] },
+        { "required": ["unfinalizedBlocks"] }
+      ]
+    },
+    "BlockRange": {
+      "type": "object",
+      "required": ["fromBlock"],
+      "properties": {
+        "fromBlock": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Starting block number (inclusive)"
+        },
+        "toBlock": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Ending block number (inclusive), if not set means up to chain tip"
+        }
+      }
+    },
+    "ServiceList": {
+      "type": "object",
+      "properties": {
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Simple list of service names (uses default availability)"
+        },
+        "serviceInfos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ServiceInfo"
+          },
+          "description": "Detailed service info with per-service availability"
+        },
+        "defaultAvailability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Optional: Default availability for all services in this list"
+        }
+      }
+    },
+    "ServiceInfo": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Service name"
+        },
+        "availability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Availability info for this service"
+        }
+      }
+    },
+    "DetailedOperationSupport": {
+      "type": "object",
+      "properties": {
+        "services": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/MethodSupport"
+          },
+          "description": "Map of service name to method support"
+        },
+        "defaultAvailability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Optional: Default availability for all services"
+        }
+      }
+    },
+    "MethodSupport": {
+      "type": "object",
+      "properties": {
+        "allMethods": {
+          "type": "boolean",
+          "description": "Supports all methods for this service"
+        },
+        "specificMethods": {
+          "$ref": "#/definitions/MethodList",
+          "description": "Supports only specific methods"
+        },
+        "availability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Availability info for this service (applies to all its methods unless overridden)"
+        }
+      },
+      "oneOf": [
+        { "required": ["allMethods"] },
+        { "required": ["specificMethods"] }
+      ]
+    },
+    "MethodList": {
+      "type": "object",
+      "properties": {
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Simple list of method names (uses default availability)"
+        },
+        "methodInfos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MethodInfo"
+          },
+          "description": "Detailed method info with per-method availability"
+        },
+        "defaultAvailability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Optional: Default availability for all methods in this list"
+        }
+      }
+    },
+    "MethodInfo": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Method name"
+        },
+        "availability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Availability info for this method"
+        }
+      }
+    },
+    "ModelList": {
+      "type": "object",
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Simple list of model names (uses default availability)"
+        },
+        "modelInfos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ModelInfo"
+          },
+          "description": "Detailed model info with per-model availability"
+        },
+        "defaultAvailability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Optional: Default availability for all models in this list"
+        }
+      }
+    },
+    "ModelInfo": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Model name"
+        },
+        "availability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Availability info for this model"
+        }
+      }
+    },
+    "DetailedModelSupport": {
+      "type": "object",
+      "properties": {
+        "models": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/FieldSupport"
+          },
+          "description": "Map of model name to field support"
+        },
+        "defaultAvailability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Optional: Default availability for all models"
+        }
+      }
+    },
+    "FieldSupport": {
+      "type": "object",
+      "properties": {
+        "allFields": {
+          "type": "boolean",
+          "description": "Supports all fields for this model"
+        },
+        "specificFields": {
+          "$ref": "#/definitions/FieldList",
+          "description": "Supports only specific fields"
+        },
+        "availability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Availability info for this model (applies to all its fields unless overridden)"
+        }
+      },
+      "oneOf": [
+        { "required": ["allFields"] },
+        { "required": ["specificFields"] }
+      ]
+    },
+    "FieldList": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Simple list of field names (uses default availability)"
+        },
+        "fieldInfos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FieldInfo"
+          },
+          "description": "Detailed field info with per-field availability"
+        },
+        "defaultAvailability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Optional: Default availability for all fields in this list"
+        }
+      }
+    },
+    "FieldInfo": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Field name"
+        },
+        "availability": {
+          "$ref": "#/definitions/AvailabilityInfo",
+          "description": "Availability info for this field"
+        }
+      }
+    }
+  }
+} 

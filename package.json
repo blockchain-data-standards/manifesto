@@ -1,0 +1,24 @@
+{
+  "name": "@blockchain-data-standards/manifesto",
+  "version": "1.0.0",
+  "description": "Code generator for Blockchain Data Standards catalog definitions",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "generate": "bun run generate:evm && bun run generate:common",
+    "generate:evm": "bun run generate:evm:proto",
+    "generate:evm:proto": "protoc -I=evm --go_out=evm --go_opt=paths=source_relative --go-grpc_out=evm --go-grpc_opt=paths=source_relative evm/models.proto evm/rpc.proto evm/bulk.proto",
+    "generate:common": "bun run generate:common:proto",
+    "generate:common:proto": "protoc -I=common --go_out=common --go_opt=paths=source_relative --go-grpc_out=common --go-grpc_opt=paths=source_relative common/errors.proto"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+} 

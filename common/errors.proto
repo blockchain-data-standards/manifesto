@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package bds.common;
+
+option go_package = "github.com/blockchain-data-standards/manifesto/common";
+
+import "google/protobuf/any.proto";
+
+// ErrorDetails provides structured error information that can be attached to gRPC status
+message ErrorDetails {
+  // Error code for programmatic handling
+  ErrorCode code = 1;
+  
+  // Human-readable error message
+  string message = 2;
+  
+  // Optional nested cause error
+  ErrorDetails cause = 3;
+  
+  // Additional context as key-value pairs
+  map<string, string> details = 4;
+  
+  // For complex details that need structured data
+  repeated google.protobuf.Any metadata = 5;
+}
+
+// Common error codes that can be used across services
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  
+  INVALID_REQUEST = 1;
+  INVALID_PARAMETER = 2;
+  INTERNAL_ERROR = 3;
+  RANGE_TOO_LARGE = 4;
+  RANGE_OUTSIDE_AVAILABLE = 5;
+  RATE_LIMITED = 6;
+  TIMEOUT_ERROR = 7;
+  UNSUPPORTED_METHOD = 8;
+  UNSUPPORTED_BLOCK_TAG = 9;
+} 

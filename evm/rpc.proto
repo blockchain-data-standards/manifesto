@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package bds.evm;
+option go_package = "github.com/blockchain-data-standards/manifesto/evm";
+
+import "models.proto";
+
+// Service for standard EVM RPC operations
+// Equivalent to Ethereum JSON-RPC methods for node interactions
+service RPCQueryService {
+  rpc ChainId(ChainIdRequest) returns (ChainIdResponse);
+
+  // Get a block by its number (equivalent to eth_getBlockByNumber)
+  rpc GetBlockByNumber(GetBlockByNumberRequest) returns (GetBlockByNumberResponse);
+  
+  // Get a block by its hash (equivalent to eth_getBlockByHash)
+  rpc GetBlockByHash(GetBlockByHashRequest) returns (GetBlockByHashResponse);
+  
+  // Get logs matching filter criteria (equivalent to eth_getLogs)
+  rpc GetLogs(GetLogsRequest) returns (GetLogsResponse);
+}
+
+// Request for getting the chain ID
+message ChainIdRequest {
+}
+
+// Response containing the chain ID
+message ChainIdResponse {
+  // EIP-155 chain ID
+  uint64 chainId = 1;
+  bytes genesisHash = 2;
+}
+
+// Request for getting a block by number
+message GetBlockByNumberRequest {
+  // The block number to retrieve (hex number or "latest", "earliest", "pending" tags)
+  string blockNumber = 1;
+  
+  // Whether to include full transaction details (if false, only transaction hashes are returned)
+  bool includeTransactions = 2;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 3;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 4;
+}
+
+// Response containing the requested block
+message GetBlockByNumberResponse {
+  // The requested block, null if not found
+  BlockHeader block = 1;
+  
+  // Transaction data (format depends on includeTransactions flag in request)
+  repeated bytes transactions = 2;
+}
+
+// Request for getting a block by hash
+message GetBlockByHashRequest {
+  // The block hash to retrieve
+  bytes blockHash = 1;
+  
+  // Whether to include full transaction details (if false, only transaction hashes are returned)
+  bool includeTransactions = 2;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 3;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 4;
+}
+
+// Response containing the requested block
+message GetBlockByHashResponse {
+  // The requested block, null if not found
+  BlockHeader block = 1;
+  
+  // Transaction data (format depends on includeTransactions flag in request)
+  repeated bytes transactions = 2;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 5;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 6;
+}
+
+// Request for getting logs
+message GetLogsRequest {
+  // Starting block number (inclusive)
+  optional uint64 fromBlock = 1;
+  
+  // Ending block number (inclusive)
+  optional uint64 toBlock = 2;
+  
+  // Contract addresses to filter by (empty means all addresses)
+  repeated bytes addresses = 3;
+  
+  // Topics to filter by (each position can have multiple possible values)
+  // topics[0] is an array of possible values for the first topic
+  // topics[1] is an array of possible values for the second topic, etc.
+  repeated TopicFilter topics = 4;
+  
+  // Block hash to filter by (alternative to fromBlock/toBlock)
+  optional bytes blockHash = 5;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 6;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 7;
+}
+
+// Filter for log topics at a specific position
+message TopicFilter {
+  // Possible values for this topic position (OR condition)
+  repeated bytes values = 1;
+}
+
+// Response containing matching logs
+message GetLogsResponse {
+  // Array of logs matching the filter criteria
+  repeated Log logs = 1;
+}

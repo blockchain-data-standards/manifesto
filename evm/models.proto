@@ -1,0 +1,449 @@
+syntax = "proto3";
+
+package bds.evm;
+option go_package = "github.com/blockchain-data-standards/manifesto/evm";
+
+// A reference to a block on an EVM-compatible blockchain. This is used to identify a block without storing the full block data.
+message BlockRef {
+  uint64 number = 1;
+  bytes hash = 2;
+  bytes parentHash = 3;
+}
+
+// A confirmed block on an EVM-compatible blockchain containing transactions and state changes
+message BlockHeader {
+  // The block height - sequential position of this block in the blockchain starting from genesis (0). This is the primary identifier for blocks and is used for chain synchronization, determining finality depth, and calculating confirmations. Every valid block must have a unique number that is exactly one greater than its parent
+  uint64 number = 1;
+
+  // Unix timestamp (seconds since epoch) when this block was mined/produced. Set by the block producer and used for calculating block time intervals, time-based logic in smart contracts (block.timestamp), and difficulty adjustments. Must be greater than parent's timestamp. Manipulatable by miners/validators within protocol limits (typically ±15 seconds)
+  uint64 timestamp = 2;
+
+  // Maximum total gas that can be consumed by all transactions in this block. Set by miners/validators based on network capacity and protocol rules. Prevents blocks from becoming too large/slow to process. Dynamically adjusted on some chains (e.g., Ethereum targets 15M gas with EIP-1559 allowing up to 30M)
+  uint64 gasLimit = 3;
+
+  // Sum of gas actually consumed by all transactions in this block. Always less than or equal to gasLimit. Used to calculate block utilization, network congestion, and in EIP-1559 chains to adjust the base fee. Critical for gas analytics and optimization
+  uint64 gasUsed = 4;
+
+  // Total size of the block in bytes including header and all transactions. Used to enforce block size limits, calculate network bandwidth requirements, and storage costs. Ethereum soft limit ~1.875MB (gas limit / 16). Different from gas limit as it measures actual data size
+  uint64 size = 5;
+
+  // The Keccak-256 hash of the block header (parentHash, unclesHash, miner, stateRoot, transactionsRoot, receiptsRoot, logsBloom, difficulty, number, gasLimit, gasUsed, timestamp, extraData, mixHash, nonce). This serves as a unique identifier and cryptographic fingerprint that proves the block's integrity. Used in the PoW/PoS consensus to link blocks and detect chain reorganizations
+  bytes hash = 6;
+
+  // The Keccak-256 hash of the parent block's header. This creates the blockchain's linked structure where each block references its predecessor. The genesis block has a parent hash of 0x0. Used by nodes to validate chain continuity and detect forks or reorganizations
+  bytes parentHash = 7;
+
+  // Root hash of the global state trie (Patricia Merkle Tree) after executing all transactions in this block. Represents the entire Ethereum state (all accounts, balances, storage, code). Enables light clients to verify state without storing it. Critical for state proofs and cross-chain bridges
+  bytes stateRoot = 8;
+
+  // Root hash of the transactions trie containing all transactions included in this block. Enables Merkle proofs of transaction inclusion. Transactions are indexed by their position in the block. Essential for light clients and SPV (Simplified Payment Verification)
+  bytes transactionsRoot = 9;
+
+  // Root hash of the receipts trie containing transaction receipts (status, logs, gas used) for all transactions in this block. Enables Merkle proofs of transaction execution results and emitted events. Critical for proving transaction success/failure and log inclusion
+  bytes receiptsRoot = 10;
+
+  // Keccak-256 hash of the uncles (ommer blocks) list. Uncle blocks are valid blocks mined at the same height but not included in the main chain. Ethereum rewards uncle blocks to reduce mining centralization. Always 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347 (empty uncle list hash) post-merge
+  bytes sha3Uncles = 11;
+
+  // The 20-byte Ethereum address that received the block reward and transaction fees. In PoW chains, this is the miner who found the valid nonce. In PoS chains, this is the validator who proposed the block. In L2s, this is typically the sequencer address. Also called 'author' or 'coinbase' in some contexts
+  bytes miner = 12;
+
+  // 2048-bit (256 bytes) bloom filter of all log topics and addresses from all transactions in the block. Enables efficient filtering of logs without processing all transactions. Each log adds its address and topics to the bloom filter. Used by eth_getLogs to quickly skip irrelevant blocks
+  bytes logsBloom = 13;
+
+  // Arbitrary data included by the block producer. Limited to 32 bytes in Ethereum mainnet. Often contains miner/pool identification, voting data, or protocol-specific information. In Clique PoA networks contains validator signatures. L2s may use for additional protocol data
+  bytes extraData = 14;
+
+  // [DEPRECATED: Deprecated for consensus after Ethereum's transition to Proof-of-Stake, always zero in PoS blocks] PoW mining nonce - 64-bit value miners increment to find a valid block hash below the difficulty target. Combined with mixHash to prove work. Always 0x0000000000000000 in PoS blocks. Some PoA networks use for validator voting
+  optional uint64 nonce = 15;
+
+  // Total blob gas consumed by blob-carrying transactions (EIP-4844) in this block. Each blob consumes 131072 gas units. Used to calculate blob fees separately from regular gas. Introduced in Dencun upgrade for proto-danksharding. Maximum 786432 (6 blobs) per block
+  optional uint64 blobGasUsed = 16;
+
+  // Running total of blob gas consumed above the target (393216 gas, 3 blobs) from previous block. Used in EIP-4844 to calculate blob base fee similar to EIP-1559. Increases when blob usage is high, decreases when low. Enables dynamic blob pricing independent of regular gas
+  optional uint64 excessBlobGas = 17;
+
+  // The L1 (Ethereum mainnet) block number that this L2 block is anchored to. Used by L2 sequencers to establish data availability and finality. Critical for L2->L1 messaging, challenge periods, and state root submissions. Timing varies by L2 design (optimistic vs zk rollups)
+  optional uint64 l1BlockNumber = 18;
+
+  // Beacon chain epoch number (32 slots, ~6.4 minutes). Groups slots for validator duties, finality checkpoints, and validator set changes. Ethereum-specific post-merge concept. Epoch 0 started at beacon chain genesis (Dec 1, 2020). Used for staking analytics
+  optional uint64 epoch = 19;
+
+  // Beacon chain slot number (12 seconds). The primary time unit in PoS Ethereum. Each slot has one assigned validator to propose a block (though slots can be missed). Started at 0 with beacon chain genesis. Maps to execution layer blocks post-merge
+  optional uint64 slot = 20;
+
+  // Beacon chain validator index that proposed this block. Identifies which of the hundreds of thousands of validators created this block. Used for validator performance tracking, MEV analysis, and slashing detection. Only available from beacon chain data
+  optional uint64 proposerIndex = 21;
+
+  // Arbitrum-specific field tracking the number of L2-to-L1 messages sent in this block. Used for cross-chain message tracking and calculating merkle proofs for the outbox. Critical for Arbitrum's optimistic rollup message passing system
+  optional uint64 sendCount = 22;
+
+  // Number of transactions included in this block. Derived from transactions array length but stored separately by some indexers for query efficiency. Includes all transaction types (legacy, EIP-1559, blob transactions). Zero for empty blocks
+  optional uint32 transactionCount = 23;
+
+  // [DEPRECATED: Original PoW purpose deprecated, now repurposed for beacon chain RANDAO in PoS] PoW mining mix hash used with nonce to prove work was done. Part of Ethash algorithm preventing ASIC optimization. Post-merge contains the RANDAO value from the beacon chain providing randomness for PoS consensus. Sometimes called 'prevRandao' in PoS context
+  optional bytes mixHash = 24;
+
+  // Hash of the parent beacon chain block root. Introduced in EIP-4788 (Dencun) to enable trustless access to beacon chain state from the EVM. Stored in a system contract at 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02. Enables staking pools and bridges to verify consensus layer data on-chain
+  optional bytes parentBeaconBlockRoot = 25;
+
+  // Root hash of the withdrawals trie containing validator withdrawals from the beacon chain. Introduced with Shanghai upgrade enabling staked ETH withdrawals. Empty/null for pre-Shanghai blocks and non-Ethereum chains. Each withdrawal moves ETH from consensus to execution layer
+  optional bytes withdrawalsRoot = 26;
+
+  // Arbitrum-specific merkle root of all L2-to-L1 messages sent up to and including this block. Enables efficient proof generation for message inclusion. Updated incrementally as new messages are sent. Used during the challenge period for optimistic rollup security
+  optional bytes sendRoot = 27;
+
+  // Minimum fee per gas unit (in wei) required for transaction inclusion in this block. Introduced in EIP-1559 (London fork). Algorithmically determined based on parent block's gas usage - increases when blocks are full, decreases when empty. Burned rather than paid to miners. Not applicable to pre-EIP-1559 chains or some L2s with different fee models
+  optional string baseFeePerGas = 28;
+
+  // [DEPRECATED: Deprecated after Ethereum's transition to Proof-of-Stake (The Merge) in September 2022] PoW mining difficulty - how hard it was to find a valid nonce for this block. Adjusted every block to maintain target block time. Post-merge Ethereum sets this to 0. Still relevant for PoW chains (Ethereum Classic, some testnets). Replaced by randao in PoS
+  optional string difficulty = 29;
+
+  // [DEPRECATED: Deprecated after Ethereum's transition to Proof-of-Stake (The Merge) in September 2022] Cumulative sum of all block difficulties from genesis to this block. Used to determine the canonical chain (highest total difficulty wins). Critical for PoW consensus and handling reorganizations. Post-merge this is frozen at the merge block's value. Only available from archive nodes as it requires historical computation
+  optional string totalDifficulty = 30;
+
+  // BLS12-381 public key of the beacon chain validator that proposed this block. 48-byte hex-encoded key used in consensus layer cryptography. Enables attribution without querying validator registry. Used for distributed validator technology and staking pool analytics
+  optional string proposerPublicKey = 31;
+
+  // Encoded withdrawal operations from beacon chain validators. Introduced in Shanghai upgrade. Contains validator index, withdrawal address, and amount. Usually RLP-encoded array. Empty for pre-Shanghai blocks. Envio stores as binary encoding
+  optional bytes withdrawals = 32;
+
+  // RLP (Recursive Length Prefix) encoded canonical block header. This is the exact bytes that when hashed produce the block hash. Used for block verification, light client proofs, and cross-chain bridges. Critical for trustless block validation
+  optional bytes canonicalRlp = 33;
+
+  // Array of uncle (ommer) block hashes included in this block. Uncle blocks are valid blocks mined at the same height but not included in the canonical chain. Ethereum rewarded up to 2 uncles per block to reduce mining centralization. Always empty post-merge. Some indexers store as JSON array
+  repeated bytes uncles = 34;
+}
+
+// A full block with its header, transactions, and logs.
+message Block {
+  // The block header including number, hash, timestamp, etc
+  BlockHeader header = 1;
+
+  // Array of transaction data. Can be empty (omitted). When present, contains the raw transaction bytes for each transaction in the block
+  repeated Transaction transactions = 2;
+
+  // Array of logs emitted by all transactions in this block. Can be empty (omitted). Logs are ordered by transaction index and then by log index within each transaction
+  repeated Log logs = 3;
+
+  // Array of withdrawal operations from beacon chain validators. Introduced in Shanghai upgrade. Contains validator index, withdrawal address, and amount. Usually RLP-encoded array. Empty for pre-Shanghai blocks.
+  repeated Withdrawal withdrawals = 4;
+}
+
+// Enum for transaction types based on EIP-2718.
+enum TransactionType {
+  // Pre-EIP-2718
+  LEGACY = 0;
+  // EIP-2930
+  ACCESS_LIST = 1;
+  // EIP-1559
+  DYNAMIC_FEE = 2;
+  // EIP-4844
+  BLOB = 3;
+  // EIP-7702
+  SET_CODE = 4;
+}
+
+// A minimal reference to a transaction of a block.
+message TransactionRef {
+  // The block reference that contains the transaction.
+  BlockRef block = 1;
+
+  // The index of the transaction in the block.
+  uint32 transactionIndex = 2;
+
+  // The hash of the transaction.
+  bytes transactionHash = 3;
+}
+
+// Represents a transaction on an EVM-compatible blockchain. This comprehensive model captures all transaction types from legacy to the latest EIPs (1559, 2930, 4844, 7702) and includes both the transaction envelope and receipt data for a complete view of transaction lifecycle
+message Transaction {
+  // Unique 256-bit Keccak hash of the RLP-encoded signed transaction. This serves as the transaction's permanent identifier across all systems. Calculated by hashing the serialized transaction data including signature. Used for tracking transaction status, linking logs/receipts, and as a content-addressed identifier
+  bytes hash = 1;
+
+  // Sequential counter of transactions sent from the sender's address. Prevents replay attacks and ensures transaction ordering. Each account's nonce starts at 0 and must increment by 1 for each transaction. Transactions with incorrect nonces are rejected. Critical for transaction pool management and account state transitions
+  uint64 nonce = 2;
+
+  // The 20-byte address of the account that created and signed this transaction. Recovered from the transaction signature (v, r, s values). Pays for gas fees and any value transfer. For contract creation transactions, this becomes the creator/deployer address. Must have sufficient balance for gas + value
+  bytes from = 3;
+
+  // The 20-byte address of the recipient account or contract. For EOA transfers, this is the destination address. For contract calls, this is the contract address. NULL/empty for contract creation transactions where the contract address is derived from sender + nonce. L2s may have system addresses for special operations
+  optional bytes to = 4;
+
+  // Amount of native currency (ETH on Ethereum, in wei) to transfer from sender to recipient. 1 ETH = 10^18 wei. Can be 0 for pure contract calls. For contract creation, this becomes the initial balance. Uses 256-bit precision to prevent overflow. Sent value must be <= sender's balance minus gas costs
+  string value = 5;
+
+  // Arbitrary byte data payload. For EOA transfers, typically empty. For contract calls, contains ABI-encoded function selector and parameters. For contract creation, contains the contract deployment bytecode + constructor parameters. Limited by block gas limit. Critical for all smart contract interactions
+  bytes input = 6;
+
+  // Transaction type identifier following EIP-2718. 0=Legacy (pre-EIP-1559), 1=EIP-2930 (access list), 2=EIP-1559 (dynamic fees), 3=EIP-4844 (blob transactions), 4=EIP-7702 (set code). L2s may define custom types (e.g., Arbitrum 100-120, Optimism 126). Determines transaction format and features available
+  uint32 type = 7;
+
+  // === Gas and Fee Fields ===
+
+  // Maximum gas units this transaction can consume. Set by sender as a cap on computation/storage operations. Unused gas is refunded. Must be >= 21000 (base transaction cost) plus additional for data/computation. If execution exceeds this limit, transaction reverts but gas is still paid
+  uint64 gasLimit = 8;
+
+  // Price per gas unit for legacy (type 0) transactions, in wei. For EIP-1559 transactions, this field contains the effective price paid (min(maxFeePerGas, baseFeePerGas + maxPriorityFeePerGas)). Market-driven in legacy, algorithmic in EIP-1559. Critical for transaction prioritization and miner/validator economics
+  optional string gasPrice = 9;
+
+  // Maximum total fee per gas unit sender is willing to pay (EIP-1559), in wei. Includes both base fee and priority fee. Must be >= block's baseFeePerGas for inclusion. Replaces gasPrice for type 2+ transactions. Protects users from sudden fee spikes. Excess above base fee + priority fee is refunded
+  optional string maxFeePerGas = 10;
+
+  // Maximum priority fee (tip) per gas unit for miners/validators (EIP-1559), in wei. This is paid on top of the base fee to incentivize inclusion. Goes directly to block producer. Replaces legacy gas price bidding. During congestion, higher tips get priority. Can be 0 but may result in slower inclusion
+  optional string maxPriorityFeePerGas = 11;
+
+  // Actual gas units consumed by this transaction's execution. Always <= gasLimit. Determined by EVM execution including base cost (21000), calldata cost, computation, and storage operations. Used to calculate actual fee paid. Essential for gas optimization and debugging failed transactions
+  optional uint64 gasUsed = 12;
+
+  // The actual price per gas unit paid for this transaction, in wei. For legacy transactions equals gasPrice. For EIP-1559, equals baseFeePerGas + min(maxPriorityFeePerGas, maxFeePerGas - baseFeePerGas). Used to calculate total transaction cost. May be less than maxFeePerGas when base fee is low
+  optional string effectiveGasPrice = 13;
+
+  // === Signature Fields ===
+
+  // ECDSA signature R value - X coordinate point on the elliptic curve (32 bytes). Part of the cryptographic signature proving the sender authorized this transaction. Combined with S and V to recover the signer's public key and derive the from address. Must be within valid curve range
+  bytes r = 14;
+
+  // ECDSA signature S value - signature proof value (32 bytes). Second part of the signature. Must be in the lower half of the curve order range to prevent malleability (EIP-2). Together with R and V allows anyone to verify the transaction was signed by the private key corresponding to the from address
+  bytes s = 15;
+
+  // ECDSA recovery ID including chain ID for replay protection. For legacy transactions: 27/28 (no replay protection) or {chain_id * 2 + 35/36} (EIP-155). For typed transactions: 0/1 (y-parity). Used to recover the public key from signature and prevent cross-chain replay attacks
+  optional bytes v = 16;
+
+  // Y-parity of the signature (0 or 1) for typed transactions (EIP-2718). Replaces the v field for transaction types >= 1. Indicates which of two possible Y coordinates to use when recovering the public key. More explicit than legacy v encoding
+  optional uint32 yParity = 17;
+
+  // Chain ID for replay protection (EIP-155). Prevents signed transactions from being valid on other EVM chains. Mainnet=1, Goerli=5, Sepolia=11155111, etc. Incorporated into v for legacy transactions. Explicit field for typed transactions. Critical for multi-chain environments
+  optional uint64 chainId = 18;
+
+  // === Block Context Fields ===
+
+  // Block number containing this transaction. NULL for pending transactions. Used for determining transaction finality, calculating confirmations, and ordering transactions chronologically. Essential for applications tracking transaction lifecycle and handling reorgs
+  optional uint64 blockNumber = 19;
+
+  // Hash of the block containing this transaction. NULL for pending transactions. Links transaction to specific block for verification. Can change during chain reorganizations. Used with transactionIndex to locate transaction within blockchain data structure
+  optional bytes blockHash = 20;
+
+  // Zero-based index position of this transaction within its block. NULL for pending transactions. Determines execution order within block - lower indices execute first. Used with blockHash/blockNumber to uniquely identify transaction position. Essential for light clients and proof generation
+  optional uint32 transactionIndex = 21;
+
+  // Unix timestamp of the block containing this transaction. Denormalized from block data for query convenience. NULL for pending transactions. Enables time-based queries and analysis. All transactions in a block share the same timestamp. May be manipulated by miners within protocol limits
+  optional uint64 blockTimestamp = 22;
+
+  // === EIP-2930 Access List ===
+
+  // List of addresses and storage slots the transaction will access (EIP-2930). Enables gas savings by pre-declaring state access. Each accessed address costs 2400 gas, each slot 1900 gas - but discounted if in access list. Optional for type 1 & 2 transactions. Helps prevent breaking changes from state access repricing
+  repeated AccessListItem accessList = 23;
+
+  // === EIP-4844 Blob Transaction Fields ===
+
+  // Maximum fee per blob gas unit for blob transactions (EIP-4844), in wei. Similar to maxFeePerGas but for blob data. Blobs are priced separately from execution gas. Must be >= blob base fee for inclusion. Each blob is 128KB. Used for L2 data availability
+  optional string maxFeePerBlobGas = 24;
+
+  // List of versioned blob hashes for this transaction (EIP-4844). Each hash is kzg_to_versioned_hash(kzg_commitment) = BLOB_COMMITMENT_VERSION_KZG + sha256(commitment)[1:]. Maximum 6 blobs per transaction. Enables L2s to post data cheaply. Blobs are pruned after ~2 weeks
+  repeated bytes blobVersionedHashes = 25;
+
+  // Total blob gas consumed by this transaction. Each blob uses 131,072 gas units (2^17). Charged separately from execution gas. Used to calculate blob fee: blobGasUsed * blobGasPrice. Only for type 3 transactions. Enables cheap L2 data availability
+  optional uint64 blobGasUsed = 26;
+
+  // Actual price per blob gas unit paid, in wei. Dynamically adjusted based on network blob usage similar to EIP-1559. Calculated as base blob fee when transaction was included. Lower than regular gas prices to incentivize L2 adoption
+  optional string blobGasPrice = 27;
+
+  // === EIP-7702 Set Code Authorization ===
+
+  // List of authorizations to set code for EOAs (EIP-7702). Allows EOAs to temporarily act like smart contracts by delegating to contract code. Each authorization is signed by the EOA owner. Enables account abstraction and smart wallet features without deploying contracts
+  repeated AuthorizationListItem authorizationList = 28;
+
+  // === L2-Specific Fields ===
+
+  // Fee paid for L1 data availability on L2s, in wei. Covers the cost of posting transaction data to L1. Calculated as L1GasPrice * L1GasUsed * L1FeeScalar. Significant portion of L2 transaction costs. Only applicable on L2s like Optimism/Arbitrum
+  optional string l1Fee = 29;
+
+  // L1 gas price used to calculate L1 fee on L2s, in wei. Tracks Ethereum mainnet gas prices. L2 sequencers update this based on L1 conditions. Used to ensure L2 transactions cover their L1 data costs. Can be significant during L1 congestion
+  optional string l1GasPrice = 30;
+
+  // Estimated L1 gas units used for this L2 transaction's data. Based on transaction size when compressed. Multiplied by L1 gas price to get L1 fee. Critical for L2 economics. Varies by L2 design (optimistic vs zk rollups)
+  optional string l1GasUsed = 31;
+
+  // Scalar multiplier for L1 fee calculation on L2s. Covers additional overhead and provides buffer for gas price volatility. Set by L2 operators. Usually between 1-2x. Adjustable to maintain L2 sustainability
+  optional double l1FeeScalar = 32;
+
+  // Base fee for blob data on L1 used by L2s (EIP-4844). Enables cheaper L2 data posting via blobs instead of calldata. Dynamically adjusted like EIP-1559. Only relevant post-Dencun on L2s that support blob posting
+  optional string l1BlobBaseFee = 33;
+
+  // Scalar for L1 blob base fee calculations on L2s. Similar to l1FeeScalar but for blob data costs. Adjustable by L2 operators. Used after EIP-4844 activation to calculate data availability costs via blobs
+  optional uint64 l1BlobBaseFeeScalar = 34;
+
+  // Additional fee for using a specific payment gateway or relayer. Common in meta-transaction systems where a third party pays gas. Denominated in fee currency. Supports gasless transactions and alternative payment methods
+  optional string gatewayFee = 35;
+
+  // Contract address of the ERC-20 token used for fee payment. Enables paying transaction fees in tokens other than native currency. Must be supported by the network/relayer. Common in L2s and sidechains for better UX (Celo)
+  optional bytes feeCurrency = 36;
+
+  // Address that receives gateway fees. Usually a relayer or protocol treasury. Only relevant when gatewayFee > 0. Enables sustainable meta-transaction infrastructure. Must be specified when using alternative fee payment
+  optional bytes gatewayFeeRecipient = 37;
+}
+
+// Represents an entry in an EIP-2930 access list. Pre-declares addresses and storage slots that will be accessed during transaction execution, enabling gas savings through reduced cold access costs
+message AccessListItem {
+  // The 20-byte address of the account or contract that will be accessed. Cold address access costs 2600 gas, but only 2400 gas if in access list. Includes both contracts called and addresses whose balance/nonce/code/storage will be read
+  bytes address = 1;
+
+  // List of 32-byte storage slot keys within the address that will be accessed. Cold storage access costs 2100 gas, but only 1900 gas if in access list. Empty list means only address access, not storage. Helps prevent breaking changes from gas repricing
+  repeated bytes storageKeys = 2;
+}
+
+// An event emitted by a smart contract during transaction execution on an EVM-compatible blockchain. Logs are the primary mechanism for smart contracts to communicate with external applications, enabling event-driven architectures and efficient querying of on-chain activity
+message Log {
+  // The 20-byte address of the smart contract that emitted this log. This is the contract whose code contained the LOG opcode (LOG0-LOG4) that generated this event. Used to filter logs by source contract and is included in the logs bloom filter for efficient block-level filtering
+  bytes address = 1;
+
+  // Array of indexed event parameters (max 4 topics). Topic[0] is the keccak256 hash of the event signature (e.g., 'Transfer(address,address,uint256)'). Topics[1-3] contain indexed event parameters. Indexed parameters enable efficient filtering but are limited to 32 bytes each. Dynamic types (strings, arrays) are hashed when indexed
+  repeated bytes topics = 2;
+
+  // The non-indexed data of the log containing event parameters that are not indexed. While indexed parameters (topics) are limited to 32 bytes and enable filtering, non-indexed data can contain arbitrary length data including dynamic types. ABI-encoded according to the event definition in the contract ABI
+  bytes data = 3;
+
+  // The block number where this log was emitted. Used for querying logs within block ranges, calculating confirmations, and determining the chronological order of events. Essential for applications that need to track state changes over time or react to events with specific finality requirements
+  uint64 blockNumber = 4;
+
+  // The hash of the block containing this log. Provides a direct link to the block and enables verification that the log hasn't been altered. Can be null for pending logs. Used in conjunction with logIndex to uniquely identify a log and detect reorganizations when the hash changes
+  bytes blockHash = 5;
+
+  // The hash of the transaction that emitted this log. Links the log to its originating transaction, enabling retrieval of transaction details like sender, input data, and gas used. Multiple logs can share the same transaction hash if emitted by the same transaction
+  bytes transactionHash = 6;
+
+  // The zero-based index position of the transaction within its block. Combined with blockNumber/blockHash, this uniquely identifies the transaction. Used for maintaining order and understanding transaction execution sequence. Earlier transactions have lower indices
+  uint32 transactionIndex = 7;
+
+  // The zero-based index position of this log within the block. Unique within a block and assigned sequentially as logs are emitted during transaction execution. Combined with blockHash, this provides a unique identifier for the log. Used for pagination and maintaining log order
+  uint32 logIndex = 8;
+
+  // Unix timestamp of the block containing this log. Denormalized from block data for query convenience. Enables time-based filtering and analysis without joining block data. Same timestamp for all logs in a block
+  optional uint64 blockTimestamp = 9;
+}
+
+// Represents an authorization item for EIP-7702 Set Code transactions. Allows an EOA to authorize setting specific contract code to their account, enabling smart contract functionality without deployment
+message AuthorizationListItem {
+  // Chain ID where this authorization is valid. Prevents cross-chain replay of authorizations. Must match the transaction's chain ID. Ensures authorizations are network-specific
+  uint64 chainId = 1;
+
+  // The 20-byte address of the contract code to set for the authorizing EOA. This contract's code will be used when calling the EOA. Enables account abstraction and smart wallet features
+  bytes address = 2;
+
+  // Nonce of the authorization to prevent replay attacks. Must match the current nonce of the authorizing EOA. Ensures each authorization can only be used once
+  uint64 nonce = 3;
+
+  // ECDSA signature R value of the authorization (32 bytes). Signed by the EOA's private key to prove consent. Part of the authorization signature
+  bytes r = 4;
+
+  // ECDSA signature S value of the authorization (32 bytes). Together with R and yParity, proves the EOA owner authorized this code setting
+  bytes s = 5;
+
+  // Y-parity (0 or 1) of the authorization signature. Used to recover the signer's public key and verify the authorization came from the EOA owner
+  uint32 yParity = 6;
+}
+
+// Represents a validator withdrawal from the beacon chain to the execution layer. Part of Ethereum's proof-of-stake design allowing validators to withdraw staked ETH and rewards
+message Withdrawal {
+  // Sequential index of this withdrawal in the global withdrawal queue. Unique across all withdrawals. Increments monotonically. Used to track withdrawal processing and prevent duplicates
+  uint64 index = 1;
+
+  // Beacon chain validator index that is withdrawing funds. Maps to a specific validator in the beacon state. Validators can have multiple withdrawals over time. Used to track validator lifecycle
+  uint64 validatorIndex = 2;
+
+  // The 20-byte execution layer address receiving the withdrawn ETH. Set by validator when setting withdrawal credentials. Can be an EOA or contract. Immutable once set. Critical for staking pool distributions
+  bytes address = 3;
+
+  // Amount of ETH withdrawn in gwei (10^9 wei). Includes partial withdrawals (excess balance > 32 ETH) and full withdrawals (exited validators). Automatically processed by protocol. No gas cost for withdrawal transactions
+  uint64 amount = 4;
+}
+
+// Represents the result of executing a transaction on an EVM blockchain. The receipt provides proof of transaction execution and its outcomes, including status, gas consumption, logs, and state changes. Generated after a transaction is included in a block and executed by the EVM
+message Receipt {
+  // === Core Fields ===
+
+  // Transaction hash
+  bytes transactionHash = 1;
+
+  // Block number
+  uint64 blockNumber = 2;
+
+  // Block hash
+  bytes blockHash = 3;
+
+  // Transaction index
+  uint32 transactionIndex = 4;
+
+  // Transaction type (EIP-2718). 0=Legacy, 1=EIP-2930, 2=EIP-1559, 3=EIP-4844, 4=EIP-7702. L2s may have custom types. Denormalized from transaction for easier filtering and processing. Determines receipt format
+  uint32 type = 5;
+
+  // Transaction execution status. 1 = success (all state changes applied), 0 = failure (only gas payment applied). Introduced in Byzantium fork. For pre-Byzantium transactions, check if gasUsed < gasLimit or use root field. Critical for determining transaction outcome
+  optional uint32 status = 6;
+
+  // Total gas units actually consumed by the transaction execution. Includes base transaction cost, calldata cost, and all operations. Always <= transaction gasLimit. Used to calculate actual transaction cost
+  uint64 gasUsed = 7;
+
+  // Cumulative gas used in the block up to and including this transaction. Increases monotonically within a block. Used to calculate block utilization and for merkle proof construction. Maximum value is block gasLimit
+  uint64 cumulativeGasUsed = 8;
+
+  // Effective price per gas unit paid for this transaction, in wei. For legacy tx: equals gasPrice. For EIP-1559: baseFeePerGas + min(maxPriorityFeePerGas, maxFeePerGas - baseFeePerGas). Used to calculate total cost: gasUsed * effectiveGasPrice
+  string effectiveGasPrice = 9;
+
+  // 2048-bit bloom filter of all log addresses and topics from this transaction. Enables efficient log filtering without parsing all logs. Each log address and topic is hashed and added to the bloom. Used by eth_getLogs for quick filtering
+  bytes logsBloom = 10;
+
+  // Logs emitted by this transaction
+  repeated Log logs = 11;
+
+  // Address of newly deployed contract if this was a contract creation transaction. NULL for regular transfers and contract calls. Computed deterministically from sender address and nonce (CREATE) or sender, salt, and init code (CREATE2). Becomes active immediately if deployment succeeds
+  optional bytes contractAddress = 12;
+
+  // Post-execution state root (pre-Byzantium only). 32-byte Keccak hash of the global state trie after executing this transaction. Replaced by status field in Byzantium for gas efficiency. Still present in some chains and historical data
+  optional bytes root = 13;
+
+  // Unix timestamp when this transaction was executed. Denormalized from block data. All transactions in a block share the same timestamp. Useful for time-based queries without joining block data
+  optional uint64 blockTimestamp = 14;
+
+  // === EIP-4844 Blob Fields ===
+
+  // Total blob gas consumed by this transaction. Each blob uses 131,072 gas units. Only present for type 3 (blob) transactions. Used to calculate blob fees separately from execution gas. Maximum 786,432 (6 blobs)
+  optional uint64 blobGasUsed = 15;
+
+  // Price per blob gas unit when this transaction was executed, in wei. Set by protocol based on EIP-4844 blob gas market. Only for blob transactions. Usually much lower than regular gas price to incentivize L2 data availability
+  optional string blobGasPrice = 16;
+
+  // === L2-Specific Receipt Fields ===
+
+  // Total L1 fee paid by this L2 transaction, in wei. Covers cost of posting transaction data to L1. Calculated as L1GasPrice * L1GasUsed * L1FeeScalar. Can be significant portion of total L2 transaction cost
+  optional string l1Fee = 17;
+
+  // L1 gas units attributed to this L2 transaction. Based on transaction size and encoding. Used to calculate L1 fee. Depends on L2's data availability method (calldata vs blobs)
+  optional string l1GasUsed = 18;
+
+  // L1 gas price at the time this L2 transaction was processed, in wei. Used to calculate L1 fee. Updated by L2 sequencer based on L1 conditions. Can spike during L1 congestion
+  optional string l1GasPrice = 19;
+
+  // Scalar applied to L1 gas calculations. Covers overhead and provides buffer for L1 gas volatility. Set by L2 operators. Used in L1 fee calculation: L1Fee = L1GasPrice * L1GasUsed * L1FeeScalar
+  optional double l1FeeScalar = 20;
+
+  // Scalar applied to base fee for L1 data costs. Different from l1FeeScalar as it specifically applies to the base fee component. Used in newer L2 fee models for more granular control. Helps maintain predictable L2 costs
+  optional uint64 l1BaseFeeScalar = 21;
+
+  // Gas specifically attributed to L1 data costs, measured in L2 gas units. Helps users understand fee breakdown on L2s. Calculated from transaction size and L1 gas price. Can be significant portion of total L2 gas used
+  optional uint64 gasUsedForL1 = 22;
+
+  // L1 block number that this L2 transaction's data was posted to. Used for data availability proofs and finality. May lag behind L2 block number. Critical for L2 security and L1 state proofs
+  optional uint64 l1BlockNumber = 23;
+
+  // === Advanced Receipt Fields ===
+
+  // Gateway fee charged for meta-transactions or relayed transactions. Paid to relayer or protocol. Only present when using alternative fee payment methods. Denominated in feeCurrency if specified
+  optional string gatewayFee = 24;
+
+  // Nonce of the deposit transaction. Only present when the receipt is for a deposit transaction.
+  optional string depositNonce = 25;
+
+  // Version of the deposit receipt. Only present when the receipt is for a deposit transaction.
+  optional string depositReceiptVersion = 26;
+}

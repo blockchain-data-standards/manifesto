@@ -1,0 +1,419 @@
+syntax = "proto3";
+
+package bds.discovery;
+option go_package = "github.com/blockchain-data-standards/manifesto/discovery";
+
+// Service for discovering blockchain data provider capabilities
+// Allows clients to query which chains, models, and fields a provider supports
+service DiscoveryService {
+  // Get provider information
+  rpc GetProviderInfo(GetProviderInfoRequest) returns (ProviderInfo);
+  
+  // Get all networks supported by this provider with their capabilities
+  rpc GetSupportedNetworks(GetSupportedNetworksRequest) returns (NetworkList);
+  
+  // Get a specific network by UUID with its capabilities
+  rpc GetNetwork(GetNetworkRequest) returns (Network);
+}
+
+// ========================================
+// NETWORK MODEL
+// ========================================
+
+// Represents a blockchain network with its unique identifier and architecture-specific properties
+message Network {
+  // Globally unique identifier for a blockchain in format ARCH:CHAINID[:GENESIS_SHORT_HASH]
+  // Examples: "evm:1:0x88e96d" for Ethereum mainnet, "sol:101:0x3973e3" for Solana mainnet
+  // Genesis short hash is first 6 chars of genesis block hash in hex to avoid chainId conflicts
+  string uuid = 1;
+  
+  // Blockchain architecture type (evm, solana, bitcoin, cosmos)
+  string architecture = 2;
+  
+  // Human-readable network name (e.g., "Ethereum Mainnet", "Avalanche C-Chain")
+  string name = 3;
+  
+  // Architecture-specific properties
+  oneof architectureInfo {
+    EvmNetworkInfo evm = 10;
+    SolanaNetworkInfo solana = 11;
+    BitcoinNetworkInfo bitcoin = 12;
+    CosmosNetworkInfo cosmos = 13;
+  }
+  
+  // Provider capabilities for this network
+  NetworkCapabilities capabilities = 20;
+}
+
+// EVM-specific network information
+message EvmNetworkInfo {
+  // Chain ID as defined in EIP-155
+  uint64 chainId = 1;
+  
+  // Genesis block hash (full hash) - used to disambiguate networks with same chainId
+  // This prevents conflicts when multiple networks accidentally use the same chainId
+  string genesisBlockHash = 2;
+}
+
+// Solana-specific network information
+message SolanaNetworkInfo {
+  // Genesis hash of the network
+  string genesisHash = 1;
+  
+  // Cluster type (mainnet-beta, testnet, devnet, localnet)
+  string cluster = 2;
+  
+  // Slot time in milliseconds
+  uint32 slotTimeMs = 3;
+}
+
+// Bitcoin-specific network information
+message BitcoinNetworkInfo {
+  // Network magic bytes (mainnet: 0xD9B4BEF9, testnet: 0x0709110B)
+  string magicBytes = 1;
+  
+  // Genesis block hash
+  string genesisBlockHash = 2;
+  
+  // Whether this network uses SegWit
+  bool segwitEnabled = 3;
+}
+
+// Cosmos-specific network information
+message CosmosNetworkInfo {
+  // Chain ID as used in Cosmos SDK
+  string chainId = 1;
+  
+  // Bech32 address prefix (e.g., "cosmos", "osmo")
+  string bech32Prefix = 2;
+  
+  // Genesis file hash
+  string genesisHash = 3;
+}
+
+// ========================================
+// CAPABILITY DEFINITIONS
+// ========================================
+
+// Describes data availability for a specific operation or model
+// 
+// Availability cascades in the following hierarchy:
+// 1. NetworkCapabilities.defaultAvailability (applies to entire network)
+// 2. ServiceList/ModelList.defaultAvailability (applies to all items in list)
+// 3. ServiceInfo/ModelInfo.availability (applies to specific service/model)
+// 4. MethodSupport/FieldSupport.availability (applies to all methods/fields of a service/model)
+// 5. MethodList/FieldList.defaultAvailability (applies to all items in list)
+// 6. MethodInfo/FieldInfo.availability (applies to specific method/field)
+//
+// More specific availability info overrides less specific info.
+message AvailabilityInfo {
+  // Different ways to specify availability
+  oneof availability {
+    // Data is available for all blocks
+    bool allBlocks = 1;
+    
+    // Data is available for the last N blocks from chain tip
+    uint64 lastNBlocks = 2;
+    
+    // Data is available for specific block ranges
+    repeated BlockRange ranges = 3;
+    
+    // Data is available only for finalized blocks
+    bool finalizedBlocks = 4;
+    
+    // Data is available only for unfinalized blocks (pending finality)
+    bool unfinalizedBlocks = 5;
+  }
+  
+  // Optional timestamp when this availability info was last updated
+  optional int64 lastUpdatedTimestamp = 10;
+  
+  // Optional note about availability (e.g., "Historical data before block 1000000 available on request")
+  optional string note = 11;
+}
+
+// Represents a single block range
+message BlockRange {
+  // Starting block number (inclusive)
+  uint64 fromBlock = 1;
+  
+  // Ending block number (inclusive), if not set means up to chain tip
+  optional uint64 toBlock = 2;
+}
+
+// Represents which models and fields a provider supports for a specific network
+//
+// Example usage with availability:
+// ```
+// capabilities {
+//   // Default: last 1000 blocks available for everything
+//   defaultAvailability {
+//     lastNBlocks: 1000
+//   }
+//   
+//   // Operations: RPCQueryService has full history, BulkQueryService has limited
+//   detailedOperationSupport {
+//     services {
+//       "RPCQueryService": {
+//         allMethods: true
+//         availability {
+//           allBlocks: true  // Full history for all RPC methods
+//         }
+//       }
+//       "BulkQueryService": {
+//         specificMethods {
+//           methods: ["GetBlocksByRange"]
+//           // Uses network default (last 1000 blocks)
+//         }
+//       }
+//     }
+//   }
+//   
+//   // Models: Different availability for different models
+//   detailedSupport {
+//     models {
+//       "Block": {
+//         allFields: true
+//         availability {
+//             ranges: [
+//               { fromBlock: 0, toBlock: 1000000 },      // Historical archive
+//               { fromBlock: 15000000 }                  // Recent blocks (no toBlock = up to tip)
+//             ]
+//         }
+//       }
+//       "Transaction": {
+//         specificFields {
+//           fields: ["hash", "from", "to", "value"]
+//           defaultAvailability {
+//             ranges: [
+//               { fromBlock: 16000000 }  // Only recent transactions
+//             ]
+//           }
+//         }
+//       }
+//       "Log": {
+//         allFields: true
+//         availability {
+//           finalizedBlocks: true  // Only finalized blocks for logs
+//         }
+//       }
+//     }
+//   }
+// }
+// ```
+message NetworkCapabilities {
+  // Operation support for this network - replaces the old supportsBulkOperations
+  oneof operationSupport {
+    // Supports all methods of all services for this network
+    bool allOperations = 1;
+    
+    // Supports all methods of specific services
+    ServiceList specificServices = 2;
+    
+    // Detailed method-level support for services
+    DetailedOperationSupport detailedOperationSupport = 3;
+  }
+  
+  // Models and fields support
+  oneof modelSupport {
+    // Supports all models and all fields for this network
+    bool allModels = 10;
+    
+    // Supports specific models (with all their fields)
+    ModelList specificModels = 11;
+    
+    // Detailed field-level support for models
+    DetailedModelSupport detailedSupport = 12;
+  }
+  
+  // Default availability for this network (can be overridden at service/model/method/field level)
+  optional AvailabilityInfo defaultAvailability = 20;
+}
+
+// List of service names with optional per-service availability
+message ServiceList {
+  // Simple list of service names (uses default availability)
+  repeated string services = 1;
+  
+  // Detailed service info with per-service availability
+  repeated ServiceInfo serviceInfos = 2;
+  
+  // Optional: Default availability for all services in this list
+  optional AvailabilityInfo defaultAvailability = 3;
+}
+
+// Service information with availability
+message ServiceInfo {
+  // Service name
+  string name = 1;
+  
+  // Availability info for this service
+  optional AvailabilityInfo availability = 2;
+}
+
+// Detailed service and method level support
+message DetailedOperationSupport {
+  // Map of service name to method support
+  map<string, MethodSupport> services = 1;
+  
+  // Optional: Default availability for all services
+  optional AvailabilityInfo defaultAvailability = 2;
+}
+
+// Method support for a specific service
+message MethodSupport {
+  oneof support {
+    // Supports all methods for this service
+    bool allMethods = 1;
+    
+    // Supports only specific methods
+    MethodList specificMethods = 2;
+  }
+  
+  // Availability info for this service (applies to all its methods unless overridden)
+  optional AvailabilityInfo availability = 3;
+}
+
+// List of method names with optional per-method availability
+message MethodList {
+  // Simple list of method names (uses default availability)
+  repeated string methods = 1;
+  
+  // Detailed method info with per-method availability
+  repeated MethodInfo methodInfos = 2;
+  
+  // Optional: Default availability for all methods in this list
+  optional AvailabilityInfo defaultAvailability = 3;
+}
+
+// Method information with availability
+message MethodInfo {
+  // Method name
+  string name = 1;
+  
+  // Availability info for this method
+  optional AvailabilityInfo availability = 2;
+}
+
+// List of model names with optional per-model availability
+message ModelList {
+  // Simple list of model names (uses default availability)
+  repeated string models = 1;
+  
+  // Detailed model info with per-model availability
+  repeated ModelInfo modelInfos = 2;
+  
+  // Optional: Default availability for all models in this list
+  optional AvailabilityInfo defaultAvailability = 3;
+}
+
+// Model information with availability
+message ModelInfo {
+  // Model name
+  string name = 1;
+  
+  // Availability info for this model
+  optional AvailabilityInfo availability = 2;
+}
+
+// Detailed model and field level support
+message DetailedModelSupport {
+  // Map of model name to field support
+  map<string, FieldSupport> models = 1;
+  
+  // Optional: Default availability for all models
+  optional AvailabilityInfo defaultAvailability = 2;
+}
+
+// Field support for a specific model
+message FieldSupport {
+  oneof support {
+    // Supports all fields for this model
+    bool allFields = 1;
+    
+    // Supports only specific fields
+    FieldList specificFields = 2;
+  }
+  
+  // Availability info for this model (applies to all its fields unless overridden)
+  optional AvailabilityInfo availability = 3;
+}
+
+// List of field names with optional per-field availability
+message FieldList {
+  // Simple list of field names (uses default availability)
+  repeated string fields = 1;
+  
+  // Detailed field info with per-field availability
+  repeated FieldInfo fieldInfos = 2;
+  
+  // Optional: Default availability for all fields in this list
+  optional AvailabilityInfo defaultAvailability = 3;
+}
+
+// Field information with availability
+message FieldInfo {
+  // Field name
+  string name = 1;
+  
+  // Availability info for this field
+  optional AvailabilityInfo availability = 2;
+}
+
+// ========================================
+// REQUEST/RESPONSE MESSAGES
+// ========================================
+
+// Request for getting supported networks
+message GetSupportedNetworksRequest {
+  // Optional filter by architecture (evm, solana, bitcoin, cosmos)
+  optional string architecture = 1;
+  
+  // Optional filter by required models - only return networks that support these models
+  repeated string requiredModels = 2;
+  
+  // Optional filter by required fields - format: "ModelName.fieldName"
+  repeated string requiredFields = 3;
+  
+  // Optional filter by network UUIDs to check specific networks
+  repeated string networkUuids = 5;
+}
+
+// Request for getting a specific network
+message GetNetworkRequest {
+  // Network UUID to retrieve
+  string networkUuid = 1;
+}
+
+// Request for getting provider information
+message GetProviderInfoRequest {
+  // Empty request - provider info is always returned for the current provider
+}
+
+// Provider information
+message ProviderInfo {
+  // Provider slug (e.g., "alchemy", "infura", "quicknode")
+  string slug = 1;
+  
+  // Human-readable provider name
+  string name = 2;
+  
+  // Provider description
+  string description = 3;
+  
+  // Provider website URL
+  string websiteUrl = 4;
+  
+  // API documentation URL
+  string docsUrl = 5;
+  
+  // Provider logo URL
+  string logoUrl = 6;
+  
+  // Pricing model (free, freemium, paid, open-source)
+  string pricingModel = 7;
+}
+
+message NetworkList {
+  repeated Network networks = 1;
+}
