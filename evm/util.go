@@ -12,6 +12,11 @@ import (
 // HexToBytes converts a hex string to bytes, removing the 0x prefix if present
 func HexToBytes(s string) ([]byte, error) {
 	s = RemoveHexPrefix(s)
+	// Normalize odd-length hex strings by padding with leading zero
+	// This handles cases where RPC nodes return values like "0x1" instead of "0x01"
+	if len(s)%2 != 0 {
+		s = "0" + s
+	}
 	return hex.DecodeString(s)
 }
 
