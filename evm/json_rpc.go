@@ -1,18 +1,30 @@
 package evm
 
 type JsonRpcBlock struct {
-	BaseFeePerGas    string `json:"baseFeePerGas"`
-	ExtraData        string `json:"extraData"`
-	GasLimit         string `json:"gasLimit"`
-	GasUsed          string `json:"gasUsed"`
-	Hash             string `json:"hash"`
-	LogsBloom        string `json:"logsBloom"`
-	Number           string `json:"number"`
-	ParentHash       string `json:"parentHash"`
-	ReceiptsRoot     string `json:"receiptsRoot"`
-	StateRoot        string `json:"stateRoot"`
-	Timestamp        string `json:"timestamp"`
-	TransactionsRoot string `json:"transactionsRoot"`
+	BaseFeePerGas         string   `json:"baseFeePerGas"`
+	BlobGasUsed           string   `json:"blobGasUsed"`
+	Difficulty            string   `json:"difficulty"`
+	ExcessBlobGas         string   `json:"excessBlobGas"`
+	ExtraData             string   `json:"extraData"`
+	GasLimit              string   `json:"gasLimit"`
+	GasUsed               string   `json:"gasUsed"`
+	Hash                  string   `json:"hash"`
+	LogsBloom             string   `json:"logsBloom"`
+	Miner                 string   `json:"miner"`
+	MixHash               string   `json:"mixHash"`
+	Nonce                 string   `json:"nonce"`
+	Number                string   `json:"number"`
+	ParentBeaconBlockRoot string   `json:"parentBeaconBlockRoot"`
+	ParentHash            string   `json:"parentHash"`
+	ReceiptsRoot          string   `json:"receiptsRoot"`
+	Sha3Uncles            string   `json:"sha3Uncles"`
+	Size                  string   `json:"size"`
+	StateRoot             string   `json:"stateRoot"`
+	Timestamp             string   `json:"timestamp"`
+	TotalDifficulty       string   `json:"totalDifficulty"`
+	TransactionsRoot      string   `json:"transactionsRoot"`
+	Uncles                []string `json:"uncles"`
+	WithdrawalsRoot       string   `json:"withdrawalsRoot"`
 }
 
 func (b *JsonRpcBlock) ToProto() (*BlockHeader, error) {
@@ -40,6 +52,10 @@ func (b *JsonRpcBlock) ToProto() (*BlockHeader, error) {
 	if err != nil {
 		return nil, err
 	}
+	size, err := NumberishToUint64(b.Size)
+	if err != nil {
+		return nil, err
+	}
 	logsBloom, err := HexToBytes(b.LogsBloom)
 	if err != nil {
 		return nil, err
@@ -56,36 +72,128 @@ func (b *JsonRpcBlock) ToProto() (*BlockHeader, error) {
 	if err != nil {
 		return nil, err
 	}
+	sha3Uncles, err := HexToBytes(b.Sha3Uncles)
+	if err != nil {
+		return nil, err
+	}
+	miner, err := HexToBytes(b.Miner)
+	if err != nil {
+		return nil, err
+	}
 	extraData, err := HexToBytes(b.ExtraData)
 	if err != nil {
 		return nil, err
 	}
-	return &BlockHeader{
-		BaseFeePerGas:    &b.BaseFeePerGas,
-		ExtraData:        extraData,
-		GasLimit:         gasLimit,
-		GasUsed:          gasUsed,
-		Hash:             hash,
-		LogsBloom:        logsBloom,
-		Number:           number,
-		ParentHash:       parentHash,
-		ReceiptsRoot:     receiptsRoot,
-		StateRoot:        stateRoot,
-		Timestamp:        timestamp,
-		TransactionsRoot: transactionsRoot,
-	}, nil
+
+	// Handle optional fields
+	var nonce *uint64
+	if b.Nonce != "" {
+		n, err := NumberishToUint64(b.Nonce)
+		if err != nil {
+			return nil, err
+		}
+		nonce = &n
+	}
+
+	var mixHash []byte
+	if b.MixHash != "" {
+		mixHash, err = HexToBytes(b.MixHash)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var withdrawalsRoot []byte
+	if b.WithdrawalsRoot != "" {
+		withdrawalsRoot, err = HexToBytes(b.WithdrawalsRoot)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var blobGasUsed *uint64
+	if b.BlobGasUsed != "" {
+		bgu, err := NumberishToUint64(b.BlobGasUsed)
+		if err != nil {
+			return nil, err
+		}
+		blobGasUsed = &bgu
+	}
+
+	var excessBlobGas *uint64
+	if b.ExcessBlobGas != "" {
+		ebg, err := NumberishToUint64(b.ExcessBlobGas)
+		if err != nil {
+			return nil, err
+		}
+		excessBlobGas = &ebg
+	}
+
+	var parentBeaconBlockRoot []byte
+	if b.ParentBeaconBlockRoot != "" {
+		parentBeaconBlockRoot, err = HexToBytes(b.ParentBeaconBlockRoot)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Convert uncles array
+	uncles := make([][]byte, 0, len(b.Uncles))
+	for _, uncle := range b.Uncles {
+		uncleBytes, err := HexToBytes(uncle)
+		if err != nil {
+			return nil, err
+		}
+		uncles = append(uncles, uncleBytes)
+	}
+
+	// Build the BlockHeader
+	header := &BlockHeader{
+		Number:                number,
+		Timestamp:             timestamp,
+		GasLimit:              gasLimit,
+		GasUsed:               gasUsed,
+		Size:                  size,
+		Hash:                  hash,
+		ParentHash:            parentHash,
+		StateRoot:             stateRoot,
+		TransactionsRoot:      transactionsRoot,
+		ReceiptsRoot:          receiptsRoot,
+		Sha3Uncles:            sha3Uncles,
+		Miner:                 miner,
+		LogsBloom:             logsBloom,
+		ExtraData:             extraData,
+		Nonce:                 nonce,
+		BlobGasUsed:           blobGasUsed,
+		ExcessBlobGas:         excessBlobGas,
+		MixHash:               mixHash,
+		ParentBeaconBlockRoot: parentBeaconBlockRoot,
+		WithdrawalsRoot:       withdrawalsRoot,
+		BaseFeePerGas:         &b.BaseFeePerGas,
+		Difficulty:            &b.Difficulty,
+		TotalDifficulty:       &b.TotalDifficulty,
+		Uncles:                uncles,
+	}
+
+	return header, nil
 }
 
 type JsonRpcReceipt struct {
-	BlockHash        string        `json:"blockHash"`
-	BlockNumber      string        `json:"blockNumber"`
-	From             string        `json:"from"`
-	GasUsed          string        `json:"gasUsed"`
-	Logs             []*JsonRpcLog `json:"logs"`
-	LogsBloom        string        `json:"logsBloom"`
-	To               string        `json:"to"`
-	TransactionHash  string        `json:"transactionHash"`
-	TransactionIndex string        `json:"transactionIndex"`
+	BlockHash         string        `json:"blockHash"`
+	BlockNumber       string        `json:"blockNumber"`
+	ContractAddress   string        `json:"contractAddress"`
+	CumulativeGasUsed string        `json:"cumulativeGasUsed"`
+	EffectiveGasPrice string        `json:"effectiveGasPrice"`
+	From              string        `json:"from"`
+	GasUsed           string        `json:"gasUsed"`
+	Logs              []*JsonRpcLog `json:"logs"`
+	LogsBloom         string        `json:"logsBloom"`
+	Root              string        `json:"root"`
+	Status            string        `json:"status"`
+	To                string        `json:"to"`
+	TransactionHash   string        `json:"transactionHash"`
+	TransactionIndex  string        `json:"transactionIndex"`
+	Type              string        `json:"type"`
 }
 
 func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
@@ -101,6 +209,10 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 	if err != nil {
 		return nil, err
 	}
+	cumulativeGasUsed, err := NumberishToUint64(r.CumulativeGasUsed)
+	if err != nil {
+		return nil, err
+	}
 	logsBloom, err := HexToBytes(r.LogsBloom)
 	if err != nil {
 		return nil, err
@@ -113,6 +225,42 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 	if err != nil {
 		return nil, err
 	}
+	
+	// Handle optional fields
+	var typ uint32
+	if r.Type != "" {
+		t, err := NumberishToUint32(r.Type)
+		if err != nil {
+			return nil, err
+		}
+		typ = t
+	}
+	
+	var status *uint32
+	if r.Status != "" {
+		s, err := NumberishToUint32(r.Status)
+		if err != nil {
+			return nil, err
+		}
+		status = &s
+	}
+	
+	var contractAddress []byte
+	if r.ContractAddress != "" && r.ContractAddress != "0x" {
+		contractAddress, err = HexToBytes(r.ContractAddress)
+		if err != nil {
+			return nil, err
+		}
+	}
+	
+	var root []byte
+	if r.Root != "" {
+		root, err = HexToBytes(r.Root)
+		if err != nil {
+			return nil, err
+		}
+	}
+	
 	logs := make([]*Log, 0, len(r.Logs))
 	for _, log := range r.Logs {
 		protoLog, err := log.ToProto()
@@ -121,14 +269,21 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 		}
 		logs = append(logs, protoLog)
 	}
+	
 	return &Receipt{
-		BlockNumber:      blockNumber,
-		TransactionIndex: uint32(transactionIndex),
-		GasUsed:          gasUsed,
-		LogsBloom:        logsBloom,
-		BlockHash:        blockHash,
-		TransactionHash:  transactionHash,
-		Logs:             logs,
+		TransactionHash:   transactionHash,
+		BlockNumber:       blockNumber,
+		BlockHash:         blockHash,
+		TransactionIndex:  uint32(transactionIndex),
+		Type:              typ,
+		Status:            status,
+		GasUsed:           gasUsed,
+		CumulativeGasUsed: cumulativeGasUsed,
+		EffectiveGasPrice: r.EffectiveGasPrice,
+		LogsBloom:         logsBloom,
+		Logs:              logs,
+		ContractAddress:   contractAddress,
+		Root:              root,
 	}, nil
 }
 
