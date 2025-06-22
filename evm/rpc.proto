@@ -18,6 +18,12 @@ service RPCQueryService {
   
   // Get logs matching filter criteria (equivalent to eth_getLogs)
   rpc GetLogs(GetLogsRequest) returns (GetLogsResponse);
+  
+  // Get a transaction by its hash (equivalent to eth_getTransactionByHash)
+  rpc GetTransactionByHash(GetTransactionByHashRequest) returns (GetTransactionByHashResponse);
+  
+  // Get a transaction receipt by its hash (equivalent to eth_getTransactionReceipt)
+  rpc GetTransactionReceipt(GetTransactionReceiptRequest) returns (GetTransactionReceiptResponse);
 }
 
 // Request for getting the chain ID
@@ -52,7 +58,12 @@ message GetBlockByNumberResponse {
   BlockHeader block = 1;
   
   // Transaction data (format depends on includeTransactions flag in request)
+  // If includeTransactions is false, this contains transaction hashes (32 bytes each)
+  // If includeTransactions is true, this should be empty and fullTransactions field should be used
   repeated bytes transactions = 2;
+  
+  // Full transaction objects (only populated when includeTransactions is true)
+  repeated Transaction fullTransactions = 3;
 }
 
 // Request for getting a block by hash
@@ -76,6 +87,8 @@ message GetBlockByHashResponse {
   BlockHeader block = 1;
   
   // Transaction data (format depends on includeTransactions flag in request)
+  // If includeTransactions is false, this contains transaction hashes (32 bytes each)
+  // If includeTransactions is true, this should be empty and fullTransactions field should be used
   repeated bytes transactions = 2;
 
   // Optional chain ID to use for the request
@@ -83,6 +96,9 @@ message GetBlockByHashResponse {
 
   // Optional genesis hash to narrow down identical networks with the same chain ID
   optional bytes chainGenesisHash = 6;
+  
+  // Full transaction objects (only populated when includeTransactions is true)
+  repeated Transaction fullTransactions = 7;
 }
 
 // Request for getting logs
@@ -121,4 +137,40 @@ message TopicFilter {
 message GetLogsResponse {
   // Array of logs matching the filter criteria
   repeated Log logs = 1;
+}
+
+// Request for getting a transaction by hash
+message GetTransactionByHashRequest {
+  // The transaction hash to retrieve
+  bytes transactionHash = 1;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 2;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 3;
+}
+
+// Response containing the requested transaction
+message GetTransactionByHashResponse {
+  // The requested transaction, null if not found
+  Transaction transaction = 1;
+}
+
+// Request for getting a transaction receipt
+message GetTransactionReceiptRequest {
+  // The transaction hash to retrieve receipt for
+  bytes transactionHash = 1;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 2;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 3;
+}
+
+// Response containing the requested transaction receipt
+message GetTransactionReceiptResponse {
+  // The requested receipt, null if not found
+  Receipt receipt = 1;
 }

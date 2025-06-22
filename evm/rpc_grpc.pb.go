@@ -19,10 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RPCQueryService_ChainId_FullMethodName          = "/bds.evm.RPCQueryService/ChainId"
-	RPCQueryService_GetBlockByNumber_FullMethodName = "/bds.evm.RPCQueryService/GetBlockByNumber"
-	RPCQueryService_GetBlockByHash_FullMethodName   = "/bds.evm.RPCQueryService/GetBlockByHash"
-	RPCQueryService_GetLogs_FullMethodName          = "/bds.evm.RPCQueryService/GetLogs"
+	RPCQueryService_ChainId_FullMethodName               = "/bds.evm.RPCQueryService/ChainId"
+	RPCQueryService_GetBlockByNumber_FullMethodName      = "/bds.evm.RPCQueryService/GetBlockByNumber"
+	RPCQueryService_GetBlockByHash_FullMethodName        = "/bds.evm.RPCQueryService/GetBlockByHash"
+	RPCQueryService_GetLogs_FullMethodName               = "/bds.evm.RPCQueryService/GetLogs"
+	RPCQueryService_GetTransactionByHash_FullMethodName  = "/bds.evm.RPCQueryService/GetTransactionByHash"
+	RPCQueryService_GetTransactionReceipt_FullMethodName = "/bds.evm.RPCQueryService/GetTransactionReceipt"
 )
 
 // RPCQueryServiceClient is the client API for RPCQueryService service.
@@ -39,6 +41,10 @@ type RPCQueryServiceClient interface {
 	GetBlockByHash(ctx context.Context, in *GetBlockByHashRequest, opts ...grpc.CallOption) (*GetBlockByHashResponse, error)
 	// Get logs matching filter criteria (equivalent to eth_getLogs)
 	GetLogs(ctx context.Context, in *GetLogsRequest, opts ...grpc.CallOption) (*GetLogsResponse, error)
+	// Get a transaction by its hash (equivalent to eth_getTransactionByHash)
+	GetTransactionByHash(ctx context.Context, in *GetTransactionByHashRequest, opts ...grpc.CallOption) (*GetTransactionByHashResponse, error)
+	// Get a transaction receipt by its hash (equivalent to eth_getTransactionReceipt)
+	GetTransactionReceipt(ctx context.Context, in *GetTransactionReceiptRequest, opts ...grpc.CallOption) (*GetTransactionReceiptResponse, error)
 }
 
 type rPCQueryServiceClient struct {
@@ -89,6 +95,26 @@ func (c *rPCQueryServiceClient) GetLogs(ctx context.Context, in *GetLogsRequest,
 	return out, nil
 }
 
+func (c *rPCQueryServiceClient) GetTransactionByHash(ctx context.Context, in *GetTransactionByHashRequest, opts ...grpc.CallOption) (*GetTransactionByHashResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTransactionByHashResponse)
+	err := c.cc.Invoke(ctx, RPCQueryService_GetTransactionByHash_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rPCQueryServiceClient) GetTransactionReceipt(ctx context.Context, in *GetTransactionReceiptRequest, opts ...grpc.CallOption) (*GetTransactionReceiptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTransactionReceiptResponse)
+	err := c.cc.Invoke(ctx, RPCQueryService_GetTransactionReceipt_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RPCQueryServiceServer is the server API for RPCQueryService service.
 // All implementations must embed UnimplementedRPCQueryServiceServer
 // for forward compatibility.
@@ -103,6 +129,10 @@ type RPCQueryServiceServer interface {
 	GetBlockByHash(context.Context, *GetBlockByHashRequest) (*GetBlockByHashResponse, error)
 	// Get logs matching filter criteria (equivalent to eth_getLogs)
 	GetLogs(context.Context, *GetLogsRequest) (*GetLogsResponse, error)
+	// Get a transaction by its hash (equivalent to eth_getTransactionByHash)
+	GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*GetTransactionByHashResponse, error)
+	// Get a transaction receipt by its hash (equivalent to eth_getTransactionReceipt)
+	GetTransactionReceipt(context.Context, *GetTransactionReceiptRequest) (*GetTransactionReceiptResponse, error)
 	mustEmbedUnimplementedRPCQueryServiceServer()
 }
 
@@ -124,6 +154,12 @@ func (UnimplementedRPCQueryServiceServer) GetBlockByHash(context.Context, *GetBl
 }
 func (UnimplementedRPCQueryServiceServer) GetLogs(context.Context, *GetLogsRequest) (*GetLogsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLogs not implemented")
+}
+func (UnimplementedRPCQueryServiceServer) GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*GetTransactionByHashResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTransactionByHash not implemented")
+}
+func (UnimplementedRPCQueryServiceServer) GetTransactionReceipt(context.Context, *GetTransactionReceiptRequest) (*GetTransactionReceiptResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTransactionReceipt not implemented")
 }
 func (UnimplementedRPCQueryServiceServer) mustEmbedUnimplementedRPCQueryServiceServer() {}
 func (UnimplementedRPCQueryServiceServer) testEmbeddedByValue()                         {}
@@ -218,6 +254,42 @@ func _RPCQueryService_GetLogs_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RPCQueryService_GetTransactionByHash_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTransactionByHashRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RPCQueryServiceServer).GetTransactionByHash(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RPCQueryService_GetTransactionByHash_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RPCQueryServiceServer).GetTransactionByHash(ctx, req.(*GetTransactionByHashRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RPCQueryService_GetTransactionReceipt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTransactionReceiptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RPCQueryServiceServer).GetTransactionReceipt(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RPCQueryService_GetTransactionReceipt_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RPCQueryServiceServer).GetTransactionReceipt(ctx, req.(*GetTransactionReceiptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RPCQueryService_ServiceDesc is the grpc.ServiceDesc for RPCQueryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -240,6 +312,14 @@ var RPCQueryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLogs",
 			Handler:    _RPCQueryService_GetLogs_Handler,
+		},
+		{
+			MethodName: "GetTransactionByHash",
+			Handler:    _RPCQueryService_GetTransactionByHash_Handler,
+		},
+		{
+			MethodName: "GetTransactionReceipt",
+			Handler:    _RPCQueryService_GetTransactionReceipt_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
