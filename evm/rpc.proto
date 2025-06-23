@@ -11,10 +11,10 @@ service RPCQueryService {
   rpc ChainId(ChainIdRequest) returns (ChainIdResponse);
 
   // Get a block by its number (equivalent to eth_getBlockByNumber)
-  rpc GetBlockByNumber(GetBlockByNumberRequest) returns (GetBlockByNumberResponse);
+  rpc GetBlockByNumber(GetBlockByNumberRequest) returns (GetBlockResponse);
   
   // Get a block by its hash (equivalent to eth_getBlockByHash)
-  rpc GetBlockByHash(GetBlockByHashRequest) returns (GetBlockByHashResponse);
+  rpc GetBlockByHash(GetBlockByHashRequest) returns (GetBlockResponse);
   
   // Get logs matching filter criteria (equivalent to eth_getLogs)
   rpc GetLogs(GetLogsRequest) returns (GetLogsResponse);
@@ -52,20 +52,6 @@ message GetBlockByNumberRequest {
   optional bytes chainGenesisHash = 4;
 }
 
-// Response containing the requested block
-message GetBlockByNumberResponse {
-  // The requested block, null if not found
-  BlockHeader block = 1;
-  
-  // Transaction data (format depends on includeTransactions flag in request)
-  // If includeTransactions is false, this contains transaction hashes (32 bytes each)
-  // If includeTransactions is true, this should be empty and fullTransactions field should be used
-  repeated bytes transactions = 2;
-  
-  // Full transaction objects (only populated when includeTransactions is true)
-  repeated Transaction fullTransactions = 3;
-}
-
 // Request for getting a block by hash
 message GetBlockByHashRequest {
   // The block hash to retrieve
@@ -82,7 +68,7 @@ message GetBlockByHashRequest {
 }
 
 // Response containing the requested block
-message GetBlockByHashResponse {
+message GetBlockResponse {
   // The requested block, null if not found
   BlockHeader block = 1;
   
@@ -99,6 +85,9 @@ message GetBlockByHashResponse {
   
   // Full transaction objects (only populated when includeTransactions is true)
   repeated Transaction fullTransactions = 7;
+
+  // Withdrawals (only populated when includeTransactions is true)
+  repeated Withdrawal withdrawals = 8;
 }
 
 // Request for getting logs

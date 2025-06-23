@@ -185,72 +185,6 @@ func (x *GetBlockByNumberRequest) GetChainGenesisHash() []byte {
 	return nil
 }
 
-// Response containing the requested block
-type GetBlockByNumberResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The requested block, null if not found
-	Block *BlockHeader `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
-	// Transaction data (format depends on includeTransactions flag in request)
-	// If includeTransactions is false, this contains transaction hashes (32 bytes each)
-	// If includeTransactions is true, this should be empty and fullTransactions field should be used
-	Transactions [][]byte `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
-	// Full transaction objects (only populated when includeTransactions is true)
-	FullTransactions []*Transaction `protobuf:"bytes,3,rep,name=fullTransactions,proto3" json:"fullTransactions,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *GetBlockByNumberResponse) Reset() {
-	*x = GetBlockByNumberResponse{}
-	mi := &file_rpc_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetBlockByNumberResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetBlockByNumberResponse) ProtoMessage() {}
-
-func (x *GetBlockByNumberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetBlockByNumberResponse.ProtoReflect.Descriptor instead.
-func (*GetBlockByNumberResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *GetBlockByNumberResponse) GetBlock() *BlockHeader {
-	if x != nil {
-		return x.Block
-	}
-	return nil
-}
-
-func (x *GetBlockByNumberResponse) GetTransactions() [][]byte {
-	if x != nil {
-		return x.Transactions
-	}
-	return nil
-}
-
-func (x *GetBlockByNumberResponse) GetFullTransactions() []*Transaction {
-	if x != nil {
-		return x.FullTransactions
-	}
-	return nil
-}
-
 // Request for getting a block by hash
 type GetBlockByHashRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -268,7 +202,7 @@ type GetBlockByHashRequest struct {
 
 func (x *GetBlockByHashRequest) Reset() {
 	*x = GetBlockByHashRequest{}
-	mi := &file_rpc_proto_msgTypes[4]
+	mi := &file_rpc_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -280,7 +214,7 @@ func (x *GetBlockByHashRequest) String() string {
 func (*GetBlockByHashRequest) ProtoMessage() {}
 
 func (x *GetBlockByHashRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[4]
+	mi := &file_rpc_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -293,7 +227,7 @@ func (x *GetBlockByHashRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBlockByHashRequest.ProtoReflect.Descriptor instead.
 func (*GetBlockByHashRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{4}
+	return file_rpc_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetBlockByHashRequest) GetBlockHash() []byte {
@@ -325,7 +259,7 @@ func (x *GetBlockByHashRequest) GetChainGenesisHash() []byte {
 }
 
 // Response containing the requested block
-type GetBlockByHashResponse struct {
+type GetBlockResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The requested block, null if not found
 	Block *BlockHeader `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
@@ -339,25 +273,27 @@ type GetBlockByHashResponse struct {
 	ChainGenesisHash []byte `protobuf:"bytes,6,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
 	// Full transaction objects (only populated when includeTransactions is true)
 	FullTransactions []*Transaction `protobuf:"bytes,7,rep,name=fullTransactions,proto3" json:"fullTransactions,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Withdrawals (only populated when includeTransactions is true)
+	Withdrawals   []*Withdrawal `protobuf:"bytes,8,rep,name=withdrawals,proto3" json:"withdrawals,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetBlockByHashResponse) Reset() {
-	*x = GetBlockByHashResponse{}
-	mi := &file_rpc_proto_msgTypes[5]
+func (x *GetBlockResponse) Reset() {
+	*x = GetBlockResponse{}
+	mi := &file_rpc_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetBlockByHashResponse) String() string {
+func (x *GetBlockResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetBlockByHashResponse) ProtoMessage() {}
+func (*GetBlockResponse) ProtoMessage() {}
 
-func (x *GetBlockByHashResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[5]
+func (x *GetBlockResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -368,42 +304,49 @@ func (x *GetBlockByHashResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetBlockByHashResponse.ProtoReflect.Descriptor instead.
-func (*GetBlockByHashResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{5}
+// Deprecated: Use GetBlockResponse.ProtoReflect.Descriptor instead.
+func (*GetBlockResponse) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *GetBlockByHashResponse) GetBlock() *BlockHeader {
+func (x *GetBlockResponse) GetBlock() *BlockHeader {
 	if x != nil {
 		return x.Block
 	}
 	return nil
 }
 
-func (x *GetBlockByHashResponse) GetTransactions() [][]byte {
+func (x *GetBlockResponse) GetTransactions() [][]byte {
 	if x != nil {
 		return x.Transactions
 	}
 	return nil
 }
 
-func (x *GetBlockByHashResponse) GetChainId() uint64 {
+func (x *GetBlockResponse) GetChainId() uint64 {
 	if x != nil && x.ChainId != nil {
 		return *x.ChainId
 	}
 	return 0
 }
 
-func (x *GetBlockByHashResponse) GetChainGenesisHash() []byte {
+func (x *GetBlockResponse) GetChainGenesisHash() []byte {
 	if x != nil {
 		return x.ChainGenesisHash
 	}
 	return nil
 }
 
-func (x *GetBlockByHashResponse) GetFullTransactions() []*Transaction {
+func (x *GetBlockResponse) GetFullTransactions() []*Transaction {
 	if x != nil {
 		return x.FullTransactions
+	}
+	return nil
+}
+
+func (x *GetBlockResponse) GetWithdrawals() []*Withdrawal {
+	if x != nil {
+		return x.Withdrawals
 	}
 	return nil
 }
@@ -433,7 +376,7 @@ type GetLogsRequest struct {
 
 func (x *GetLogsRequest) Reset() {
 	*x = GetLogsRequest{}
-	mi := &file_rpc_proto_msgTypes[6]
+	mi := &file_rpc_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -445,7 +388,7 @@ func (x *GetLogsRequest) String() string {
 func (*GetLogsRequest) ProtoMessage() {}
 
 func (x *GetLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[6]
+	mi := &file_rpc_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -458,7 +401,7 @@ func (x *GetLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLogsRequest.ProtoReflect.Descriptor instead.
 func (*GetLogsRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{6}
+	return file_rpc_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetLogsRequest) GetFromBlock() uint64 {
@@ -521,7 +464,7 @@ type TopicFilter struct {
 
 func (x *TopicFilter) Reset() {
 	*x = TopicFilter{}
-	mi := &file_rpc_proto_msgTypes[7]
+	mi := &file_rpc_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -533,7 +476,7 @@ func (x *TopicFilter) String() string {
 func (*TopicFilter) ProtoMessage() {}
 
 func (x *TopicFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[7]
+	mi := &file_rpc_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -546,7 +489,7 @@ func (x *TopicFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopicFilter.ProtoReflect.Descriptor instead.
 func (*TopicFilter) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{7}
+	return file_rpc_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *TopicFilter) GetValues() [][]byte {
@@ -567,7 +510,7 @@ type GetLogsResponse struct {
 
 func (x *GetLogsResponse) Reset() {
 	*x = GetLogsResponse{}
-	mi := &file_rpc_proto_msgTypes[8]
+	mi := &file_rpc_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -579,7 +522,7 @@ func (x *GetLogsResponse) String() string {
 func (*GetLogsResponse) ProtoMessage() {}
 
 func (x *GetLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[8]
+	mi := &file_rpc_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -592,7 +535,7 @@ func (x *GetLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLogsResponse.ProtoReflect.Descriptor instead.
 func (*GetLogsResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{8}
+	return file_rpc_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetLogsResponse) GetLogs() []*Log {
@@ -617,7 +560,7 @@ type GetTransactionByHashRequest struct {
 
 func (x *GetTransactionByHashRequest) Reset() {
 	*x = GetTransactionByHashRequest{}
-	mi := &file_rpc_proto_msgTypes[9]
+	mi := &file_rpc_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -629,7 +572,7 @@ func (x *GetTransactionByHashRequest) String() string {
 func (*GetTransactionByHashRequest) ProtoMessage() {}
 
 func (x *GetTransactionByHashRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[9]
+	mi := &file_rpc_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -642,7 +585,7 @@ func (x *GetTransactionByHashRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTransactionByHashRequest.ProtoReflect.Descriptor instead.
 func (*GetTransactionByHashRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{9}
+	return file_rpc_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetTransactionByHashRequest) GetTransactionHash() []byte {
@@ -677,7 +620,7 @@ type GetTransactionByHashResponse struct {
 
 func (x *GetTransactionByHashResponse) Reset() {
 	*x = GetTransactionByHashResponse{}
-	mi := &file_rpc_proto_msgTypes[10]
+	mi := &file_rpc_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -689,7 +632,7 @@ func (x *GetTransactionByHashResponse) String() string {
 func (*GetTransactionByHashResponse) ProtoMessage() {}
 
 func (x *GetTransactionByHashResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[10]
+	mi := &file_rpc_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -702,7 +645,7 @@ func (x *GetTransactionByHashResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTransactionByHashResponse.ProtoReflect.Descriptor instead.
 func (*GetTransactionByHashResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{10}
+	return file_rpc_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetTransactionByHashResponse) GetTransaction() *Transaction {
@@ -727,7 +670,7 @@ type GetTransactionReceiptRequest struct {
 
 func (x *GetTransactionReceiptRequest) Reset() {
 	*x = GetTransactionReceiptRequest{}
-	mi := &file_rpc_proto_msgTypes[11]
+	mi := &file_rpc_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +682,7 @@ func (x *GetTransactionReceiptRequest) String() string {
 func (*GetTransactionReceiptRequest) ProtoMessage() {}
 
 func (x *GetTransactionReceiptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[11]
+	mi := &file_rpc_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +695,7 @@ func (x *GetTransactionReceiptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTransactionReceiptRequest.ProtoReflect.Descriptor instead.
 func (*GetTransactionReceiptRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{11}
+	return file_rpc_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetTransactionReceiptRequest) GetTransactionHash() []byte {
@@ -787,7 +730,7 @@ type GetTransactionReceiptResponse struct {
 
 func (x *GetTransactionReceiptResponse) Reset() {
 	*x = GetTransactionReceiptResponse{}
-	mi := &file_rpc_proto_msgTypes[12]
+	mi := &file_rpc_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -799,7 +742,7 @@ func (x *GetTransactionReceiptResponse) String() string {
 func (*GetTransactionReceiptResponse) ProtoMessage() {}
 
 func (x *GetTransactionReceiptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[12]
+	mi := &file_rpc_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -812,7 +755,7 @@ func (x *GetTransactionReceiptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTransactionReceiptResponse.ProtoReflect.Descriptor instead.
 func (*GetTransactionReceiptResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{12}
+	return file_rpc_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetTransactionReceiptResponse) GetReceipt() *Receipt {
@@ -838,11 +781,7 @@ const file_rpc_proto_rawDesc = "" +
 	"\x10chainGenesisHash\x18\x04 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01B\n" +
 	"\n" +
 	"\b_chainIdB\x13\n" +
-	"\x11_chainGenesisHash\"\xac\x01\n" +
-	"\x18GetBlockByNumberResponse\x12*\n" +
-	"\x05block\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x05block\x12\"\n" +
-	"\ftransactions\x18\x02 \x03(\fR\ftransactions\x12@\n" +
-	"\x10fullTransactions\x18\x03 \x03(\v2\x14.bds.evm.TransactionR\x10fullTransactions\"\xd8\x01\n" +
+	"\x11_chainGenesisHash\"\xd8\x01\n" +
 	"\x15GetBlockByHashRequest\x12\x1c\n" +
 	"\tblockHash\x18\x01 \x01(\fR\tblockHash\x120\n" +
 	"\x13includeTransactions\x18\x02 \x01(\bR\x13includeTransactions\x12\x1d\n" +
@@ -850,13 +789,14 @@ const file_rpc_proto_rawDesc = "" +
 	"\x10chainGenesisHash\x18\x04 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01B\n" +
 	"\n" +
 	"\b_chainIdB\x13\n" +
-	"\x11_chainGenesisHash\"\x9b\x02\n" +
-	"\x16GetBlockByHashResponse\x12*\n" +
+	"\x11_chainGenesisHash\"\xcc\x02\n" +
+	"\x10GetBlockResponse\x12*\n" +
 	"\x05block\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x05block\x12\"\n" +
 	"\ftransactions\x18\x02 \x03(\fR\ftransactions\x12\x1d\n" +
 	"\achainId\x18\x05 \x01(\x04H\x00R\achainId\x88\x01\x01\x12/\n" +
 	"\x10chainGenesisHash\x18\x06 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01\x12@\n" +
-	"\x10fullTransactions\x18\a \x03(\v2\x14.bds.evm.TransactionR\x10fullTransactionsB\n" +
+	"\x10fullTransactions\x18\a \x03(\v2\x14.bds.evm.TransactionR\x10fullTransactions\x125\n" +
+	"\vwithdrawals\x18\b \x03(\v2\x13.bds.evm.WithdrawalR\vwithdrawalsB\n" +
 	"\n" +
 	"\b_chainIdB\x13\n" +
 	"\x11_chainGenesisHash\"\xda\x02\n" +
@@ -898,11 +838,11 @@ const file_rpc_proto_rawDesc = "" +
 	"\b_chainIdB\x13\n" +
 	"\x11_chainGenesisHash\"K\n" +
 	"\x1dGetTransactionReceiptResponse\x12*\n" +
-	"\areceipt\x18\x01 \x01(\v2\x10.bds.evm.ReceiptR\areceipt2\x86\x04\n" +
+	"\areceipt\x18\x01 \x01(\v2\x10.bds.evm.ReceiptR\areceipt2\xf8\x03\n" +
 	"\x0fRPCQueryService\x12<\n" +
-	"\aChainId\x12\x17.bds.evm.ChainIdRequest\x1a\x18.bds.evm.ChainIdResponse\x12W\n" +
-	"\x10GetBlockByNumber\x12 .bds.evm.GetBlockByNumberRequest\x1a!.bds.evm.GetBlockByNumberResponse\x12Q\n" +
-	"\x0eGetBlockByHash\x12\x1e.bds.evm.GetBlockByHashRequest\x1a\x1f.bds.evm.GetBlockByHashResponse\x12<\n" +
+	"\aChainId\x12\x17.bds.evm.ChainIdRequest\x1a\x18.bds.evm.ChainIdResponse\x12O\n" +
+	"\x10GetBlockByNumber\x12 .bds.evm.GetBlockByNumberRequest\x1a\x19.bds.evm.GetBlockResponse\x12K\n" +
+	"\x0eGetBlockByHash\x12\x1e.bds.evm.GetBlockByHashRequest\x1a\x19.bds.evm.GetBlockResponse\x12<\n" +
 	"\aGetLogs\x12\x17.bds.evm.GetLogsRequest\x1a\x18.bds.evm.GetLogsResponse\x12c\n" +
 	"\x14GetTransactionByHash\x12$.bds.evm.GetTransactionByHashRequest\x1a%.bds.evm.GetTransactionByHashResponse\x12f\n" +
 	"\x15GetTransactionReceipt\x12%.bds.evm.GetTransactionReceiptRequest\x1a&.bds.evm.GetTransactionReceiptResponseB4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
@@ -919,52 +859,51 @@ func file_rpc_proto_rawDescGZIP() []byte {
 	return file_rpc_proto_rawDescData
 }
 
-var file_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_rpc_proto_goTypes = []any{
 	(*ChainIdRequest)(nil),                // 0: bds.evm.ChainIdRequest
 	(*ChainIdResponse)(nil),               // 1: bds.evm.ChainIdResponse
 	(*GetBlockByNumberRequest)(nil),       // 2: bds.evm.GetBlockByNumberRequest
-	(*GetBlockByNumberResponse)(nil),      // 3: bds.evm.GetBlockByNumberResponse
-	(*GetBlockByHashRequest)(nil),         // 4: bds.evm.GetBlockByHashRequest
-	(*GetBlockByHashResponse)(nil),        // 5: bds.evm.GetBlockByHashResponse
-	(*GetLogsRequest)(nil),                // 6: bds.evm.GetLogsRequest
-	(*TopicFilter)(nil),                   // 7: bds.evm.TopicFilter
-	(*GetLogsResponse)(nil),               // 8: bds.evm.GetLogsResponse
-	(*GetTransactionByHashRequest)(nil),   // 9: bds.evm.GetTransactionByHashRequest
-	(*GetTransactionByHashResponse)(nil),  // 10: bds.evm.GetTransactionByHashResponse
-	(*GetTransactionReceiptRequest)(nil),  // 11: bds.evm.GetTransactionReceiptRequest
-	(*GetTransactionReceiptResponse)(nil), // 12: bds.evm.GetTransactionReceiptResponse
-	(*BlockHeader)(nil),                   // 13: bds.evm.BlockHeader
-	(*Transaction)(nil),                   // 14: bds.evm.Transaction
+	(*GetBlockByHashRequest)(nil),         // 3: bds.evm.GetBlockByHashRequest
+	(*GetBlockResponse)(nil),              // 4: bds.evm.GetBlockResponse
+	(*GetLogsRequest)(nil),                // 5: bds.evm.GetLogsRequest
+	(*TopicFilter)(nil),                   // 6: bds.evm.TopicFilter
+	(*GetLogsResponse)(nil),               // 7: bds.evm.GetLogsResponse
+	(*GetTransactionByHashRequest)(nil),   // 8: bds.evm.GetTransactionByHashRequest
+	(*GetTransactionByHashResponse)(nil),  // 9: bds.evm.GetTransactionByHashResponse
+	(*GetTransactionReceiptRequest)(nil),  // 10: bds.evm.GetTransactionReceiptRequest
+	(*GetTransactionReceiptResponse)(nil), // 11: bds.evm.GetTransactionReceiptResponse
+	(*BlockHeader)(nil),                   // 12: bds.evm.BlockHeader
+	(*Transaction)(nil),                   // 13: bds.evm.Transaction
+	(*Withdrawal)(nil),                    // 14: bds.evm.Withdrawal
 	(*Log)(nil),                           // 15: bds.evm.Log
 	(*Receipt)(nil),                       // 16: bds.evm.Receipt
 }
 var file_rpc_proto_depIdxs = []int32{
-	13, // 0: bds.evm.GetBlockByNumberResponse.block:type_name -> bds.evm.BlockHeader
-	14, // 1: bds.evm.GetBlockByNumberResponse.fullTransactions:type_name -> bds.evm.Transaction
-	13, // 2: bds.evm.GetBlockByHashResponse.block:type_name -> bds.evm.BlockHeader
-	14, // 3: bds.evm.GetBlockByHashResponse.fullTransactions:type_name -> bds.evm.Transaction
-	7,  // 4: bds.evm.GetLogsRequest.topics:type_name -> bds.evm.TopicFilter
-	15, // 5: bds.evm.GetLogsResponse.logs:type_name -> bds.evm.Log
-	14, // 6: bds.evm.GetTransactionByHashResponse.transaction:type_name -> bds.evm.Transaction
-	16, // 7: bds.evm.GetTransactionReceiptResponse.receipt:type_name -> bds.evm.Receipt
-	0,  // 8: bds.evm.RPCQueryService.ChainId:input_type -> bds.evm.ChainIdRequest
-	2,  // 9: bds.evm.RPCQueryService.GetBlockByNumber:input_type -> bds.evm.GetBlockByNumberRequest
-	4,  // 10: bds.evm.RPCQueryService.GetBlockByHash:input_type -> bds.evm.GetBlockByHashRequest
-	6,  // 11: bds.evm.RPCQueryService.GetLogs:input_type -> bds.evm.GetLogsRequest
-	9,  // 12: bds.evm.RPCQueryService.GetTransactionByHash:input_type -> bds.evm.GetTransactionByHashRequest
-	11, // 13: bds.evm.RPCQueryService.GetTransactionReceipt:input_type -> bds.evm.GetTransactionReceiptRequest
-	1,  // 14: bds.evm.RPCQueryService.ChainId:output_type -> bds.evm.ChainIdResponse
-	3,  // 15: bds.evm.RPCQueryService.GetBlockByNumber:output_type -> bds.evm.GetBlockByNumberResponse
-	5,  // 16: bds.evm.RPCQueryService.GetBlockByHash:output_type -> bds.evm.GetBlockByHashResponse
-	8,  // 17: bds.evm.RPCQueryService.GetLogs:output_type -> bds.evm.GetLogsResponse
-	10, // 18: bds.evm.RPCQueryService.GetTransactionByHash:output_type -> bds.evm.GetTransactionByHashResponse
-	12, // 19: bds.evm.RPCQueryService.GetTransactionReceipt:output_type -> bds.evm.GetTransactionReceiptResponse
-	14, // [14:20] is the sub-list for method output_type
-	8,  // [8:14] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	12, // 0: bds.evm.GetBlockResponse.block:type_name -> bds.evm.BlockHeader
+	13, // 1: bds.evm.GetBlockResponse.fullTransactions:type_name -> bds.evm.Transaction
+	14, // 2: bds.evm.GetBlockResponse.withdrawals:type_name -> bds.evm.Withdrawal
+	6,  // 3: bds.evm.GetLogsRequest.topics:type_name -> bds.evm.TopicFilter
+	15, // 4: bds.evm.GetLogsResponse.logs:type_name -> bds.evm.Log
+	13, // 5: bds.evm.GetTransactionByHashResponse.transaction:type_name -> bds.evm.Transaction
+	16, // 6: bds.evm.GetTransactionReceiptResponse.receipt:type_name -> bds.evm.Receipt
+	0,  // 7: bds.evm.RPCQueryService.ChainId:input_type -> bds.evm.ChainIdRequest
+	2,  // 8: bds.evm.RPCQueryService.GetBlockByNumber:input_type -> bds.evm.GetBlockByNumberRequest
+	3,  // 9: bds.evm.RPCQueryService.GetBlockByHash:input_type -> bds.evm.GetBlockByHashRequest
+	5,  // 10: bds.evm.RPCQueryService.GetLogs:input_type -> bds.evm.GetLogsRequest
+	8,  // 11: bds.evm.RPCQueryService.GetTransactionByHash:input_type -> bds.evm.GetTransactionByHashRequest
+	10, // 12: bds.evm.RPCQueryService.GetTransactionReceipt:input_type -> bds.evm.GetTransactionReceiptRequest
+	1,  // 13: bds.evm.RPCQueryService.ChainId:output_type -> bds.evm.ChainIdResponse
+	4,  // 14: bds.evm.RPCQueryService.GetBlockByNumber:output_type -> bds.evm.GetBlockResponse
+	4,  // 15: bds.evm.RPCQueryService.GetBlockByHash:output_type -> bds.evm.GetBlockResponse
+	7,  // 16: bds.evm.RPCQueryService.GetLogs:output_type -> bds.evm.GetLogsResponse
+	9,  // 17: bds.evm.RPCQueryService.GetTransactionByHash:output_type -> bds.evm.GetTransactionByHashResponse
+	11, // 18: bds.evm.RPCQueryService.GetTransactionReceipt:output_type -> bds.evm.GetTransactionReceiptResponse
+	13, // [13:19] is the sub-list for method output_type
+	7,  // [7:13] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_rpc_proto_init() }
@@ -974,18 +913,18 @@ func file_rpc_proto_init() {
 	}
 	file_models_proto_init()
 	file_rpc_proto_msgTypes[2].OneofWrappers = []any{}
+	file_rpc_proto_msgTypes[3].OneofWrappers = []any{}
 	file_rpc_proto_msgTypes[4].OneofWrappers = []any{}
 	file_rpc_proto_msgTypes[5].OneofWrappers = []any{}
-	file_rpc_proto_msgTypes[6].OneofWrappers = []any{}
-	file_rpc_proto_msgTypes[9].OneofWrappers = []any{}
-	file_rpc_proto_msgTypes[11].OneofWrappers = []any{}
+	file_rpc_proto_msgTypes[8].OneofWrappers = []any{}
+	file_rpc_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_rpc_proto_rawDesc), len(file_rpc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

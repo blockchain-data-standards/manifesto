@@ -3,6 +3,7 @@ package evm
 import (
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 )
@@ -155,6 +156,24 @@ func AddHexPrefix(s string) string {
 		return s
 	}
 	return "0x" + s
+}
+
+// DecimalStringToHex converts a decimal or hex string into 0x-prefixed hex string.
+// If the input already has a 0x prefix it is returned unchanged.
+// Otherwise it is parsed as base-10 and returned as lower-case hex with 0x prefix.
+func DecimalStringToHex(s string) (string, error) {
+	if s == "" {
+		return "0x0", nil
+	}
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		return s, nil
+	}
+	var z big.Int
+	if _, ok := z.SetString(s, 10); !ok {
+		return "", fmt.Errorf("invalid decimal string: %s", s)
+	}
+	return AddHexPrefix(z.Text(16)), nil
 }
 
 // Pointer helper functions

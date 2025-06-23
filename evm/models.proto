@@ -121,13 +121,16 @@ message Block {
   BlockHeader header = 1;
 
   // Array of transaction data. Can be empty (omitted). When present, contains the raw transaction bytes for each transaction in the block
-  repeated Transaction transactions = 2;
+  repeated bytes transactionHashes = 2;
+
+  // Array of full transaction objects. Can be empty (omitted). When present, contains the full transaction objects for each transaction in the block
+  repeated Transaction fullTransactions = 3;
 
   // Array of logs emitted by all transactions in this block. Can be empty (omitted). Logs are ordered by transaction index and then by log index within each transaction
-  repeated Log logs = 3;
+  repeated Log logs = 4;
 
   // Array of withdrawal operations from beacon chain validators. Introduced in Shanghai upgrade. Contains validator index, withdrawal address, and amount. Usually RLP-encoded array. Empty for pre-Shanghai blocks.
-  repeated Withdrawal withdrawals = 4;
+  repeated Withdrawal withdrawals = 5;
 }
 
 // Enum for transaction types based on EIP-2718.
@@ -282,6 +285,44 @@ message Transaction {
 
   // Address that receives gateway fees. Usually a relayer or protocol treasury. Only relevant when gatewayFee > 0. Enables sustainable meta-transaction infrastructure. Must be specified when using alternative fee payment
   optional bytes gatewayFeeRecipient = 37;
+
+  // === Arbitrum Retryable Ticket Fields ===
+
+  // Address that will receive any excess ETH from retryable ticket creation on Arbitrum. Part of the L1-to-L2 messaging system. Used when creating retryable tickets to specify who gets refunds
+  optional bytes beneficiary = 38;
+
+  // Amount of ETH being deposited from L1 to L2 in Arbitrum retryable tickets, in wei. This value will be available on L2 after the retryable ticket is executed. Hex-encoded decimal string
+  optional string depositValue = 39;
+
+  // L1 base fee at the time of retryable ticket creation, in wei. Used to calculate the actual L1 gas costs for the L2 transaction. Hex-encoded decimal string
+  optional string l1BaseFee = 40;
+
+  // Maximum fee willing to pay for submitting the retryable ticket to L2, in wei. Covers the cost of L2 gas for auto-redeem attempt. Excess is refunded to refundTo address. Hex-encoded decimal string
+  optional string maxSubmissionFee = 41;
+
+  // Address that will receive refunds for unused submission fees and value in Arbitrum retryable tickets. Typically the sender or a designated refund address
+  optional bytes refundTo = 42;
+
+  // Unique identifier for the retryable ticket request. Used to track and query the status of L1-to-L2 messages. Generated deterministically from ticket parameters
+  optional bytes requestId = 43;
+
+  // Calldata for manual redemption of failed retryable tickets. Contains the function selector and parameters needed to retry the L2 transaction if auto-redeem fails
+  optional bytes retryData = 44;
+
+  // Target contract address for retryable ticket execution on L2. The contract that will receive the call when the retryable ticket is redeemed
+  optional bytes retryTo = 45;
+
+  // ETH value to send with the retry transaction on L2, in wei. Amount of ETH that will be sent to retryTo when executing the retryable ticket. Hex-encoded decimal string
+  optional string retryValue = 46;
+
+  // Maximum refund available for unused gas in retryable ticket execution, in wei. Calculated based on gas limit and gas price. Hex-encoded decimal string
+  optional string maxRefund = 47;
+
+  // Amount refunded for unused submission fee, in wei. Difference between maxSubmissionFee and actual submission cost. Sent to refundTo address. Hex-encoded decimal string
+  optional string submissionFeeRefund = 48;
+
+  // Unique identifier of the retryable ticket on L2. Used to track, query, and manually redeem retryable tickets. Generated when ticket is created on L2
+  optional bytes ticketId = 49;
 }
 
 // Represents an entry in an EIP-2930 access list. Pre-declares addresses and storage slots that will be accessed during transaction execution, enabling gas savings through reduced cold access costs
@@ -378,72 +419,81 @@ message Receipt {
   // Transaction type (EIP-2718). 0=Legacy, 1=EIP-2930, 2=EIP-1559, 3=EIP-4844, 4=EIP-7702. L2s may have custom types. Denormalized from transaction for easier filtering and processing. Determines receipt format
   uint32 type = 5;
 
+  // The 20-byte address of the account that created and signed the transaction. Denormalized from transaction for query convenience.
+  bytes from = 6;
+
+  // The 20-byte address of the recipient account or contract. NULL/empty for contract creation transactions. Denormalized from transaction for query convenience.
+  optional bytes to = 7;
+
   // Transaction execution status. 1 = success (all state changes applied), 0 = failure (only gas payment applied). Introduced in Byzantium fork. For pre-Byzantium transactions, check if gasUsed < gasLimit or use root field. Critical for determining transaction outcome
-  optional uint32 status = 6;
+  optional uint32 status = 8;
 
   // Total gas units actually consumed by the transaction execution. Includes base transaction cost, calldata cost, and all operations. Always <= transaction gasLimit. Used to calculate actual transaction cost
-  uint64 gasUsed = 7;
+  uint64 gasUsed = 9;
 
   // Cumulative gas used in the block up to and including this transaction. Increases monotonically within a block. Used to calculate block utilization and for merkle proof construction. Maximum value is block gasLimit
-  uint64 cumulativeGasUsed = 8;
+  uint64 cumulativeGasUsed = 10;
 
   // Effective price per gas unit paid for this transaction, in wei. For legacy tx: equals gasPrice. For EIP-1559: baseFeePerGas + min(maxPriorityFeePerGas, maxFeePerGas - baseFeePerGas). Used to calculate total cost: gasUsed * effectiveGasPrice
-  string effectiveGasPrice = 9;
+  string effectiveGasPrice = 11;
 
   // 2048-bit bloom filter of all log addresses and topics from this transaction. Enables efficient log filtering without parsing all logs. Each log address and topic is hashed and added to the bloom. Used by eth_getLogs for quick filtering
-  bytes logsBloom = 10;
+  bytes logsBloom = 12;
 
   // Logs emitted by this transaction
-  repeated Log logs = 11;
+  repeated Log logs = 13;
 
   // Address of newly deployed contract if this was a contract creation transaction. NULL for regular transfers and contract calls. Computed deterministically from sender address and nonce (CREATE) or sender, salt, and init code (CREATE2). Becomes active immediately if deployment succeeds
-  optional bytes contractAddress = 12;
+  optional bytes contractAddress = 14;
 
   // Post-execution state root (pre-Byzantium only). 32-byte Keccak hash of the global state trie after executing this transaction. Replaced by status field in Byzantium for gas efficiency. Still present in some chains and historical data
-  optional bytes root = 13;
+  optional bytes root = 15;
 
   // Unix timestamp when this transaction was executed. Denormalized from block data. All transactions in a block share the same timestamp. Useful for time-based queries without joining block data
-  optional uint64 blockTimestamp = 14;
+  optional uint64 blockTimestamp = 16;
 
   // === EIP-4844 Blob Fields ===
 
   // Total blob gas consumed by this transaction. Each blob uses 131,072 gas units. Only present for type 3 (blob) transactions. Used to calculate blob fees separately from execution gas. Maximum 786,432 (6 blobs)
-  optional uint64 blobGasUsed = 15;
+  optional uint64 blobGasUsed = 17;
 
   // Price per blob gas unit when this transaction was executed, in wei. Set by protocol based on EIP-4844 blob gas market. Only for blob transactions. Usually much lower than regular gas price to incentivize L2 data availability
-  optional string blobGasPrice = 16;
+  optional string blobGasPrice = 18;
+
+  // Whether the block was time-boosted. For example in Arbitrum chain.
+  optional bool timeboosted = 19;
 
   // === L2-Specific Receipt Fields ===
 
   // Total L1 fee paid by this L2 transaction, in wei. Covers cost of posting transaction data to L1. Calculated as L1GasPrice * L1GasUsed * L1FeeScalar. Can be significant portion of total L2 transaction cost
-  optional string l1Fee = 17;
+  optional string l1Fee = 20;
 
   // L1 gas units attributed to this L2 transaction. Based on transaction size and encoding. Used to calculate L1 fee. Depends on L2's data availability method (calldata vs blobs)
-  optional string l1GasUsed = 18;
+  optional string l1GasUsed = 21;
 
   // L1 gas price at the time this L2 transaction was processed, in wei. Used to calculate L1 fee. Updated by L2 sequencer based on L1 conditions. Can spike during L1 congestion
-  optional string l1GasPrice = 19;
+  optional string l1GasPrice = 22;
 
   // Scalar applied to L1 gas calculations. Covers overhead and provides buffer for L1 gas volatility. Set by L2 operators. Used in L1 fee calculation: L1Fee = L1GasPrice * L1GasUsed * L1FeeScalar
-  optional double l1FeeScalar = 20;
+  optional double l1FeeScalar = 23;
 
   // Scalar applied to base fee for L1 data costs. Different from l1FeeScalar as it specifically applies to the base fee component. Used in newer L2 fee models for more granular control. Helps maintain predictable L2 costs
-  optional uint64 l1BaseFeeScalar = 21;
+  optional uint64 l1BaseFeeScalar = 24;
 
   // Gas specifically attributed to L1 data costs, measured in L2 gas units. Helps users understand fee breakdown on L2s. Calculated from transaction size and L1 gas price. Can be significant portion of total L2 gas used
-  optional uint64 gasUsedForL1 = 22;
+  optional uint64 gasUsedForL1 = 25;
 
   // L1 block number that this L2 transaction's data was posted to. Used for data availability proofs and finality. May lag behind L2 block number. Critical for L2 security and L1 state proofs
-  optional uint64 l1BlockNumber = 23;
+  optional uint64 l1BlockNumber = 26;
 
   // === Advanced Receipt Fields ===
 
   // Gateway fee charged for meta-transactions or relayed transactions. Paid to relayer or protocol. Only present when using alternative fee payment methods. Denominated in feeCurrency if specified
-  optional string gatewayFee = 24;
+  optional string gatewayFee = 27;
 
   // Nonce of the deposit transaction. Only present when the receipt is for a deposit transaction.
-  optional string depositNonce = 25;
+  optional string depositNonce = 28;
 
   // Version of the deposit receipt. Only present when the receipt is for a deposit transaction.
-  optional string depositReceiptVersion = 26;
+  optional string depositReceiptVersion = 29;
 }

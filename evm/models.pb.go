@@ -492,11 +492,13 @@ type Block struct {
 	// The block header including number, hash, timestamp, etc
 	Header *BlockHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// Array of transaction data. Can be empty (omitted). When present, contains the raw transaction bytes for each transaction in the block
-	Transactions []*Transaction `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	TransactionHashes [][]byte `protobuf:"bytes,2,rep,name=transactionHashes,proto3" json:"transactionHashes,omitempty"`
+	// Array of full transaction objects. Can be empty (omitted). When present, contains the full transaction objects for each transaction in the block
+	FullTransactions []*Transaction `protobuf:"bytes,3,rep,name=fullTransactions,proto3" json:"fullTransactions,omitempty"`
 	// Array of logs emitted by all transactions in this block. Can be empty (omitted). Logs are ordered by transaction index and then by log index within each transaction
-	Logs []*Log `protobuf:"bytes,3,rep,name=logs,proto3" json:"logs,omitempty"`
+	Logs []*Log `protobuf:"bytes,4,rep,name=logs,proto3" json:"logs,omitempty"`
 	// Array of withdrawal operations from beacon chain validators. Introduced in Shanghai upgrade. Contains validator index, withdrawal address, and amount. Usually RLP-encoded array. Empty for pre-Shanghai blocks.
-	Withdrawals   []*Withdrawal `protobuf:"bytes,4,rep,name=withdrawals,proto3" json:"withdrawals,omitempty"`
+	Withdrawals   []*Withdrawal `protobuf:"bytes,5,rep,name=withdrawals,proto3" json:"withdrawals,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -538,9 +540,16 @@ func (x *Block) GetHeader() *BlockHeader {
 	return nil
 }
 
-func (x *Block) GetTransactions() []*Transaction {
+func (x *Block) GetTransactionHashes() [][]byte {
 	if x != nil {
-		return x.Transactions
+		return x.TransactionHashes
+	}
+	return nil
+}
+
+func (x *Block) GetFullTransactions() []*Transaction {
+	if x != nil {
+		return x.FullTransactions
 	}
 	return nil
 }
@@ -700,8 +709,32 @@ type Transaction struct {
 	FeeCurrency []byte `protobuf:"bytes,36,opt,name=feeCurrency,proto3,oneof" json:"feeCurrency,omitempty"`
 	// Address that receives gateway fees. Usually a relayer or protocol treasury. Only relevant when gatewayFee > 0. Enables sustainable meta-transaction infrastructure. Must be specified when using alternative fee payment
 	GatewayFeeRecipient []byte `protobuf:"bytes,37,opt,name=gatewayFeeRecipient,proto3,oneof" json:"gatewayFeeRecipient,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Address that will receive any excess ETH from retryable ticket creation on Arbitrum. Part of the L1-to-L2 messaging system. Used when creating retryable tickets to specify who gets refunds
+	Beneficiary []byte `protobuf:"bytes,38,opt,name=beneficiary,proto3,oneof" json:"beneficiary,omitempty"`
+	// Amount of ETH being deposited from L1 to L2 in Arbitrum retryable tickets, in wei. This value will be available on L2 after the retryable ticket is executed. Hex-encoded decimal string
+	DepositValue *string `protobuf:"bytes,39,opt,name=depositValue,proto3,oneof" json:"depositValue,omitempty"`
+	// L1 base fee at the time of retryable ticket creation, in wei. Used to calculate the actual L1 gas costs for the L2 transaction. Hex-encoded decimal string
+	L1BaseFee *string `protobuf:"bytes,40,opt,name=l1BaseFee,proto3,oneof" json:"l1BaseFee,omitempty"`
+	// Maximum fee willing to pay for submitting the retryable ticket to L2, in wei. Covers the cost of L2 gas for auto-redeem attempt. Excess is refunded to refundTo address. Hex-encoded decimal string
+	MaxSubmissionFee *string `protobuf:"bytes,41,opt,name=maxSubmissionFee,proto3,oneof" json:"maxSubmissionFee,omitempty"`
+	// Address that will receive refunds for unused submission fees and value in Arbitrum retryable tickets. Typically the sender or a designated refund address
+	RefundTo []byte `protobuf:"bytes,42,opt,name=refundTo,proto3,oneof" json:"refundTo,omitempty"`
+	// Unique identifier for the retryable ticket request. Used to track and query the status of L1-to-L2 messages. Generated deterministically from ticket parameters
+	RequestId []byte `protobuf:"bytes,43,opt,name=requestId,proto3,oneof" json:"requestId,omitempty"`
+	// Calldata for manual redemption of failed retryable tickets. Contains the function selector and parameters needed to retry the L2 transaction if auto-redeem fails
+	RetryData []byte `protobuf:"bytes,44,opt,name=retryData,proto3,oneof" json:"retryData,omitempty"`
+	// Target contract address for retryable ticket execution on L2. The contract that will receive the call when the retryable ticket is redeemed
+	RetryTo []byte `protobuf:"bytes,45,opt,name=retryTo,proto3,oneof" json:"retryTo,omitempty"`
+	// ETH value to send with the retry transaction on L2, in wei. Amount of ETH that will be sent to retryTo when executing the retryable ticket. Hex-encoded decimal string
+	RetryValue *string `protobuf:"bytes,46,opt,name=retryValue,proto3,oneof" json:"retryValue,omitempty"`
+	// Maximum refund available for unused gas in retryable ticket execution, in wei. Calculated based on gas limit and gas price. Hex-encoded decimal string
+	MaxRefund *string `protobuf:"bytes,47,opt,name=maxRefund,proto3,oneof" json:"maxRefund,omitempty"`
+	// Amount refunded for unused submission fee, in wei. Difference between maxSubmissionFee and actual submission cost. Sent to refundTo address. Hex-encoded decimal string
+	SubmissionFeeRefund *string `protobuf:"bytes,48,opt,name=submissionFeeRefund,proto3,oneof" json:"submissionFeeRefund,omitempty"`
+	// Unique identifier of the retryable ticket on L2. Used to track, query, and manually redeem retryable tickets. Generated when ticket is created on L2
+	TicketId      []byte `protobuf:"bytes,49,opt,name=ticketId,proto3,oneof" json:"ticketId,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Transaction) Reset() {
@@ -989,6 +1022,90 @@ func (x *Transaction) GetFeeCurrency() []byte {
 func (x *Transaction) GetGatewayFeeRecipient() []byte {
 	if x != nil {
 		return x.GatewayFeeRecipient
+	}
+	return nil
+}
+
+func (x *Transaction) GetBeneficiary() []byte {
+	if x != nil {
+		return x.Beneficiary
+	}
+	return nil
+}
+
+func (x *Transaction) GetDepositValue() string {
+	if x != nil && x.DepositValue != nil {
+		return *x.DepositValue
+	}
+	return ""
+}
+
+func (x *Transaction) GetL1BaseFee() string {
+	if x != nil && x.L1BaseFee != nil {
+		return *x.L1BaseFee
+	}
+	return ""
+}
+
+func (x *Transaction) GetMaxSubmissionFee() string {
+	if x != nil && x.MaxSubmissionFee != nil {
+		return *x.MaxSubmissionFee
+	}
+	return ""
+}
+
+func (x *Transaction) GetRefundTo() []byte {
+	if x != nil {
+		return x.RefundTo
+	}
+	return nil
+}
+
+func (x *Transaction) GetRequestId() []byte {
+	if x != nil {
+		return x.RequestId
+	}
+	return nil
+}
+
+func (x *Transaction) GetRetryData() []byte {
+	if x != nil {
+		return x.RetryData
+	}
+	return nil
+}
+
+func (x *Transaction) GetRetryTo() []byte {
+	if x != nil {
+		return x.RetryTo
+	}
+	return nil
+}
+
+func (x *Transaction) GetRetryValue() string {
+	if x != nil && x.RetryValue != nil {
+		return *x.RetryValue
+	}
+	return ""
+}
+
+func (x *Transaction) GetMaxRefund() string {
+	if x != nil && x.MaxRefund != nil {
+		return *x.MaxRefund
+	}
+	return ""
+}
+
+func (x *Transaction) GetSubmissionFeeRefund() string {
+	if x != nil && x.SubmissionFeeRefund != nil {
+		return *x.SubmissionFeeRefund
+	}
+	return ""
+}
+
+func (x *Transaction) GetTicketId() []byte {
+	if x != nil {
+		return x.TicketId
 	}
 	return nil
 }
@@ -1343,48 +1460,54 @@ type Receipt struct {
 	TransactionIndex uint32 `protobuf:"varint,4,opt,name=transactionIndex,proto3" json:"transactionIndex,omitempty"`
 	// Transaction type (EIP-2718). 0=Legacy, 1=EIP-2930, 2=EIP-1559, 3=EIP-4844, 4=EIP-7702. L2s may have custom types. Denormalized from transaction for easier filtering and processing. Determines receipt format
 	Type uint32 `protobuf:"varint,5,opt,name=type,proto3" json:"type,omitempty"`
+	// The 20-byte address of the account that created and signed the transaction. Denormalized from transaction for query convenience.
+	From []byte `protobuf:"bytes,6,opt,name=from,proto3" json:"from,omitempty"`
+	// The 20-byte address of the recipient account or contract. NULL/empty for contract creation transactions. Denormalized from transaction for query convenience.
+	To []byte `protobuf:"bytes,7,opt,name=to,proto3,oneof" json:"to,omitempty"`
 	// Transaction execution status. 1 = success (all state changes applied), 0 = failure (only gas payment applied). Introduced in Byzantium fork. For pre-Byzantium transactions, check if gasUsed < gasLimit or use root field. Critical for determining transaction outcome
-	Status *uint32 `protobuf:"varint,6,opt,name=status,proto3,oneof" json:"status,omitempty"`
+	Status *uint32 `protobuf:"varint,8,opt,name=status,proto3,oneof" json:"status,omitempty"`
 	// Total gas units actually consumed by the transaction execution. Includes base transaction cost, calldata cost, and all operations. Always <= transaction gasLimit. Used to calculate actual transaction cost
-	GasUsed uint64 `protobuf:"varint,7,opt,name=gasUsed,proto3" json:"gasUsed,omitempty"`
+	GasUsed uint64 `protobuf:"varint,9,opt,name=gasUsed,proto3" json:"gasUsed,omitempty"`
 	// Cumulative gas used in the block up to and including this transaction. Increases monotonically within a block. Used to calculate block utilization and for merkle proof construction. Maximum value is block gasLimit
-	CumulativeGasUsed uint64 `protobuf:"varint,8,opt,name=cumulativeGasUsed,proto3" json:"cumulativeGasUsed,omitempty"`
+	CumulativeGasUsed uint64 `protobuf:"varint,10,opt,name=cumulativeGasUsed,proto3" json:"cumulativeGasUsed,omitempty"`
 	// Effective price per gas unit paid for this transaction, in wei. For legacy tx: equals gasPrice. For EIP-1559: baseFeePerGas + min(maxPriorityFeePerGas, maxFeePerGas - baseFeePerGas). Used to calculate total cost: gasUsed * effectiveGasPrice
-	EffectiveGasPrice string `protobuf:"bytes,9,opt,name=effectiveGasPrice,proto3" json:"effectiveGasPrice,omitempty"`
+	EffectiveGasPrice string `protobuf:"bytes,11,opt,name=effectiveGasPrice,proto3" json:"effectiveGasPrice,omitempty"`
 	// 2048-bit bloom filter of all log addresses and topics from this transaction. Enables efficient log filtering without parsing all logs. Each log address and topic is hashed and added to the bloom. Used by eth_getLogs for quick filtering
-	LogsBloom []byte `protobuf:"bytes,10,opt,name=logsBloom,proto3" json:"logsBloom,omitempty"`
+	LogsBloom []byte `protobuf:"bytes,12,opt,name=logsBloom,proto3" json:"logsBloom,omitempty"`
 	// Logs emitted by this transaction
-	Logs []*Log `protobuf:"bytes,11,rep,name=logs,proto3" json:"logs,omitempty"`
+	Logs []*Log `protobuf:"bytes,13,rep,name=logs,proto3" json:"logs,omitempty"`
 	// Address of newly deployed contract if this was a contract creation transaction. NULL for regular transfers and contract calls. Computed deterministically from sender address and nonce (CREATE) or sender, salt, and init code (CREATE2). Becomes active immediately if deployment succeeds
-	ContractAddress []byte `protobuf:"bytes,12,opt,name=contractAddress,proto3,oneof" json:"contractAddress,omitempty"`
+	ContractAddress []byte `protobuf:"bytes,14,opt,name=contractAddress,proto3,oneof" json:"contractAddress,omitempty"`
 	// Post-execution state root (pre-Byzantium only). 32-byte Keccak hash of the global state trie after executing this transaction. Replaced by status field in Byzantium for gas efficiency. Still present in some chains and historical data
-	Root []byte `protobuf:"bytes,13,opt,name=root,proto3,oneof" json:"root,omitempty"`
+	Root []byte `protobuf:"bytes,15,opt,name=root,proto3,oneof" json:"root,omitempty"`
 	// Unix timestamp when this transaction was executed. Denormalized from block data. All transactions in a block share the same timestamp. Useful for time-based queries without joining block data
-	BlockTimestamp *uint64 `protobuf:"varint,14,opt,name=blockTimestamp,proto3,oneof" json:"blockTimestamp,omitempty"`
+	BlockTimestamp *uint64 `protobuf:"varint,16,opt,name=blockTimestamp,proto3,oneof" json:"blockTimestamp,omitempty"`
 	// Total blob gas consumed by this transaction. Each blob uses 131,072 gas units. Only present for type 3 (blob) transactions. Used to calculate blob fees separately from execution gas. Maximum 786,432 (6 blobs)
-	BlobGasUsed *uint64 `protobuf:"varint,15,opt,name=blobGasUsed,proto3,oneof" json:"blobGasUsed,omitempty"`
+	BlobGasUsed *uint64 `protobuf:"varint,17,opt,name=blobGasUsed,proto3,oneof" json:"blobGasUsed,omitempty"`
 	// Price per blob gas unit when this transaction was executed, in wei. Set by protocol based on EIP-4844 blob gas market. Only for blob transactions. Usually much lower than regular gas price to incentivize L2 data availability
-	BlobGasPrice *string `protobuf:"bytes,16,opt,name=blobGasPrice,proto3,oneof" json:"blobGasPrice,omitempty"`
+	BlobGasPrice *string `protobuf:"bytes,18,opt,name=blobGasPrice,proto3,oneof" json:"blobGasPrice,omitempty"`
+	// Whether the block was time-boosted. For example in Arbitrum chain.
+	Timeboosted *bool `protobuf:"varint,19,opt,name=timeboosted,proto3,oneof" json:"timeboosted,omitempty"`
 	// Total L1 fee paid by this L2 transaction, in wei. Covers cost of posting transaction data to L1. Calculated as L1GasPrice * L1GasUsed * L1FeeScalar. Can be significant portion of total L2 transaction cost
-	L1Fee *string `protobuf:"bytes,17,opt,name=l1Fee,proto3,oneof" json:"l1Fee,omitempty"`
+	L1Fee *string `protobuf:"bytes,20,opt,name=l1Fee,proto3,oneof" json:"l1Fee,omitempty"`
 	// L1 gas units attributed to this L2 transaction. Based on transaction size and encoding. Used to calculate L1 fee. Depends on L2's data availability method (calldata vs blobs)
-	L1GasUsed *string `protobuf:"bytes,18,opt,name=l1GasUsed,proto3,oneof" json:"l1GasUsed,omitempty"`
+	L1GasUsed *string `protobuf:"bytes,21,opt,name=l1GasUsed,proto3,oneof" json:"l1GasUsed,omitempty"`
 	// L1 gas price at the time this L2 transaction was processed, in wei. Used to calculate L1 fee. Updated by L2 sequencer based on L1 conditions. Can spike during L1 congestion
-	L1GasPrice *string `protobuf:"bytes,19,opt,name=l1GasPrice,proto3,oneof" json:"l1GasPrice,omitempty"`
+	L1GasPrice *string `protobuf:"bytes,22,opt,name=l1GasPrice,proto3,oneof" json:"l1GasPrice,omitempty"`
 	// Scalar applied to L1 gas calculations. Covers overhead and provides buffer for L1 gas volatility. Set by L2 operators. Used in L1 fee calculation: L1Fee = L1GasPrice * L1GasUsed * L1FeeScalar
-	L1FeeScalar *float64 `protobuf:"fixed64,20,opt,name=l1FeeScalar,proto3,oneof" json:"l1FeeScalar,omitempty"`
+	L1FeeScalar *float64 `protobuf:"fixed64,23,opt,name=l1FeeScalar,proto3,oneof" json:"l1FeeScalar,omitempty"`
 	// Scalar applied to base fee for L1 data costs. Different from l1FeeScalar as it specifically applies to the base fee component. Used in newer L2 fee models for more granular control. Helps maintain predictable L2 costs
-	L1BaseFeeScalar *uint64 `protobuf:"varint,21,opt,name=l1BaseFeeScalar,proto3,oneof" json:"l1BaseFeeScalar,omitempty"`
+	L1BaseFeeScalar *uint64 `protobuf:"varint,24,opt,name=l1BaseFeeScalar,proto3,oneof" json:"l1BaseFeeScalar,omitempty"`
 	// Gas specifically attributed to L1 data costs, measured in L2 gas units. Helps users understand fee breakdown on L2s. Calculated from transaction size and L1 gas price. Can be significant portion of total L2 gas used
-	GasUsedForL1 *uint64 `protobuf:"varint,22,opt,name=gasUsedForL1,proto3,oneof" json:"gasUsedForL1,omitempty"`
+	GasUsedForL1 *uint64 `protobuf:"varint,25,opt,name=gasUsedForL1,proto3,oneof" json:"gasUsedForL1,omitempty"`
 	// L1 block number that this L2 transaction's data was posted to. Used for data availability proofs and finality. May lag behind L2 block number. Critical for L2 security and L1 state proofs
-	L1BlockNumber *uint64 `protobuf:"varint,23,opt,name=l1BlockNumber,proto3,oneof" json:"l1BlockNumber,omitempty"`
+	L1BlockNumber *uint64 `protobuf:"varint,26,opt,name=l1BlockNumber,proto3,oneof" json:"l1BlockNumber,omitempty"`
 	// Gateway fee charged for meta-transactions or relayed transactions. Paid to relayer or protocol. Only present when using alternative fee payment methods. Denominated in feeCurrency if specified
-	GatewayFee *string `protobuf:"bytes,24,opt,name=gatewayFee,proto3,oneof" json:"gatewayFee,omitempty"`
+	GatewayFee *string `protobuf:"bytes,27,opt,name=gatewayFee,proto3,oneof" json:"gatewayFee,omitempty"`
 	// Nonce of the deposit transaction. Only present when the receipt is for a deposit transaction.
-	DepositNonce *string `protobuf:"bytes,25,opt,name=depositNonce,proto3,oneof" json:"depositNonce,omitempty"`
+	DepositNonce *string `protobuf:"bytes,28,opt,name=depositNonce,proto3,oneof" json:"depositNonce,omitempty"`
 	// Version of the deposit receipt. Only present when the receipt is for a deposit transaction.
-	DepositReceiptVersion *string `protobuf:"bytes,26,opt,name=depositReceiptVersion,proto3,oneof" json:"depositReceiptVersion,omitempty"`
+	DepositReceiptVersion *string `protobuf:"bytes,29,opt,name=depositReceiptVersion,proto3,oneof" json:"depositReceiptVersion,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -1452,6 +1575,20 @@ func (x *Receipt) GetType() uint32 {
 		return x.Type
 	}
 	return 0
+}
+
+func (x *Receipt) GetFrom() []byte {
+	if x != nil {
+		return x.From
+	}
+	return nil
+}
+
+func (x *Receipt) GetTo() []byte {
+	if x != nil {
+		return x.To
+	}
+	return nil
 }
 
 func (x *Receipt) GetStatus() uint32 {
@@ -1529,6 +1666,13 @@ func (x *Receipt) GetBlobGasPrice() string {
 		return *x.BlobGasPrice
 	}
 	return ""
+}
+
+func (x *Receipt) GetTimeboosted() bool {
+	if x != nil && x.Timeboosted != nil {
+		return *x.Timeboosted
+	}
+	return false
 }
 
 func (x *Receipt) GetL1Fee() string {
@@ -1675,16 +1819,17 @@ const file_models_proto_rawDesc = "" +
 	"\x10_totalDifficultyB\x14\n" +
 	"\x12_proposerPublicKeyB\x0e\n" +
 	"\f_withdrawalsB\x0f\n" +
-	"\r_canonicalRlp\"\xc8\x01\n" +
+	"\r_canonicalRlp\"\xfe\x01\n" +
 	"\x05Block\x12,\n" +
-	"\x06header\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x06header\x128\n" +
-	"\ftransactions\x18\x02 \x03(\v2\x14.bds.evm.TransactionR\ftransactions\x12 \n" +
-	"\x04logs\x18\x03 \x03(\v2\f.bds.evm.LogR\x04logs\x125\n" +
-	"\vwithdrawals\x18\x04 \x03(\v2\x13.bds.evm.WithdrawalR\vwithdrawals\"\x8f\x01\n" +
+	"\x06header\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x06header\x12,\n" +
+	"\x11transactionHashes\x18\x02 \x03(\fR\x11transactionHashes\x12@\n" +
+	"\x10fullTransactions\x18\x03 \x03(\v2\x14.bds.evm.TransactionR\x10fullTransactions\x12 \n" +
+	"\x04logs\x18\x04 \x03(\v2\f.bds.evm.LogR\x04logs\x125\n" +
+	"\vwithdrawals\x18\x05 \x03(\v2\x13.bds.evm.WithdrawalR\vwithdrawals\"\x8f\x01\n" +
 	"\x0eTransactionRef\x12'\n" +
 	"\x05block\x18\x01 \x01(\v2\x11.bds.evm.BlockRefR\x05block\x12*\n" +
 	"\x10transactionIndex\x18\x02 \x01(\rR\x10transactionIndex\x12(\n" +
-	"\x0ftransactionHash\x18\x03 \x01(\fR\x0ftransactionHash\"\xe1\r\n" +
+	"\x0ftransactionHash\x18\x03 \x01(\fR\x0ftransactionHash\"\xe6\x12\n" +
 	"\vTransaction\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\fR\x04hash\x12\x14\n" +
 	"\x05nonce\x18\x02 \x01(\x04R\x05nonce\x12\x12\n" +
@@ -1730,7 +1875,21 @@ const file_models_proto_rawDesc = "" +
 	"gatewayFee\x18# \x01(\tH\x16R\n" +
 	"gatewayFee\x88\x01\x01\x12%\n" +
 	"\vfeeCurrency\x18$ \x01(\fH\x17R\vfeeCurrency\x88\x01\x01\x125\n" +
-	"\x13gatewayFeeRecipient\x18% \x01(\fH\x18R\x13gatewayFeeRecipient\x88\x01\x01B\x05\n" +
+	"\x13gatewayFeeRecipient\x18% \x01(\fH\x18R\x13gatewayFeeRecipient\x88\x01\x01\x12%\n" +
+	"\vbeneficiary\x18& \x01(\fH\x19R\vbeneficiary\x88\x01\x01\x12'\n" +
+	"\fdepositValue\x18' \x01(\tH\x1aR\fdepositValue\x88\x01\x01\x12!\n" +
+	"\tl1BaseFee\x18( \x01(\tH\x1bR\tl1BaseFee\x88\x01\x01\x12/\n" +
+	"\x10maxSubmissionFee\x18) \x01(\tH\x1cR\x10maxSubmissionFee\x88\x01\x01\x12\x1f\n" +
+	"\brefundTo\x18* \x01(\fH\x1dR\brefundTo\x88\x01\x01\x12!\n" +
+	"\trequestId\x18+ \x01(\fH\x1eR\trequestId\x88\x01\x01\x12!\n" +
+	"\tretryData\x18, \x01(\fH\x1fR\tretryData\x88\x01\x01\x12\x1d\n" +
+	"\aretryTo\x18- \x01(\fH R\aretryTo\x88\x01\x01\x12#\n" +
+	"\n" +
+	"retryValue\x18. \x01(\tH!R\n" +
+	"retryValue\x88\x01\x01\x12!\n" +
+	"\tmaxRefund\x18/ \x01(\tH\"R\tmaxRefund\x88\x01\x01\x125\n" +
+	"\x13submissionFeeRefund\x180 \x01(\tH#R\x13submissionFeeRefund\x88\x01\x01\x12\x1f\n" +
+	"\bticketId\x181 \x01(\fH$R\bticketId\x88\x01\x01B\x05\n" +
 	"\x03_toB\v\n" +
 	"\t_gasPriceB\x0f\n" +
 	"\r_maxFeePerGasB\x17\n" +
@@ -1760,7 +1919,24 @@ const file_models_proto_rawDesc = "" +
 	"\x14_l1BlobBaseFeeScalarB\r\n" +
 	"\v_gatewayFeeB\x0e\n" +
 	"\f_feeCurrencyB\x16\n" +
-	"\x14_gatewayFeeRecipient\"L\n" +
+	"\x14_gatewayFeeRecipientB\x0e\n" +
+	"\f_beneficiaryB\x0f\n" +
+	"\r_depositValueB\f\n" +
+	"\n" +
+	"_l1BaseFeeB\x13\n" +
+	"\x11_maxSubmissionFeeB\v\n" +
+	"\t_refundToB\f\n" +
+	"\n" +
+	"_requestIdB\f\n" +
+	"\n" +
+	"_retryDataB\n" +
+	"\n" +
+	"\b_retryToB\r\n" +
+	"\v_retryValueB\f\n" +
+	"\n" +
+	"_maxRefundB\x16\n" +
+	"\x14_submissionFeeRefundB\v\n" +
+	"\t_ticketId\"L\n" +
 	"\x0eAccessListItem\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\fR\aaddress\x12 \n" +
 	"\vstorageKeys\x18\x02 \x03(\fR\vstorageKeys\"\xbd\x02\n" +
@@ -1787,46 +1963,52 @@ const file_models_proto_rawDesc = "" +
 	"\x05index\x18\x01 \x01(\x04R\x05index\x12&\n" +
 	"\x0evalidatorIndex\x18\x02 \x01(\x04R\x0evalidatorIndex\x12\x18\n" +
 	"\aaddress\x18\x03 \x01(\fR\aaddress\x12\x16\n" +
-	"\x06amount\x18\x04 \x01(\x04R\x06amount\"\xe5\t\n" +
+	"\x06amount\x18\x04 \x01(\x04R\x06amount\"\xcc\n" +
+	"\n" +
 	"\aReceipt\x12(\n" +
 	"\x0ftransactionHash\x18\x01 \x01(\fR\x0ftransactionHash\x12 \n" +
 	"\vblockNumber\x18\x02 \x01(\x04R\vblockNumber\x12\x1c\n" +
 	"\tblockHash\x18\x03 \x01(\fR\tblockHash\x12*\n" +
 	"\x10transactionIndex\x18\x04 \x01(\rR\x10transactionIndex\x12\x12\n" +
-	"\x04type\x18\x05 \x01(\rR\x04type\x12\x1b\n" +
-	"\x06status\x18\x06 \x01(\rH\x00R\x06status\x88\x01\x01\x12\x18\n" +
-	"\agasUsed\x18\a \x01(\x04R\agasUsed\x12,\n" +
-	"\x11cumulativeGasUsed\x18\b \x01(\x04R\x11cumulativeGasUsed\x12,\n" +
-	"\x11effectiveGasPrice\x18\t \x01(\tR\x11effectiveGasPrice\x12\x1c\n" +
-	"\tlogsBloom\x18\n" +
-	" \x01(\fR\tlogsBloom\x12 \n" +
-	"\x04logs\x18\v \x03(\v2\f.bds.evm.LogR\x04logs\x12-\n" +
-	"\x0fcontractAddress\x18\f \x01(\fH\x01R\x0fcontractAddress\x88\x01\x01\x12\x17\n" +
-	"\x04root\x18\r \x01(\fH\x02R\x04root\x88\x01\x01\x12+\n" +
-	"\x0eblockTimestamp\x18\x0e \x01(\x04H\x03R\x0eblockTimestamp\x88\x01\x01\x12%\n" +
-	"\vblobGasUsed\x18\x0f \x01(\x04H\x04R\vblobGasUsed\x88\x01\x01\x12'\n" +
-	"\fblobGasPrice\x18\x10 \x01(\tH\x05R\fblobGasPrice\x88\x01\x01\x12\x19\n" +
-	"\x05l1Fee\x18\x11 \x01(\tH\x06R\x05l1Fee\x88\x01\x01\x12!\n" +
-	"\tl1GasUsed\x18\x12 \x01(\tH\aR\tl1GasUsed\x88\x01\x01\x12#\n" +
+	"\x04type\x18\x05 \x01(\rR\x04type\x12\x12\n" +
+	"\x04from\x18\x06 \x01(\fR\x04from\x12\x13\n" +
+	"\x02to\x18\a \x01(\fH\x00R\x02to\x88\x01\x01\x12\x1b\n" +
+	"\x06status\x18\b \x01(\rH\x01R\x06status\x88\x01\x01\x12\x18\n" +
+	"\agasUsed\x18\t \x01(\x04R\agasUsed\x12,\n" +
+	"\x11cumulativeGasUsed\x18\n" +
+	" \x01(\x04R\x11cumulativeGasUsed\x12,\n" +
+	"\x11effectiveGasPrice\x18\v \x01(\tR\x11effectiveGasPrice\x12\x1c\n" +
+	"\tlogsBloom\x18\f \x01(\fR\tlogsBloom\x12 \n" +
+	"\x04logs\x18\r \x03(\v2\f.bds.evm.LogR\x04logs\x12-\n" +
+	"\x0fcontractAddress\x18\x0e \x01(\fH\x02R\x0fcontractAddress\x88\x01\x01\x12\x17\n" +
+	"\x04root\x18\x0f \x01(\fH\x03R\x04root\x88\x01\x01\x12+\n" +
+	"\x0eblockTimestamp\x18\x10 \x01(\x04H\x04R\x0eblockTimestamp\x88\x01\x01\x12%\n" +
+	"\vblobGasUsed\x18\x11 \x01(\x04H\x05R\vblobGasUsed\x88\x01\x01\x12'\n" +
+	"\fblobGasPrice\x18\x12 \x01(\tH\x06R\fblobGasPrice\x88\x01\x01\x12%\n" +
+	"\vtimeboosted\x18\x13 \x01(\bH\aR\vtimeboosted\x88\x01\x01\x12\x19\n" +
+	"\x05l1Fee\x18\x14 \x01(\tH\bR\x05l1Fee\x88\x01\x01\x12!\n" +
+	"\tl1GasUsed\x18\x15 \x01(\tH\tR\tl1GasUsed\x88\x01\x01\x12#\n" +
 	"\n" +
-	"l1GasPrice\x18\x13 \x01(\tH\bR\n" +
+	"l1GasPrice\x18\x16 \x01(\tH\n" +
+	"R\n" +
 	"l1GasPrice\x88\x01\x01\x12%\n" +
-	"\vl1FeeScalar\x18\x14 \x01(\x01H\tR\vl1FeeScalar\x88\x01\x01\x12-\n" +
-	"\x0fl1BaseFeeScalar\x18\x15 \x01(\x04H\n" +
-	"R\x0fl1BaseFeeScalar\x88\x01\x01\x12'\n" +
-	"\fgasUsedForL1\x18\x16 \x01(\x04H\vR\fgasUsedForL1\x88\x01\x01\x12)\n" +
-	"\rl1BlockNumber\x18\x17 \x01(\x04H\fR\rl1BlockNumber\x88\x01\x01\x12#\n" +
+	"\vl1FeeScalar\x18\x17 \x01(\x01H\vR\vl1FeeScalar\x88\x01\x01\x12-\n" +
+	"\x0fl1BaseFeeScalar\x18\x18 \x01(\x04H\fR\x0fl1BaseFeeScalar\x88\x01\x01\x12'\n" +
+	"\fgasUsedForL1\x18\x19 \x01(\x04H\rR\fgasUsedForL1\x88\x01\x01\x12)\n" +
+	"\rl1BlockNumber\x18\x1a \x01(\x04H\x0eR\rl1BlockNumber\x88\x01\x01\x12#\n" +
 	"\n" +
-	"gatewayFee\x18\x18 \x01(\tH\rR\n" +
+	"gatewayFee\x18\x1b \x01(\tH\x0fR\n" +
 	"gatewayFee\x88\x01\x01\x12'\n" +
-	"\fdepositNonce\x18\x19 \x01(\tH\x0eR\fdepositNonce\x88\x01\x01\x129\n" +
-	"\x15depositReceiptVersion\x18\x1a \x01(\tH\x0fR\x15depositReceiptVersion\x88\x01\x01B\t\n" +
+	"\fdepositNonce\x18\x1c \x01(\tH\x10R\fdepositNonce\x88\x01\x01\x129\n" +
+	"\x15depositReceiptVersion\x18\x1d \x01(\tH\x11R\x15depositReceiptVersion\x88\x01\x01B\x05\n" +
+	"\x03_toB\t\n" +
 	"\a_statusB\x12\n" +
 	"\x10_contractAddressB\a\n" +
 	"\x05_rootB\x11\n" +
 	"\x0f_blockTimestampB\x0e\n" +
 	"\f_blobGasUsedB\x0f\n" +
-	"\r_blobGasPriceB\b\n" +
+	"\r_blobGasPriceB\x0e\n" +
+	"\f_timeboostedB\b\n" +
 	"\x06_l1FeeB\f\n" +
 	"\n" +
 	"_l1GasUsedB\r\n" +
@@ -1875,7 +2057,7 @@ var file_models_proto_goTypes = []any{
 }
 var file_models_proto_depIdxs = []int32{
 	2, // 0: bds.evm.Block.header:type_name -> bds.evm.BlockHeader
-	5, // 1: bds.evm.Block.transactions:type_name -> bds.evm.Transaction
+	5, // 1: bds.evm.Block.fullTransactions:type_name -> bds.evm.Transaction
 	7, // 2: bds.evm.Block.logs:type_name -> bds.evm.Log
 	9, // 3: bds.evm.Block.withdrawals:type_name -> bds.evm.Withdrawal
 	1, // 4: bds.evm.TransactionRef.block:type_name -> bds.evm.BlockRef

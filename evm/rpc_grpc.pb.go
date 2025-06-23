@@ -36,9 +36,9 @@ const (
 type RPCQueryServiceClient interface {
 	ChainId(ctx context.Context, in *ChainIdRequest, opts ...grpc.CallOption) (*ChainIdResponse, error)
 	// Get a block by its number (equivalent to eth_getBlockByNumber)
-	GetBlockByNumber(ctx context.Context, in *GetBlockByNumberRequest, opts ...grpc.CallOption) (*GetBlockByNumberResponse, error)
+	GetBlockByNumber(ctx context.Context, in *GetBlockByNumberRequest, opts ...grpc.CallOption) (*GetBlockResponse, error)
 	// Get a block by its hash (equivalent to eth_getBlockByHash)
-	GetBlockByHash(ctx context.Context, in *GetBlockByHashRequest, opts ...grpc.CallOption) (*GetBlockByHashResponse, error)
+	GetBlockByHash(ctx context.Context, in *GetBlockByHashRequest, opts ...grpc.CallOption) (*GetBlockResponse, error)
 	// Get logs matching filter criteria (equivalent to eth_getLogs)
 	GetLogs(ctx context.Context, in *GetLogsRequest, opts ...grpc.CallOption) (*GetLogsResponse, error)
 	// Get a transaction by its hash (equivalent to eth_getTransactionByHash)
@@ -65,9 +65,9 @@ func (c *rPCQueryServiceClient) ChainId(ctx context.Context, in *ChainIdRequest,
 	return out, nil
 }
 
-func (c *rPCQueryServiceClient) GetBlockByNumber(ctx context.Context, in *GetBlockByNumberRequest, opts ...grpc.CallOption) (*GetBlockByNumberResponse, error) {
+func (c *rPCQueryServiceClient) GetBlockByNumber(ctx context.Context, in *GetBlockByNumberRequest, opts ...grpc.CallOption) (*GetBlockResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetBlockByNumberResponse)
+	out := new(GetBlockResponse)
 	err := c.cc.Invoke(ctx, RPCQueryService_GetBlockByNumber_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -75,9 +75,9 @@ func (c *rPCQueryServiceClient) GetBlockByNumber(ctx context.Context, in *GetBlo
 	return out, nil
 }
 
-func (c *rPCQueryServiceClient) GetBlockByHash(ctx context.Context, in *GetBlockByHashRequest, opts ...grpc.CallOption) (*GetBlockByHashResponse, error) {
+func (c *rPCQueryServiceClient) GetBlockByHash(ctx context.Context, in *GetBlockByHashRequest, opts ...grpc.CallOption) (*GetBlockResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetBlockByHashResponse)
+	out := new(GetBlockResponse)
 	err := c.cc.Invoke(ctx, RPCQueryService_GetBlockByHash_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -124,9 +124,9 @@ func (c *rPCQueryServiceClient) GetTransactionReceipt(ctx context.Context, in *G
 type RPCQueryServiceServer interface {
 	ChainId(context.Context, *ChainIdRequest) (*ChainIdResponse, error)
 	// Get a block by its number (equivalent to eth_getBlockByNumber)
-	GetBlockByNumber(context.Context, *GetBlockByNumberRequest) (*GetBlockByNumberResponse, error)
+	GetBlockByNumber(context.Context, *GetBlockByNumberRequest) (*GetBlockResponse, error)
 	// Get a block by its hash (equivalent to eth_getBlockByHash)
-	GetBlockByHash(context.Context, *GetBlockByHashRequest) (*GetBlockByHashResponse, error)
+	GetBlockByHash(context.Context, *GetBlockByHashRequest) (*GetBlockResponse, error)
 	// Get logs matching filter criteria (equivalent to eth_getLogs)
 	GetLogs(context.Context, *GetLogsRequest) (*GetLogsResponse, error)
 	// Get a transaction by its hash (equivalent to eth_getTransactionByHash)
@@ -146,10 +146,10 @@ type UnimplementedRPCQueryServiceServer struct{}
 func (UnimplementedRPCQueryServiceServer) ChainId(context.Context, *ChainIdRequest) (*ChainIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ChainId not implemented")
 }
-func (UnimplementedRPCQueryServiceServer) GetBlockByNumber(context.Context, *GetBlockByNumberRequest) (*GetBlockByNumberResponse, error) {
+func (UnimplementedRPCQueryServiceServer) GetBlockByNumber(context.Context, *GetBlockByNumberRequest) (*GetBlockResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBlockByNumber not implemented")
 }
-func (UnimplementedRPCQueryServiceServer) GetBlockByHash(context.Context, *GetBlockByHashRequest) (*GetBlockByHashResponse, error) {
+func (UnimplementedRPCQueryServiceServer) GetBlockByHash(context.Context, *GetBlockByHashRequest) (*GetBlockResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBlockByHash not implemented")
 }
 func (UnimplementedRPCQueryServiceServer) GetLogs(context.Context, *GetLogsRequest) (*GetLogsResponse, error) {
