@@ -36,21 +36,23 @@ const (
 	ErrorCode_TIMEOUT_ERROR           ErrorCode = 7
 	ErrorCode_UNSUPPORTED_METHOD      ErrorCode = 8
 	ErrorCode_UNSUPPORTED_BLOCK_TAG   ErrorCode = 9
+	ErrorCode_DATA_NOT_FOUND          ErrorCode = 10
 )
 
 // Enum value maps for ErrorCode.
 var (
 	ErrorCode_name = map[int32]string{
-		0: "ERROR_CODE_UNSPECIFIED",
-		1: "INVALID_REQUEST",
-		2: "INVALID_PARAMETER",
-		3: "INTERNAL_ERROR",
-		4: "RANGE_TOO_LARGE",
-		5: "RANGE_OUTSIDE_AVAILABLE",
-		6: "RATE_LIMITED",
-		7: "TIMEOUT_ERROR",
-		8: "UNSUPPORTED_METHOD",
-		9: "UNSUPPORTED_BLOCK_TAG",
+		0:  "ERROR_CODE_UNSPECIFIED",
+		1:  "INVALID_REQUEST",
+		2:  "INVALID_PARAMETER",
+		3:  "INTERNAL_ERROR",
+		4:  "RANGE_TOO_LARGE",
+		5:  "RANGE_OUTSIDE_AVAILABLE",
+		6:  "RATE_LIMITED",
+		7:  "TIMEOUT_ERROR",
+		8:  "UNSUPPORTED_METHOD",
+		9:  "UNSUPPORTED_BLOCK_TAG",
+		10: "DATA_NOT_FOUND",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":  0,
@@ -63,6 +65,7 @@ var (
 		"TIMEOUT_ERROR":           7,
 		"UNSUPPORTED_METHOD":      8,
 		"UNSUPPORTED_BLOCK_TAG":   9,
+		"DATA_NOT_FOUND":          10,
 	}
 )
 
@@ -189,7 +192,7 @@ const file_errors_proto_rawDesc = "" +
 	"\bmetadata\x18\x05 \x03(\v2\x14.google.protobuf.AnyR\bmetadata\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01*\xf1\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01*\x85\x02\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fINVALID_REQUEST\x10\x01\x12\x15\n" +
@@ -200,7 +203,9 @@ const file_errors_proto_rawDesc = "" +
 	"\fRATE_LIMITED\x10\x06\x12\x11\n" +
 	"\rTIMEOUT_ERROR\x10\a\x12\x16\n" +
 	"\x12UNSUPPORTED_METHOD\x10\b\x12\x19\n" +
-	"\x15UNSUPPORTED_BLOCK_TAG\x10\tB7Z5github.com/blockchain-data-standards/manifesto/commonb\x06proto3"
+	"\x15UNSUPPORTED_BLOCK_TAG\x10\t\x12\x12\n" +
+	"\x0eDATA_NOT_FOUND\x10\n" +
+	"B7Z5github.com/blockchain-data-standards/manifesto/commonb\x06proto3"
 
 var (
 	file_errors_proto_rawDescOnce sync.Once

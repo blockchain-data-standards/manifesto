@@ -24,6 +24,9 @@ service RPCQueryService {
   
   // Get a transaction receipt by its hash (equivalent to eth_getTransactionReceipt)
   rpc GetTransactionReceipt(GetTransactionReceiptRequest) returns (GetTransactionReceiptResponse);
+  
+  // Get all transaction receipts for a block (equivalent to eth_getBlockReceipts)
+  rpc GetBlockReceipts(GetBlockReceiptsRequest) returns (GetBlockReceiptsResponse);
 }
 
 // Request for getting the chain ID
@@ -162,4 +165,22 @@ message GetTransactionReceiptRequest {
 message GetTransactionReceiptResponse {
   // The requested receipt, null if not found
   Receipt receipt = 1;
+}
+
+// Request for getting all receipts in a block
+message GetBlockReceiptsRequest {
+  // Block number as hex string (e.g., "0x14ee0030") or tag ("latest", "earliest", "pending")
+  string blockNumber = 1;
+  
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 2;
+  
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 3;
+}
+
+// Response containing all receipts for the requested block
+message GetBlockReceiptsResponse {
+  // Array of receipts for all transactions in the block
+  repeated Receipt receipts = 1;
 }

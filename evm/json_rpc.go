@@ -902,6 +902,15 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 	return o
 }
 
+// ReceiptsToJsonRpc converts a slice of *Receipt to []interface{} for JSON-RPC responses.
+func ReceiptsToJsonRpc(receipts []*Receipt) []interface{} {
+	out := make([]interface{}, len(receipts))
+	for i, r := range receipts {
+		out[i] = ReceiptToJsonRpc(r)
+	}
+	return out
+}
+
 // ReceiptToJsonRpc converts a *Receipt into JSON-RPC representation.
 func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 	if r == nil {
