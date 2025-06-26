@@ -1,7 +1,6 @@
 package evm
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 )
@@ -81,7 +80,7 @@ type JsonRpcBlock struct {
 	Timeboosted           bool                 `json:"timeboosted"`
 }
 
-func (b *JsonRpcBlock) ToProto() (*BlockHeader, error) {
+func (b *JsonRpcBlock) ToProto() (*Block, error) {
 	number, err := NumberishToUint64(b.Number)
 	if err != nil {
 		return nil, err
@@ -320,7 +319,47 @@ func (b *JsonRpcBlock) ToProto() (*BlockHeader, error) {
 		CanonicalRlp:          canonicalRlp,
 	}
 
-	return header, nil
+	hashes, txs, err := ParseJsonRpcTransactions(b.Transactions, header)
+	if err != nil {
+		return nil, err
+	}
+
+	withdrawals, err := ParseJsonRpcWithdrawals(b.Withdrawals)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Block{
+		Header:            header,
+		FullTransactions:  txs,
+		TransactionHashes: hashes,
+		Withdrawals:       withdrawals,
+	}, nil
+}
+
+func ParseJsonRpcTransactions(transactions []interface{}, header *BlockHeader) ([][]byte, []*Transaction, error) {
+	hashes := make([][]byte, 0, len(transactions))
+	txs := make([]*Transaction, 0, len(transactions))
+	for _, tx := range transactions {
+		switch v := tx.(type) {
+		case string:
+			// Transaction hash only
+			if hashBytes, err := HexToBytes(v); err == nil {
+				hashes = append(hashes, hashBytes)
+			} else {
+				return nil, nil, fmt.Errorf("failed to parse transaction hash: %w", err)
+			}
+		case map[string]interface{}:
+			// Full transaction object
+			tx, err := ParseJsonRpcTransaction(v, header)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to parse transaction: %w", err)
+			}
+			txs = append(txs, tx)
+			hashes = append(hashes, tx.Hash)
+		}
+	}
+	return hashes, txs, nil
 }
 
 type JsonRpcReceipt struct {
@@ -1175,132 +1214,96 @@ func BlockToJsonRpc(header *BlockHeader, txHashes [][]byte, fullTxs []*Transacti
 
 // ParseJsonRpcTransaction parses a JSON-RPC transaction into a proto Transaction.
 // This handles all transaction types including legacy, EIP-1559, EIP-2930, EIP-4844, and EIP-7702.
-func ParseJsonRpcTransaction(txBytes []byte, header *BlockHeader) (*Transaction, error) {
-	// Define a structure for the JSON-RPC transaction format
-	var jsonTx struct {
-		Hash                 string  `json:"hash"`
-		Nonce                string  `json:"nonce"`
-		From                 string  `json:"from"`
-		To                   *string `json:"to"`
-		Value                string  `json:"value"`
-		Gas                  string  `json:"gas"`
-		GasPrice             *string `json:"gasPrice"`
-		MaxFeePerGas         *string `json:"maxFeePerGas"`
-		MaxPriorityFeePerGas *string `json:"maxPriorityFeePerGas"`
-		Input                string  `json:"input"`
-		V                    string  `json:"v"`
-		R                    string  `json:"r"`
-		S                    string  `json:"s"`
-		Type                 string  `json:"type"`
-		AccessList           []struct {
-			Address     string   `json:"address"`
-			StorageKeys []string `json:"storageKeys"`
-		} `json:"accessList"`
-		BlockHash           string   `json:"blockHash"`
-		BlockNumber         string   `json:"blockNumber"`
-		TransactionIndex    string   `json:"transactionIndex"`
-		ChainId             string   `json:"chainId"`
-		YParity             string   `json:"yParity"`
-		MaxFeePerBlobGas    string   `json:"maxFeePerBlobGas"`
-		BlobVersionedHashes []string `json:"blobVersionedHashes"`
-		// EIP-7702 authorization list
-		AuthorizationList []struct {
-			ChainId string `json:"chainId"`
-			Address string `json:"address"`
-			Nonce   string `json:"nonce"`
-			R       string `json:"r"`
-			S       string `json:"s"`
-			YParity string `json:"yParity"`
-		} `json:"authorizationList"`
-		// Optional L2 fields
-		L1Fee               string `json:"l1Fee"`
-		L1GasPrice          string `json:"l1GasPrice"`
-		L1GasUsed           string `json:"l1GasUsed"`
-		L1FeeScalar         string `json:"l1FeeScalar"`
-		L1BlobBaseFee       string `json:"l1BlobBaseFee"`
-		L1BlobBaseFeeScalar string `json:"l1BlobBaseFeeScalar"`
-		GatewayFee          string `json:"gatewayFee"`
-		FeeCurrency         string `json:"feeCurrency"`
-		GatewayFeeRecipient string `json:"gatewayFeeRecipient"`
-		// Arbitrum retryable ticket fields
-		Beneficiary         string `json:"beneficiary"`
-		DepositValue        string `json:"depositValue"`
-		L1BaseFee           string `json:"l1BaseFee"`
-		MaxSubmissionFee    string `json:"maxSubmissionFee"`
-		RefundTo            string `json:"refundTo"`
-		RequestId           string `json:"requestId"`
-		RetryData           string `json:"retryData"`
-		RetryTo             string `json:"retryTo"`
-		RetryValue          string `json:"retryValue"`
-		MaxRefund           string `json:"maxRefund"`
-		SubmissionFeeRefund string `json:"submissionFeeRefund"`
-		TicketId            string `json:"ticketId"`
+func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) (*Transaction, error) {
+	// Helper function to get string from map
+	getString := func(key string) string {
+		if v, ok := txMap[key]; ok {
+			if s, ok := v.(string); ok {
+				return s
+			}
+		}
+		return ""
 	}
 
-	if err := json.Unmarshal(txBytes, &jsonTx); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
+	// Helper function to get optional string from map
+	getOptionalString := func(key string) *string {
+		if v, ok := txMap[key]; ok {
+			if s, ok := v.(string); ok && s != "" {
+				return &s
+			}
+		}
+		return nil
 	}
 
-	// Convert to proto
-	hash, err := HexToBytes(jsonTx.Hash)
+	// Parse required fields
+	hash, err := HexToBytes(getString("hash"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse hash: %w", err)
 	}
 
-	nonce, err := NumberishToUint64(jsonTx.Nonce)
+	nonce, err := NumberishToUint64(getString("nonce"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse nonce: %w", err)
 	}
 
-	from, err := HexToBytes(jsonTx.From)
+	from, err := HexToBytes(getString("from"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse from: %w", err)
 	}
 
 	var to []byte
-	if jsonTx.To != nil && *jsonTx.To != "" {
-		to, err = HexToBytes(*jsonTx.To)
+	toStr := getString("to")
+	if toStr != "" && toStr != "0x" {
+		to, err = HexToBytes(toStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse to: %w", err)
 		}
 	}
 
-	input, err := HexToBytes(jsonTx.Input)
+	value := getString("value")
+	if value == "" {
+		value = "0"
+	}
+
+	input, err := HexToBytes(getString("input"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse input: %w", err)
 	}
 
-	gasLimit, err := NumberishToUint64(jsonTx.Gas)
+	gasLimit, err := NumberishToUint64(getString("gas"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse gas: %w", err)
 	}
 
-	r, err := HexToBytes(jsonTx.R)
+	r, err := HexToBytes(getString("r"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse r: %w", err)
 	}
 
-	sSig, err := HexToBytes(jsonTx.S)
+	sSig, err := HexToBytes(getString("s"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse s: %w", err)
 	}
 
 	var v []byte
-	if jsonTx.V != "" {
-		v, err = HexToBytes(jsonTx.V)
+	vStr := getString("v")
+	if vStr != "" {
+		v, err = HexToBytes(vStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse v: %w", err)
 		}
 	}
 
-	typ, err := NumberishToUint32(jsonTx.Type)
+	typ, err := NumberishToUint32(getString("type"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse type: %w", err)
+		// Default to legacy type 0 if not specified
+		typ = 0
 	}
 
 	var chainId *uint64
-	if jsonTx.ChainId != "" {
-		cid, err := NumberishToUint64(jsonTx.ChainId)
+	chainIdStr := getString("chainId")
+	if chainIdStr != "" {
+		cid, err := NumberishToUint64(chainIdStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse chainId: %w", err)
 		}
@@ -1308,8 +1311,9 @@ func ParseJsonRpcTransaction(txBytes []byte, header *BlockHeader) (*Transaction,
 	}
 
 	var yParity *uint32
-	if jsonTx.YParity != "" {
-		yp, err := NumberishToUint32(jsonTx.YParity)
+	yParityStr := getString("yParity")
+	if yParityStr != "" {
+		yp, err := NumberishToUint32(yParityStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse yParity: %w", err)
 		}
@@ -1318,92 +1322,153 @@ func ParseJsonRpcTransaction(txBytes []byte, header *BlockHeader) (*Transaction,
 
 	// Parse access list
 	var accessList []*AccessListItem
-	for _, al := range jsonTx.AccessList {
-		addr, err := HexToBytes(al.Address)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse access list address: %w", err)
-		}
+	if alRaw, ok := txMap["accessList"]; ok {
+		if alArray, ok := alRaw.([]interface{}); ok {
+			for _, alItem := range alArray {
+				if alMap, ok := alItem.(map[string]interface{}); ok {
+					// Get address from access list item map
+					alAddr := ""
+					if addrVal, ok := alMap["address"]; ok {
+						if addrStr, ok := addrVal.(string); ok {
+							alAddr = addrStr
+						}
+					}
 
-		storageKeys := make([][]byte, 0, len(al.StorageKeys))
-		for _, sk := range al.StorageKeys {
-			skBytes, err := HexToBytes(sk)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse storage key: %w", err)
+					addr, err := HexToBytes(alAddr)
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse access list address: %w", err)
+					}
+
+					var storageKeys [][]byte
+					if skRaw, ok := alMap["storageKeys"]; ok {
+						if skArray, ok := skRaw.([]interface{}); ok {
+							for _, sk := range skArray {
+								if skStr, ok := sk.(string); ok {
+									skBytes, err := HexToBytes(skStr)
+									if err != nil {
+										return nil, fmt.Errorf("failed to parse storage key: %w", err)
+									}
+									storageKeys = append(storageKeys, skBytes)
+								}
+							}
+						}
+					}
+
+					accessList = append(accessList, &AccessListItem{
+						Address:     addr,
+						StorageKeys: storageKeys,
+					})
+				}
 			}
-			storageKeys = append(storageKeys, skBytes)
 		}
-
-		accessList = append(accessList, &AccessListItem{
-			Address:     addr,
-			StorageKeys: storageKeys,
-		})
 	}
 
 	// Parse authorization list (EIP-7702)
 	var authorizationList []*AuthorizationListItem
-	for _, auth := range jsonTx.AuthorizationList {
-		authChainId, err := NumberishToUint64(auth.ChainId)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse authorization chainId: %w", err)
-		}
+	if authRaw, ok := txMap["authorizationList"]; ok {
+		if authArray, ok := authRaw.([]interface{}); ok {
+			for _, authItem := range authArray {
+				if authMap, ok := authItem.(map[string]interface{}); ok {
+					// Helper to get string from auth map
+					getAuthString := func(key string) string {
+						if v, ok := authMap[key]; ok {
+							if s, ok := v.(string); ok {
+								return s
+							}
+						}
+						return ""
+					}
 
-		authAddress, err := HexToBytes(auth.Address)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse authorization address: %w", err)
-		}
+					authChainId, err := NumberishToUint64(getAuthString("chainId"))
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse authorization chainId: %w", err)
+					}
 
-		authNonce, err := NumberishToUint64(auth.Nonce)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse authorization nonce: %w", err)
-		}
+					authAddress, err := HexToBytes(getAuthString("address"))
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse authorization address: %w", err)
+					}
 
-		authR, err := HexToBytes(auth.R)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse authorization r: %w", err)
-		}
+					authNonce, err := NumberishToUint64(getAuthString("nonce"))
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse authorization nonce: %w", err)
+					}
 
-		authS, err := HexToBytes(auth.S)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse authorization s: %w", err)
-		}
+					authR, err := HexToBytes(getAuthString("r"))
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse authorization r: %w", err)
+					}
 
-		authYParity, err := NumberishToUint32(auth.YParity)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse authorization yParity: %w", err)
-		}
+					authS, err := HexToBytes(getAuthString("s"))
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse authorization s: %w", err)
+					}
 
-		authorizationList = append(authorizationList, &AuthorizationListItem{
-			ChainId: authChainId,
-			Address: authAddress,
-			Nonce:   authNonce,
-			R:       authR,
-			S:       authS,
-			YParity: authYParity,
-		})
+					authYParity, err := NumberishToUint32(getAuthString("yParity"))
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse authorization yParity: %w", err)
+					}
+
+					authorizationList = append(authorizationList, &AuthorizationListItem{
+						ChainId: authChainId,
+						Address: authAddress,
+						Nonce:   authNonce,
+						R:       authR,
+						S:       authS,
+						YParity: authYParity,
+					})
+				}
+			}
+		}
 	}
 
-	// Parse block context from header
-	blockNumber := header.Number
-	blockHash := header.Hash
-	blockTimestamp := header.Timestamp
-
+	// Parse block context from header if provided
+	var blockNumber *uint64
+	var blockHash []byte
+	var blockTimestamp *uint64
 	var transactionIndex *uint32
-	if jsonTx.TransactionIndex != "" {
-		ti, err := NumberishToUint32(jsonTx.TransactionIndex)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse transaction index: %w", err)
+
+	if header != nil {
+		blockNumber = &header.Number
+		blockHash = header.Hash
+		blockTimestamp = &header.Timestamp
+	}
+
+	// Override with explicit block info if present in transaction
+	if blockNumStr := getString("blockNumber"); blockNumStr != "" {
+		bn, err := NumberishToUint64(blockNumStr)
+		if err == nil {
+			blockNumber = &bn
 		}
-		transactionIndex = &ti
+	}
+
+	if blockHashStr := getString("blockHash"); blockHashStr != "" {
+		if bh, err := HexToBytes(blockHashStr); err == nil {
+			blockHash = bh
+		}
+	}
+
+	if txIndexStr := getString("transactionIndex"); txIndexStr != "" {
+		ti, err := NumberishToUint32(txIndexStr)
+		if err == nil {
+			transactionIndex = &ti
+		}
 	}
 
 	// Parse blob fields
 	var blobVersionedHashes [][]byte
-	for _, bvh := range jsonTx.BlobVersionedHashes {
-		bvhBytes, err := HexToBytes(bvh)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse blob versioned hash: %w", err)
+	if bvhRaw, ok := txMap["blobVersionedHashes"]; ok {
+		if bvhArray, ok := bvhRaw.([]interface{}); ok {
+			for _, bvh := range bvhArray {
+				if bvhStr, ok := bvh.(string); ok {
+					bvhBytes, err := HexToBytes(bvhStr)
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse blob versioned hash: %w", err)
+					}
+					blobVersionedHashes = append(blobVersionedHashes, bvhBytes)
+				}
+			}
 		}
-		blobVersionedHashes = append(blobVersionedHashes, bvhBytes)
 	}
 
 	// Build transaction
@@ -1412,139 +1477,115 @@ func ParseJsonRpcTransaction(txBytes []byte, header *BlockHeader) (*Transaction,
 		Nonce:                nonce,
 		From:                 from,
 		To:                   to,
-		Value:                jsonTx.Value,
+		Value:                value,
 		Input:                input,
 		Type:                 typ,
 		GasLimit:             gasLimit,
-		GasPrice:             jsonTx.GasPrice,
-		MaxFeePerGas:         jsonTx.MaxFeePerGas,
-		MaxPriorityFeePerGas: jsonTx.MaxPriorityFeePerGas,
+		GasPrice:             getOptionalString("gasPrice"),
+		MaxFeePerGas:         getOptionalString("maxFeePerGas"),
+		MaxPriorityFeePerGas: getOptionalString("maxPriorityFeePerGas"),
 		R:                    r,
 		S:                    sSig,
 		V:                    v,
 		YParity:              yParity,
 		ChainId:              chainId,
-		BlockNumber:          &blockNumber,
+		BlockNumber:          blockNumber,
 		BlockHash:            blockHash,
 		TransactionIndex:     transactionIndex,
-		BlockTimestamp:       &blockTimestamp,
+		BlockTimestamp:       blockTimestamp,
 		AccessList:           accessList,
 		BlobVersionedHashes:  blobVersionedHashes,
 		AuthorizationList:    authorizationList,
-	}
-
-	// Add maxFeePerBlobGas if present
-	if jsonTx.MaxFeePerBlobGas != "" {
-		tx.MaxFeePerBlobGas = &jsonTx.MaxFeePerBlobGas
+		MaxFeePerBlobGas:     getOptionalString("maxFeePerBlobGas"),
 	}
 
 	// Add L2 fee fields
-	if jsonTx.L1Fee != "" {
-		tx.L1Fee = &jsonTx.L1Fee
-	}
-	if jsonTx.L1GasPrice != "" {
-		tx.L1GasPrice = &jsonTx.L1GasPrice
-	}
-	if jsonTx.L1GasUsed != "" {
-		tx.L1GasUsed = &jsonTx.L1GasUsed
-	}
-	if jsonTx.L1FeeScalar != "" {
-		scl, err := strconv.ParseFloat(jsonTx.L1FeeScalar, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse l1FeeScalar: %w", err)
+	tx.L1Fee = getOptionalString("l1Fee")
+	tx.L1GasPrice = getOptionalString("l1GasPrice")
+	tx.L1GasUsed = getOptionalString("l1GasUsed")
+
+	if l1FeeScalarStr := getString("l1FeeScalar"); l1FeeScalarStr != "" {
+		scl, err := strconv.ParseFloat(l1FeeScalarStr, 64)
+		if err == nil {
+			tx.L1FeeScalar = &scl
 		}
-		tx.L1FeeScalar = &scl
 	}
-	if jsonTx.L1BlobBaseFee != "" {
-		tx.L1BlobBaseFee = &jsonTx.L1BlobBaseFee
-	}
-	if jsonTx.L1BlobBaseFeeScalar != "" {
-		bscl, err := NumberishToUint64(jsonTx.L1BlobBaseFeeScalar)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse l1BlobBaseFeeScalar: %w", err)
+
+	tx.L1BlobBaseFee = getOptionalString("l1BlobBaseFee")
+
+	if l1BlobBaseFeeScalarStr := getString("l1BlobBaseFeeScalar"); l1BlobBaseFeeScalarStr != "" {
+		bscl, err := NumberishToUint64(l1BlobBaseFeeScalarStr)
+		if err == nil {
+			tx.L1BlobBaseFeeScalar = &bscl
 		}
-		tx.L1BlobBaseFeeScalar = &bscl
 	}
 
 	// Add gateway fee fields
-	if jsonTx.GatewayFee != "" {
-		tx.GatewayFee = &jsonTx.GatewayFee
-	}
-	if jsonTx.FeeCurrency != "" {
-		fc, err := HexToBytes(jsonTx.FeeCurrency)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse feeCurrency: %w", err)
+	tx.GatewayFee = getOptionalString("gatewayFee")
+
+	if fcStr := getString("feeCurrency"); fcStr != "" {
+		fc, err := HexToBytes(fcStr)
+		if err == nil {
+			tx.FeeCurrency = fc
 		}
-		tx.FeeCurrency = fc
 	}
-	if jsonTx.GatewayFeeRecipient != "" {
-		gfr, err := HexToBytes(jsonTx.GatewayFeeRecipient)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse gatewayFeeRecipient: %w", err)
+
+	if gfrStr := getString("gatewayFeeRecipient"); gfrStr != "" {
+		gfr, err := HexToBytes(gfrStr)
+		if err == nil {
+			tx.GatewayFeeRecipient = gfr
 		}
-		tx.GatewayFeeRecipient = gfr
 	}
 
 	// Add Arbitrum retryable ticket fields
-	if jsonTx.Beneficiary != "" {
-		beneficiary, err := HexToBytes(jsonTx.Beneficiary)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse beneficiary: %w", err)
+	if benStr := getString("beneficiary"); benStr != "" {
+		beneficiary, err := HexToBytes(benStr)
+		if err == nil {
+			tx.Beneficiary = beneficiary
 		}
-		tx.Beneficiary = beneficiary
 	}
-	if jsonTx.DepositValue != "" {
-		tx.DepositValue = &jsonTx.DepositValue
-	}
-	if jsonTx.L1BaseFee != "" {
-		tx.L1BaseFee = &jsonTx.L1BaseFee
-	}
-	if jsonTx.MaxSubmissionFee != "" {
-		tx.MaxSubmissionFee = &jsonTx.MaxSubmissionFee
-	}
-	if jsonTx.RefundTo != "" {
-		refundTo, err := HexToBytes(jsonTx.RefundTo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse refundTo: %w", err)
+
+	tx.DepositValue = getOptionalString("depositValue")
+	tx.L1BaseFee = getOptionalString("l1BaseFee")
+	tx.MaxSubmissionFee = getOptionalString("maxSubmissionFee")
+
+	if refundToStr := getString("refundTo"); refundToStr != "" {
+		refundTo, err := HexToBytes(refundToStr)
+		if err == nil {
+			tx.RefundTo = refundTo
 		}
-		tx.RefundTo = refundTo
 	}
-	if jsonTx.RequestId != "" {
-		requestId, err := HexToBytes(jsonTx.RequestId)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse requestId: %w", err)
+
+	if requestIdStr := getString("requestId"); requestIdStr != "" {
+		requestId, err := HexToBytes(requestIdStr)
+		if err == nil {
+			tx.RequestId = requestId
 		}
-		tx.RequestId = requestId
 	}
-	if jsonTx.RetryData != "" {
-		retryData, err := HexToBytes(jsonTx.RetryData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse retryData: %w", err)
+
+	if retryDataStr := getString("retryData"); retryDataStr != "" {
+		retryData, err := HexToBytes(retryDataStr)
+		if err == nil {
+			tx.RetryData = retryData
 		}
-		tx.RetryData = retryData
 	}
-	if jsonTx.RetryTo != "" {
-		retryTo, err := HexToBytes(jsonTx.RetryTo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse retryTo: %w", err)
+
+	if retryToStr := getString("retryTo"); retryToStr != "" {
+		retryTo, err := HexToBytes(retryToStr)
+		if err == nil {
+			tx.RetryTo = retryTo
 		}
-		tx.RetryTo = retryTo
 	}
-	if jsonTx.RetryValue != "" {
-		tx.RetryValue = &jsonTx.RetryValue
-	}
-	if jsonTx.MaxRefund != "" {
-		tx.MaxRefund = &jsonTx.MaxRefund
-	}
-	if jsonTx.SubmissionFeeRefund != "" {
-		tx.SubmissionFeeRefund = &jsonTx.SubmissionFeeRefund
-	}
-	if jsonTx.TicketId != "" {
-		ticketId, err := HexToBytes(jsonTx.TicketId)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse ticketId: %w", err)
+
+	tx.RetryValue = getOptionalString("retryValue")
+	tx.MaxRefund = getOptionalString("maxRefund")
+	tx.SubmissionFeeRefund = getOptionalString("submissionFeeRefund")
+
+	if ticketIdStr := getString("ticketId"); ticketIdStr != "" {
+		ticketId, err := HexToBytes(ticketIdStr)
+		if err == nil {
+			tx.TicketId = ticketId
 		}
-		tx.TicketId = ticketId
 	}
 
 	return tx, nil

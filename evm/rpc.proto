@@ -169,7 +169,8 @@ message GetTransactionReceiptResponse {
 
 // Request for getting all receipts in a block
 message GetBlockReceiptsRequest {
-  // Block number as hex string (e.g., "0x14ee0030") or tag ("latest", "earliest", "pending")
+  // Block identifier: block number as hex string (e.g., "0x14ee0030"), tag ("latest", "earliest", "pending"),
+  // or block hash as hex string (e.g., "0x1234567890abcdef..." - 32 bytes)
   string blockNumber = 1;
   
   // Optional chain ID to use for the request
