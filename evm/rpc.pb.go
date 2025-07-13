@@ -769,11 +769,15 @@ func (x *GetTransactionReceiptResponse) GetReceipt() *Receipt {
 type GetBlockReceiptsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Block number as hex string (e.g., "0x14ee0030") or tag ("latest", "earliest", "pending")
-	BlockNumber string `protobuf:"bytes,1,opt,name=blockNumber,proto3" json:"blockNumber,omitempty"`
+	// Mutually exclusive with blockHash
+	BlockNumber *string `protobuf:"bytes,1,opt,name=blockNumber,proto3,oneof" json:"blockNumber,omitempty"`
+	// Block hash as bytes (32 bytes)
+	// Mutually exclusive with blockNumber
+	BlockHash []byte `protobuf:"bytes,2,opt,name=blockHash,proto3,oneof" json:"blockHash,omitempty"`
 	// Optional chain ID to use for the request
-	ChainId *uint64 `protobuf:"varint,2,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
+	ChainId *uint64 `protobuf:"varint,3,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
 	// Optional genesis hash to narrow down identical networks with the same chain ID
-	ChainGenesisHash []byte `protobuf:"bytes,3,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
+	ChainGenesisHash []byte `protobuf:"bytes,4,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -809,10 +813,17 @@ func (*GetBlockReceiptsRequest) Descriptor() ([]byte, []int) {
 }
 
 func (x *GetBlockReceiptsRequest) GetBlockNumber() string {
-	if x != nil {
-		return x.BlockNumber
+	if x != nil && x.BlockNumber != nil {
+		return *x.BlockNumber
 	}
 	return ""
+}
+
+func (x *GetBlockReceiptsRequest) GetBlockHash() []byte {
+	if x != nil {
+		return x.BlockHash
+	}
+	return nil
 }
 
 func (x *GetBlockReceiptsRequest) GetChainId() uint64 {
@@ -948,11 +959,15 @@ const file_rpc_proto_rawDesc = "" +
 	"\b_chainIdB\x13\n" +
 	"\x11_chainGenesisHash\"K\n" +
 	"\x1dGetTransactionReceiptResponse\x12*\n" +
-	"\areceipt\x18\x01 \x01(\v2\x10.bds.evm.ReceiptR\areceipt\"\xac\x01\n" +
-	"\x17GetBlockReceiptsRequest\x12 \n" +
-	"\vblockNumber\x18\x01 \x01(\tR\vblockNumber\x12\x1d\n" +
-	"\achainId\x18\x02 \x01(\x04H\x00R\achainId\x88\x01\x01\x12/\n" +
-	"\x10chainGenesisHash\x18\x03 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01B\n" +
+	"\areceipt\x18\x01 \x01(\v2\x10.bds.evm.ReceiptR\areceipt\"\xf2\x01\n" +
+	"\x17GetBlockReceiptsRequest\x12%\n" +
+	"\vblockNumber\x18\x01 \x01(\tH\x00R\vblockNumber\x88\x01\x01\x12!\n" +
+	"\tblockHash\x18\x02 \x01(\fH\x01R\tblockHash\x88\x01\x01\x12\x1d\n" +
+	"\achainId\x18\x03 \x01(\x04H\x02R\achainId\x88\x01\x01\x12/\n" +
+	"\x10chainGenesisHash\x18\x04 \x01(\fH\x03R\x10chainGenesisHash\x88\x01\x01B\x0e\n" +
+	"\f_blockNumberB\f\n" +
+	"\n" +
+	"_blockHashB\n" +
 	"\n" +
 	"\b_chainIdB\x13\n" +
 	"\x11_chainGenesisHash\"H\n" +

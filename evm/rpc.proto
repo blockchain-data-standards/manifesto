@@ -169,15 +169,19 @@ message GetTransactionReceiptResponse {
 
 // Request for getting all receipts in a block
 message GetBlockReceiptsRequest {
-  // Block identifier: block number as hex string (e.g., "0x14ee0030"), tag ("latest", "earliest", "pending"),
-  // or block hash as hex string (e.g., "0x1234567890abcdef..." - 32 bytes)
-  string blockNumber = 1;
+  // Block number as hex string (e.g., "0x14ee0030") or tag ("latest", "earliest", "pending")
+  // Mutually exclusive with blockHash
+  optional string blockNumber = 1;
+  
+  // Block hash as bytes (32 bytes)
+  // Mutually exclusive with blockNumber
+  optional bytes blockHash = 2;
   
   // Optional chain ID to use for the request
-  optional uint64 chainId = 2;
+  optional uint64 chainId = 3;
   
   // Optional genesis hash to narrow down identical networks with the same chain ID
-  optional bytes chainGenesisHash = 3;
+  optional bytes chainGenesisHash = 4;
 }
 
 // Response containing all receipts for the requested block

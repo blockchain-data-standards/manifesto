@@ -6,9 +6,18 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Hex conversion utilities
+
+// Pool for reusing byte slices during hex decoding to reduce allocations
+var hexDecodePool = sync.Pool{
+	New: func() interface{} {
+		// Pre-allocate common sizes (32 bytes for hashes, 20 bytes for addresses)
+		return make([]byte, 0, 64)
+	},
+}
 
 // HexToBytes converts a hex string to bytes, removing the 0x prefix if present
 func HexToBytes(s string) ([]byte, error) {
@@ -18,6 +27,32 @@ func HexToBytes(s string) ([]byte, error) {
 	if len(s)%2 != 0 {
 		s = "0" + s
 	}
+
+	// For very common sizes, use the pool to reduce allocations
+	expectedLen := len(s) / 2
+	if expectedLen <= 64 { // Common for hashes (32), addresses (20), etc.
+		poolBuf := hexDecodePool.Get().([]byte)
+		defer hexDecodePool.Put(poolBuf[:0]) // Reset length but keep capacity
+
+		// Ensure buffer has enough capacity
+		if cap(poolBuf) < expectedLen {
+			poolBuf = make([]byte, 0, expectedLen*2)
+		}
+
+		// Decode into pool buffer
+		decoded := poolBuf[:expectedLen]
+		n, err := hex.Decode(decoded, []byte(s))
+		if err != nil {
+			return nil, err
+		}
+
+		// Copy to final result to avoid holding pool buffer reference
+		result := make([]byte, n)
+		copy(result, decoded[:n])
+		return result, nil
+	}
+
+	// Fall back to standard decoding for larger values
 	return hex.DecodeString(s)
 }
 

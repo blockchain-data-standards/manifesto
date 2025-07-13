@@ -889,7 +889,7 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 	}
 
 	// Arbitrum retryable ticket fields
-	if tx.Beneficiary != nil && len(tx.Beneficiary) > 0 {
+	if len(tx.Beneficiary) > 0 {
 		o["beneficiary"] = BytesToHex(tx.Beneficiary)
 	}
 	if tx.DepositValue != nil {
@@ -907,16 +907,16 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 			o["maxSubmissionFee"] = hex
 		}
 	}
-	if tx.RefundTo != nil && len(tx.RefundTo) > 0 {
+	if len(tx.RefundTo) > 0 {
 		o["refundTo"] = BytesToHex(tx.RefundTo)
 	}
-	if tx.RequestId != nil && len(tx.RequestId) > 0 {
+	if len(tx.RequestId) > 0 {
 		o["requestId"] = BytesToHex(tx.RequestId)
 	}
-	if tx.RetryData != nil && len(tx.RetryData) > 0 {
+	if len(tx.RetryData) > 0 {
 		o["retryData"] = BytesToHex(tx.RetryData)
 	}
-	if tx.RetryTo != nil && len(tx.RetryTo) > 0 {
+	if len(tx.RetryTo) > 0 {
 		o["retryTo"] = BytesToHex(tx.RetryTo)
 	}
 	if tx.RetryValue != nil {
@@ -934,7 +934,7 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 			o["submissionFeeRefund"] = hex
 		}
 	}
-	if tx.TicketId != nil && len(tx.TicketId) > 0 {
+	if len(tx.TicketId) > 0 {
 		o["ticketId"] = BytesToHex(tx.TicketId)
 	}
 
