@@ -892,6 +892,10 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 				"s":       BytesToHexFixed(auth.S, 32),
 				"yParity": fmt.Sprintf("0x%x", auth.YParity),
 			}
+			// Optional authority (bytes) – include when present
+			if len(auth.Authority) > 0 {
+				authItem["authority"] = BytesToHex(auth.Authority)
+			}
 			authList = append(authList, authItem)
 		}
 		o["authorizationList"] = authList
@@ -1482,6 +1486,16 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 						return nil, fmt.Errorf("failed to parse authorization yParity: %w", err)
 					}
 
+					// Optional authority field
+					var authAuthority []byte
+					if authAuthorityStr := getAuthString("authority"); authAuthorityStr != "" {
+						if b, err := HexToBytes(authAuthorityStr); err == nil {
+							authAuthority = b
+						} else {
+							return nil, fmt.Errorf("failed to parse authorization authority: %w", err)
+						}
+					}
+
 					authorizationList = append(authorizationList, &AuthorizationListItem{
 						ChainId: authChainId,
 						Address: authAddress,
@@ -1489,6 +1503,7 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 						R:       authR,
 						S:       authS,
 						YParity: authYParity,
+						Authority: authAuthority,
 					})
 				}
 			}
