@@ -66,6 +66,7 @@ type JsonRpcBlock struct {
 	TransactionsRoot      string               `json:"transactionsRoot"`
 	Uncles                []string             `json:"uncles"`
 	WithdrawalsRoot       string               `json:"withdrawalsRoot"`
+	RequestsHash          string               `json:"requestsHash"`
 	L1BlockNumber         string               `json:"l1BlockNumber"`
 	SendCount             string               `json:"sendCount"`
 	SendRoot              string               `json:"sendRoot"`
@@ -162,6 +163,14 @@ func (b *JsonRpcBlock) ToProto() (*Block, error) {
 	var withdrawalsRoot []byte
 	if b.WithdrawalsRoot != "" {
 		withdrawalsRoot, err = HexToBytes(b.WithdrawalsRoot)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var requestsHash []byte
+	if b.RequestsHash != "" {
+		requestsHash, err = HexToBytes(b.RequestsHash)
 		if err != nil {
 			return nil, err
 		}
@@ -304,6 +313,7 @@ func (b *JsonRpcBlock) ToProto() (*Block, error) {
 		MixHash:               mixHash,
 		ParentBeaconBlockRoot: parentBeaconBlockRoot,
 		WithdrawalsRoot:       withdrawalsRoot,
+		RequestsHash:          requestsHash,
 		L1BlockNumber:         l1BlockNumber,
 		SendCount:             sendCount,
 		SendRoot:              sendRoot,
@@ -365,6 +375,7 @@ func ParseJsonRpcTransactions(transactions []interface{}, header *BlockHeader) (
 type JsonRpcReceipt struct {
 	BlockHash             string        `json:"blockHash"`
 	BlockNumber           string        `json:"blockNumber"`
+	BlockTimestamp        string        `json:"blockTimestamp"`
 	ContractAddress       string        `json:"contractAddress"`
 	CumulativeGasUsed     string        `json:"cumulativeGasUsed"`
 	EffectiveGasPrice     string        `json:"effectiveGasPrice"`
@@ -385,6 +396,8 @@ type JsonRpcReceipt struct {
 	L1GasPrice            string        `json:"l1GasPrice"`
 	L1FeeScalar           string        `json:"l1FeeScalar"`
 	L1BaseFeeScalar       string        `json:"l1BaseFeeScalar"`
+	L1BlobBaseFee         string        `json:"l1BlobBaseFee"`
+	L1BlobBaseFeeScalar   string        `json:"l1BlobBaseFeeScalar"`
 	GasUsedForL1          string        `json:"gasUsedForL1"`
 	L1BlockNumber         string        `json:"l1BlockNumber"`
 	GatewayFee            string        `json:"gatewayFee"`
@@ -537,6 +550,18 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 		}
 		l1BaseFeeScalar = &scl
 	}
+	var l1BlobBaseFee *string
+	if r.L1BlobBaseFee != "" {
+		l1BlobBaseFee = &r.L1BlobBaseFee
+	}
+	var l1BlobBaseFeeScalar *uint64
+	if r.L1BlobBaseFeeScalar != "" {
+		scl, err := NumberishToUint64(r.L1BlobBaseFeeScalar)
+		if err != nil {
+			return nil, err
+		}
+		l1BlobBaseFeeScalar = &scl
+	}
 	var gatewayFee *string
 	if r.GatewayFee != "" {
 		gatewayFee = &r.GatewayFee
@@ -554,6 +579,14 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 	if r.BlobGasPrice != "" {
 		bp := r.BlobGasPrice
 		blobGasPrice = &bp
+	}
+
+	var blockTimestamp *uint64
+	if r.BlockTimestamp != "" {
+		bt, err := NumberishToUint64(r.BlockTimestamp)
+		if err == nil {
+			blockTimestamp = &bt
+		}
 	}
 
 	var timeboosted *bool
@@ -577,6 +610,7 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 		Logs:                  logs,
 		ContractAddress:       contractAddress,
 		Root:                  root,
+		BlockTimestamp:        blockTimestamp,
 		BlobGasUsed:           blobGasUsed,
 		BlobGasPrice:          blobGasPrice,
 		L1Fee:                 l1Fee,
@@ -584,6 +618,8 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 		L1GasPrice:            l1GasPrice,
 		L1FeeScalar:           l1FeeScalar,
 		L1BaseFeeScalar:       l1BaseFeeScalar,
+		L1BlobBaseFee:         l1BlobBaseFee,
+		L1BlobBaseFeeScalar:   l1BlobBaseFeeScalar,
 		GasUsedForL1:          gasUsedForL1,
 		L1BlockNumber:         l1BlockNumber,
 		GatewayFee:            gatewayFee,
@@ -732,6 +768,9 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 	if tx.TransactionIndex != nil {
 		o["transactionIndex"] = fmt.Sprintf("0x%x", *tx.TransactionIndex)
 	}
+	if tx.BlockTimestamp != nil {
+		o["blockTimestamp"] = fmt.Sprintf("0x%x", *tx.BlockTimestamp)
+	}
 
 	// Value (decimal -> hex)
 	if tx.Value != "" {
@@ -754,6 +793,16 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 	if tx.MaxPriorityFeePerGas != nil {
 		if hex, err := DecimalStringToHex(*tx.MaxPriorityFeePerGas); err == nil {
 			o["maxPriorityFeePerGas"] = hex
+		}
+	}
+
+	// Execution result fields (only available for mined transactions)
+	if tx.GasUsed != nil {
+		o["gasUsed"] = fmt.Sprintf("0x%x", *tx.GasUsed)
+	}
+	if tx.EffectiveGasPrice != nil {
+		if hex, err := DecimalStringToHex(*tx.EffectiveGasPrice); err == nil {
+			o["effectiveGasPrice"] = hex
 		}
 	}
 
@@ -938,6 +987,16 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 		o["ticketId"] = BytesToHex(tx.TicketId)
 	}
 
+	// Base-specific fields
+	if tx.IsSystemTx != nil {
+		o["isSystemTx"] = *tx.IsSystemTx
+	}
+	if tx.DepositReceiptVersion != nil {
+		if hex, err := DecimalStringToHex(*tx.DepositReceiptVersion); err == nil {
+			o["depositReceiptVersion"] = hex
+		}
+	}
+
 	return o
 }
 
@@ -970,7 +1029,7 @@ func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 	}
 
 	// Add "to" field - can be null for contract creation
-	if r.To != nil && len(r.To) > 0 {
+	if len(r.To) > 0 {
 		out["to"] = BytesToHex(r.To)
 	} else {
 		out["to"] = nil
@@ -991,7 +1050,7 @@ func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 	}
 
 	// Add root field for pre-Byzantium compatibility
-	if r.Root != nil && len(r.Root) > 0 {
+	if len(r.Root) > 0 {
 		out["root"] = BytesToHex(r.Root)
 	}
 
@@ -1049,6 +1108,14 @@ func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 	}
 	if r.L1BaseFeeScalar != nil {
 		out["l1BaseFeeScalar"] = fmt.Sprintf("0x%x", *r.L1BaseFeeScalar)
+	}
+	if r.L1BlobBaseFee != nil {
+		if hex, err := DecimalStringToHex(*r.L1BlobBaseFee); err == nil {
+			out["l1BlobBaseFee"] = hex
+		}
+	}
+	if r.L1BlobBaseFeeScalar != nil {
+		out["l1BlobBaseFeeScalar"] = fmt.Sprintf("0x%x", *r.L1BlobBaseFeeScalar)
 	}
 	if r.DepositNonce != nil {
 		if hex, err := DecimalStringToHex(*r.DepositNonce); err == nil {
@@ -1138,6 +1205,9 @@ func BlockToJsonRpc(header *BlockHeader, txHashes [][]byte, fullTxs []*Transacti
 	}
 	if header.WithdrawalsRoot != nil {
 		res["withdrawalsRoot"] = BytesToHex(header.WithdrawalsRoot)
+	}
+	if header.RequestsHash != nil {
+		res["requestsHash"] = BytesToHex(header.RequestsHash)
 	}
 	if header.BlobGasUsed != nil {
 		res["blobGasUsed"] = fmt.Sprintf("0x%x", *header.BlobGasUsed)
@@ -1587,6 +1657,35 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 			tx.TicketId = ticketId
 		}
 	}
+
+	// Parse execution result fields (only available for mined transactions)
+	if gasUsedStr := getString("gasUsed"); gasUsedStr != "" {
+		gasUsed, err := NumberishToUint64(gasUsedStr)
+		if err == nil {
+			tx.GasUsed = &gasUsed
+		}
+	}
+
+	tx.EffectiveGasPrice = getOptionalString("effectiveGasPrice")
+
+	// Parse blob fields
+	if blobGasUsedStr := getString("blobGasUsed"); blobGasUsedStr != "" {
+		blobGasUsed, err := NumberishToUint64(blobGasUsedStr)
+		if err == nil {
+			tx.BlobGasUsed = &blobGasUsed
+		}
+	}
+
+	tx.BlobGasPrice = getOptionalString("blobGasPrice")
+
+	// Parse Base-specific fields
+	if isSystemTxRaw, ok := txMap["isSystemTx"]; ok {
+		if isSystemTx, ok := isSystemTxRaw.(bool); ok {
+			tx.IsSystemTx = &isSystemTx
+		}
+	}
+
+	tx.DepositReceiptVersion = getOptionalString("depositReceiptVersion")
 
 	return tx, nil
 }

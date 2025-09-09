@@ -113,6 +113,9 @@ message BlockHeader {
 
   // Array of uncle (ommer) block hashes included in this block. Uncle blocks are valid blocks mined at the same height but not included in the canonical chain. Ethereum rewarded up to 2 uncles per block to reduce mining centralization. Always empty post-merge. Some indexers store as JSON array
   repeated bytes uncles = 34;
+
+  // Root hash of the requests trie containing consensus layer requests (EIP-7685). Introduced to support validator deposits, withdrawals, and consolidations. Part of block hash calculation after Prague/Electra upgrade. Essential for consensus layer to execution layer communication
+  optional bytes requestsHash = 35;
 }
 
 // A full block with its header, transactions, and logs.
@@ -323,6 +326,12 @@ message Transaction {
 
   // Unique identifier of the retryable ticket on L2. Used to track, query, and manually redeem retryable tickets. Generated when ticket is created on L2
   optional bytes ticketId = 49;
+
+  // Whether this is a system transaction. Base chain specific field indicating if the transaction was created by the system rather than a user. System transactions are used for protocol operations like L1->L2 deposits
+  optional bool isSystemTx = 50;
+
+  // Version of the deposit receipt for this transaction. Base chain specific field present when the transaction is a deposit transaction from L1 to L2
+  optional string depositReceiptVersion = 51;
 }
 
 // Represents an entry in an EIP-2930 access list. Pre-declares addresses and storage slots that will be accessed during transaction execution, enabling gas savings through reduced cold access costs
@@ -486,8 +495,6 @@ message Receipt {
   // L1 block number that this L2 transaction's data was posted to. Used for data availability proofs and finality. May lag behind L2 block number. Critical for L2 security and L1 state proofs
   optional uint64 l1BlockNumber = 26;
 
-  // === Advanced Receipt Fields ===
-
   // Gateway fee charged for meta-transactions or relayed transactions. Paid to relayer or protocol. Only present when using alternative fee payment methods. Denominated in feeCurrency if specified
   optional string gatewayFee = 27;
 
@@ -496,4 +503,10 @@ message Receipt {
 
   // Version of the deposit receipt. Only present when the receipt is for a deposit transaction.
   optional string depositReceiptVersion = 29;
+
+  // L1 blob base fee at the time this L2 transaction was processed, in wei. Used for calculating L2 data availability costs via blobs after EIP-4844. Only relevant for L2s that support blob posting. Base chain specific field
+  optional string l1BlobBaseFee = 30;
+
+  // Scalar for L1 blob base fee calculations on L2s. Similar to l1BaseFeeScalar but for blob data costs. Adjustable by L2 operators. Used after EIP-4844 activation to calculate data availability costs via blobs
+  optional uint64 l1BlobBaseFeeScalar = 31;
 }

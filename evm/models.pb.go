@@ -213,7 +213,9 @@ type BlockHeader struct {
 	// RLP (Recursive Length Prefix) encoded canonical block header. This is the exact bytes that when hashed produce the block hash. Used for block verification, light client proofs, and cross-chain bridges. Critical for trustless block validation
 	CanonicalRlp []byte `protobuf:"bytes,33,opt,name=canonicalRlp,proto3,oneof" json:"canonicalRlp,omitempty"`
 	// Array of uncle (ommer) block hashes included in this block. Uncle blocks are valid blocks mined at the same height but not included in the canonical chain. Ethereum rewarded up to 2 uncles per block to reduce mining centralization. Always empty post-merge. Some indexers store as JSON array
-	Uncles        [][]byte `protobuf:"bytes,34,rep,name=uncles,proto3" json:"uncles,omitempty"`
+	Uncles [][]byte `protobuf:"bytes,34,rep,name=uncles,proto3" json:"uncles,omitempty"`
+	// Root hash of the requests trie containing consensus layer requests (EIP-7685). Introduced to support validator deposits, withdrawals, and consolidations. Part of block hash calculation after Prague/Electra upgrade. Essential for consensus layer to execution layer communication
+	RequestsHash  []byte `protobuf:"bytes,35,opt,name=requestsHash,proto3,oneof" json:"requestsHash,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -486,6 +488,13 @@ func (x *BlockHeader) GetUncles() [][]byte {
 	return nil
 }
 
+func (x *BlockHeader) GetRequestsHash() []byte {
+	if x != nil {
+		return x.RequestsHash
+	}
+	return nil
+}
+
 // A full block with its header, transactions, and logs.
 type Block struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -732,9 +741,13 @@ type Transaction struct {
 	// Amount refunded for unused submission fee, in wei. Difference between maxSubmissionFee and actual submission cost. Sent to refundTo address. Hex-encoded decimal string
 	SubmissionFeeRefund *string `protobuf:"bytes,48,opt,name=submissionFeeRefund,proto3,oneof" json:"submissionFeeRefund,omitempty"`
 	// Unique identifier of the retryable ticket on L2. Used to track, query, and manually redeem retryable tickets. Generated when ticket is created on L2
-	TicketId      []byte `protobuf:"bytes,49,opt,name=ticketId,proto3,oneof" json:"ticketId,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TicketId []byte `protobuf:"bytes,49,opt,name=ticketId,proto3,oneof" json:"ticketId,omitempty"`
+	// Whether this is a system transaction. Base chain specific field indicating if the transaction was created by the system rather than a user. System transactions are used for protocol operations like L1->L2 deposits
+	IsSystemTx *bool `protobuf:"varint,50,opt,name=isSystemTx,proto3,oneof" json:"isSystemTx,omitempty"`
+	// Version of the deposit receipt for this transaction. Base chain specific field present when the transaction is a deposit transaction from L1 to L2
+	DepositReceiptVersion *string `protobuf:"bytes,51,opt,name=depositReceiptVersion,proto3,oneof" json:"depositReceiptVersion,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *Transaction) Reset() {
@@ -1108,6 +1121,20 @@ func (x *Transaction) GetTicketId() []byte {
 		return x.TicketId
 	}
 	return nil
+}
+
+func (x *Transaction) GetIsSystemTx() bool {
+	if x != nil && x.IsSystemTx != nil {
+		return *x.IsSystemTx
+	}
+	return false
+}
+
+func (x *Transaction) GetDepositReceiptVersion() string {
+	if x != nil && x.DepositReceiptVersion != nil {
+		return *x.DepositReceiptVersion
+	}
+	return ""
 }
 
 // Represents an entry in an EIP-2930 access list. Pre-declares addresses and storage slots that will be accessed during transaction execution, enabling gas savings through reduced cold access costs
@@ -1508,8 +1535,12 @@ type Receipt struct {
 	DepositNonce *string `protobuf:"bytes,28,opt,name=depositNonce,proto3,oneof" json:"depositNonce,omitempty"`
 	// Version of the deposit receipt. Only present when the receipt is for a deposit transaction.
 	DepositReceiptVersion *string `protobuf:"bytes,29,opt,name=depositReceiptVersion,proto3,oneof" json:"depositReceiptVersion,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// L1 blob base fee at the time this L2 transaction was processed, in wei. Used for calculating L2 data availability costs via blobs after EIP-4844. Only relevant for L2s that support blob posting. Base chain specific field
+	L1BlobBaseFee *string `protobuf:"bytes,30,opt,name=l1BlobBaseFee,proto3,oneof" json:"l1BlobBaseFee,omitempty"`
+	// Scalar for L1 blob base fee calculations on L2s. Similar to l1BaseFeeScalar but for blob data costs. Adjustable by L2 operators. Used after EIP-4844 activation to calculate data availability costs via blobs
+	L1BlobBaseFeeScalar *uint64 `protobuf:"varint,31,opt,name=l1BlobBaseFeeScalar,proto3,oneof" json:"l1BlobBaseFeeScalar,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Receipt) Reset() {
@@ -1745,6 +1776,20 @@ func (x *Receipt) GetDepositReceiptVersion() string {
 	return ""
 }
 
+func (x *Receipt) GetL1BlobBaseFee() string {
+	if x != nil && x.L1BlobBaseFee != nil {
+		return *x.L1BlobBaseFee
+	}
+	return ""
+}
+
+func (x *Receipt) GetL1BlobBaseFeeScalar() uint64 {
+	if x != nil && x.L1BlobBaseFeeScalar != nil {
+		return *x.L1BlobBaseFeeScalar
+	}
+	return 0
+}
+
 var File_models_proto protoreflect.FileDescriptor
 
 const file_models_proto_rawDesc = "" +
@@ -1755,7 +1800,7 @@ const file_models_proto_rawDesc = "" +
 	"\x04hash\x18\x02 \x01(\fR\x04hash\x12\x1e\n" +
 	"\n" +
 	"parentHash\x18\x03 \x01(\fR\n" +
-	"parentHash\"\xe9\v\n" +
+	"parentHash\"\xa3\f\n" +
 	"\vBlockHeader\x12\x16\n" +
 	"\x06number\x18\x01 \x01(\x04R\x06number\x12\x1c\n" +
 	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x12\x1a\n" +
@@ -1798,7 +1843,8 @@ const file_models_proto_rawDesc = "" +
 	"\x11proposerPublicKey\x18\x1f \x01(\tH\x10R\x11proposerPublicKey\x88\x01\x01\x12%\n" +
 	"\vwithdrawals\x18  \x01(\fH\x11R\vwithdrawals\x88\x01\x01\x12'\n" +
 	"\fcanonicalRlp\x18! \x01(\fH\x12R\fcanonicalRlp\x88\x01\x01\x12\x16\n" +
-	"\x06uncles\x18\" \x03(\fR\x06unclesB\b\n" +
+	"\x06uncles\x18\" \x03(\fR\x06uncles\x12'\n" +
+	"\frequestsHash\x18# \x01(\fH\x13R\frequestsHash\x88\x01\x01B\b\n" +
 	"\x06_nonceB\x0e\n" +
 	"\f_blobGasUsedB\x10\n" +
 	"\x0e_excessBlobGasB\x10\n" +
@@ -1819,7 +1865,8 @@ const file_models_proto_rawDesc = "" +
 	"\x10_totalDifficultyB\x14\n" +
 	"\x12_proposerPublicKeyB\x0e\n" +
 	"\f_withdrawalsB\x0f\n" +
-	"\r_canonicalRlp\"\xfe\x01\n" +
+	"\r_canonicalRlpB\x0f\n" +
+	"\r_requestsHash\"\xfe\x01\n" +
 	"\x05Block\x12,\n" +
 	"\x06header\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x06header\x12,\n" +
 	"\x11transactionHashes\x18\x02 \x03(\fR\x11transactionHashes\x12@\n" +
@@ -1829,7 +1876,7 @@ const file_models_proto_rawDesc = "" +
 	"\x0eTransactionRef\x12'\n" +
 	"\x05block\x18\x01 \x01(\v2\x11.bds.evm.BlockRefR\x05block\x12*\n" +
 	"\x10transactionIndex\x18\x02 \x01(\rR\x10transactionIndex\x12(\n" +
-	"\x0ftransactionHash\x18\x03 \x01(\fR\x0ftransactionHash\"\xe6\x12\n" +
+	"\x0ftransactionHash\x18\x03 \x01(\fR\x0ftransactionHash\"\xef\x13\n" +
 	"\vTransaction\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\fR\x04hash\x12\x14\n" +
 	"\x05nonce\x18\x02 \x01(\x04R\x05nonce\x12\x12\n" +
@@ -1889,7 +1936,11 @@ const file_models_proto_rawDesc = "" +
 	"retryValue\x88\x01\x01\x12!\n" +
 	"\tmaxRefund\x18/ \x01(\tH\"R\tmaxRefund\x88\x01\x01\x125\n" +
 	"\x13submissionFeeRefund\x180 \x01(\tH#R\x13submissionFeeRefund\x88\x01\x01\x12\x1f\n" +
-	"\bticketId\x181 \x01(\fH$R\bticketId\x88\x01\x01B\x05\n" +
+	"\bticketId\x181 \x01(\fH$R\bticketId\x88\x01\x01\x12#\n" +
+	"\n" +
+	"isSystemTx\x182 \x01(\bH%R\n" +
+	"isSystemTx\x88\x01\x01\x129\n" +
+	"\x15depositReceiptVersion\x183 \x01(\tH&R\x15depositReceiptVersion\x88\x01\x01B\x05\n" +
 	"\x03_toB\v\n" +
 	"\t_gasPriceB\x0f\n" +
 	"\r_maxFeePerGasB\x17\n" +
@@ -1936,7 +1987,9 @@ const file_models_proto_rawDesc = "" +
 	"\n" +
 	"_maxRefundB\x16\n" +
 	"\x14_submissionFeeRefundB\v\n" +
-	"\t_ticketId\"L\n" +
+	"\t_ticketIdB\r\n" +
+	"\v_isSystemTxB\x18\n" +
+	"\x16_depositReceiptVersion\"L\n" +
 	"\x0eAccessListItem\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\fR\aaddress\x12 \n" +
 	"\vstorageKeys\x18\x02 \x03(\fR\vstorageKeys\"\xbd\x02\n" +
@@ -1963,8 +2016,7 @@ const file_models_proto_rawDesc = "" +
 	"\x05index\x18\x01 \x01(\x04R\x05index\x12&\n" +
 	"\x0evalidatorIndex\x18\x02 \x01(\x04R\x0evalidatorIndex\x12\x18\n" +
 	"\aaddress\x18\x03 \x01(\fR\aaddress\x12\x16\n" +
-	"\x06amount\x18\x04 \x01(\x04R\x06amount\"\xcc\n" +
-	"\n" +
+	"\x06amount\x18\x04 \x01(\x04R\x06amount\"\xd8\v\n" +
 	"\aReceipt\x12(\n" +
 	"\x0ftransactionHash\x18\x01 \x01(\fR\x0ftransactionHash\x12 \n" +
 	"\vblockNumber\x18\x02 \x01(\x04R\vblockNumber\x12\x1c\n" +
@@ -2000,7 +2052,9 @@ const file_models_proto_rawDesc = "" +
 	"gatewayFee\x18\x1b \x01(\tH\x0fR\n" +
 	"gatewayFee\x88\x01\x01\x12'\n" +
 	"\fdepositNonce\x18\x1c \x01(\tH\x10R\fdepositNonce\x88\x01\x01\x129\n" +
-	"\x15depositReceiptVersion\x18\x1d \x01(\tH\x11R\x15depositReceiptVersion\x88\x01\x01B\x05\n" +
+	"\x15depositReceiptVersion\x18\x1d \x01(\tH\x11R\x15depositReceiptVersion\x88\x01\x01\x12)\n" +
+	"\rl1BlobBaseFee\x18\x1e \x01(\tH\x12R\rl1BlobBaseFee\x88\x01\x01\x125\n" +
+	"\x13l1BlobBaseFeeScalar\x18\x1f \x01(\x04H\x13R\x13l1BlobBaseFeeScalar\x88\x01\x01B\x05\n" +
 	"\x03_toB\t\n" +
 	"\a_statusB\x12\n" +
 	"\x10_contractAddressB\a\n" +
@@ -2019,7 +2073,9 @@ const file_models_proto_rawDesc = "" +
 	"\x0e_l1BlockNumberB\r\n" +
 	"\v_gatewayFeeB\x0f\n" +
 	"\r_depositNonceB\x18\n" +
-	"\x16_depositReceiptVersion*W\n" +
+	"\x16_depositReceiptVersionB\x10\n" +
+	"\x0e_l1BlobBaseFeeB\x16\n" +
+	"\x14_l1BlobBaseFeeScalar*W\n" +
 	"\x0fTransactionType\x12\n" +
 	"\n" +
 	"\x06LEGACY\x10\x00\x12\x0f\n" +
