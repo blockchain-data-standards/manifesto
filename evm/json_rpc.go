@@ -807,13 +807,16 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 	}
 
 	if tx.R != nil {
-		o["r"] = BytesToHex(tx.R)
+		// r is 32-byte DATA; keep leading zeros
+		o["r"] = BytesToHexFixed(tx.R, 32)
 	}
 	if tx.S != nil {
-		o["s"] = BytesToHex(tx.S)
+		// s is 32-byte DATA; keep leading zeros
+		o["s"] = BytesToHexFixed(tx.S, 32)
 	}
 	if tx.V != nil {
-		o["v"] = BytesToHex(tx.V)
+		// v is QUANTITY
+		o["v"] = BytesToQuantityHex(tx.V)
 	}
 
 	// Chain ID (optional)
@@ -885,8 +888,8 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 				"chainId": fmt.Sprintf("0x%x", auth.ChainId),
 				"address": BytesToHex(auth.Address),
 				"nonce":   fmt.Sprintf("0x%x", auth.Nonce),
-				"r":       BytesToHex(auth.R),
-				"s":       BytesToHex(auth.S),
+				"r":       BytesToHexFixed(auth.R, 32),
+				"s":       BytesToHexFixed(auth.S, 32),
 				"yParity": fmt.Sprintf("0x%x", auth.YParity),
 			}
 			authList = append(authList, authItem)
