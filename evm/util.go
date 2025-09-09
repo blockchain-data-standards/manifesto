@@ -3,6 +3,7 @@ package evm
 import (
 	"encoding/hex"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -14,8 +15,9 @@ import (
 // Pool for reusing byte slices during hex decoding to reduce allocations
 var hexDecodePool = sync.Pool{
 	New: func() interface{} {
-		// Pre-allocate common sizes (32 bytes for hashes, 20 bytes for addresses)
-		return make([]byte, 0, 64)
+		// Pre-allocate for common sizes (32 bytes for hashes, 20 bytes for addresses)
+		// Using 32 as capacity since that's the most common case (block hashes, tx hashes, etc.)
+		return make([]byte, 0, 32)
 	},
 }
 
@@ -118,6 +120,20 @@ func MustHexToUint32(hex string) uint32 {
 	return result
 }
 
+// HexToInt64 parses a 0x-prefixed hex QUANTITY into int64.
+// Returns error on invalid input or if the value exceeds MaxInt64.
+func HexToInt64(hex string) (int64, error) {
+	u, err := HexToUint64(hex)
+	if err != nil {
+		return 0, err
+	}
+	// guard overflow
+	if u > uint64(math.MaxInt64) {
+		return 0, fmt.Errorf("hex quantity overflows int64: %s", hex)
+	}
+	return int64(u), nil
+}
+
 func NumberishToUint64(s string) (uint64, error) {
 	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
 		return HexToUint64(s)
@@ -177,6 +193,21 @@ func BytesToHex(b []byte) string {
 	return "0x" + hex.EncodeToString(b)
 }
 
+// BytesToHexFixed left-pads the input with zero bytes to the desired size (in bytes)
+// and returns a 0x-prefixed hex string. If b is longer than size, it is returned as-is.
+// Use for DATA fields that have canonical fixed widths (e.g. r/s = 32 bytes, addresses = 20 bytes).
+func BytesToHexFixed(b []byte, size int) string {
+	if b == nil {
+		return "0x"
+	}
+	if len(b) >= size {
+		return BytesToHex(b)
+	}
+	out := make([]byte, size)
+	copy(out[size-len(b):], b)
+	return BytesToHex(out)
+}
+
 // RemoveHexPrefix removes the 0x prefix from a hex string if present
 func RemoveHexPrefix(s string) string {
 	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
@@ -193,22 +224,68 @@ func AddHexPrefix(s string) string {
 	return "0x" + s
 }
 
-// DecimalStringToHex converts a decimal or hex string into 0x-prefixed hex string.
-// If the input already has a 0x prefix it is returned unchanged.
-// Otherwise it is parsed as base-10 and returned as lower-case hex with 0x prefix.
+// DecimalStringToHex normalizes a numeric string (decimal or hex) to a canonical
+// QUANTITY per Ethereum JSON-RPC: 0x-prefixed, no leading zeros; zero is 0x0.
+// If the input has a 0x prefix, it is parsed as hex and re-encoded canonically.
+// Otherwise it is parsed as base-10 and encoded canonically.
 func DecimalStringToHex(s string) (string, error) {
 	if s == "" {
 		return "0x0", nil
 	}
 	s = strings.TrimSpace(s)
-	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
-		return s, nil
-	}
 	var z big.Int
-	if _, ok := z.SetString(s, 10); !ok {
-		return "", fmt.Errorf("invalid decimal string: %s", s)
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		hexStr := RemoveHexPrefix(s)
+		if hexStr == "" {
+			return "0x0", nil
+		}
+		if _, ok := z.SetString(hexStr, 16); !ok {
+			return "", fmt.Errorf("invalid hex string: %s", s)
+		}
+	} else {
+		if _, ok := z.SetString(s, 10); !ok {
+			return "", fmt.Errorf("invalid decimal string: %s", s)
+		}
+	}
+	if z.Sign() == 0 {
+		return "0x0", nil
 	}
 	return AddHexPrefix(z.Text(16)), nil
+}
+
+// BytesToQuantityHex encodes bytes as a JSON-RPC QUANTITY (no leading zeros; 0x0 for zero).
+func BytesToQuantityHex(b []byte) string {
+	if len(b) == 0 {
+		return "0x0"
+	}
+	n := new(big.Int).SetBytes(b)
+	if n.Sign() == 0 {
+		return "0x0"
+	}
+	return AddHexPrefix(n.Text(16))
+}
+
+// NormalizeHex canonicalizes QUANTITY inputs per EIP-1474.
+// - If value is a string: treat as decimal or 0x-hex and return canonical QUANTITY; non-numeric strings are returned as-is (e.g., "latest").
+// - If value is a number: formats as canonical 0x-prefixed hex without leading zeros.
+func NormalizeHex(value interface{}) (string, error) {
+	if s, ok := value.(string); ok {
+		if out, err := DecimalStringToHex(s); err == nil {
+			return out, nil
+		}
+		// likely a tag like "latest"/"pending"; return unchanged
+		return s, nil
+	}
+	switch v := value.(type) {
+	case int:
+		return fmt.Sprintf("0x%x", v), nil
+	case int8, int16, int32, int64:
+		return fmt.Sprintf("0x%x", v), nil
+	case uint, uint8, uint16, uint32, uint64:
+		return fmt.Sprintf("0x%x", v), nil
+	default:
+		return "", fmt.Errorf("value is not a string or number: %+v", v)
+	}
 }
 
 // Pointer helper functions
