@@ -392,6 +392,9 @@ message AuthorizationListItem {
 
   // Y-parity (0 or 1) of the authorization signature. Used to recover the signer's public key and verify the authorization came from the EOA owner
   uint32 yParity = 6;
+
+  // Optional authority field present in some EIP-7702 clients, representing the authority address relevant to this authorization item
+  bytes authority = 7;
 }
 
 // Represents a validator withdrawal from the beacon chain to the execution layer. Part of Ethereum's proof-of-stake design allowing validators to withdraw staked ETH and rewards

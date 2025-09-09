@@ -1324,7 +1324,9 @@ type AuthorizationListItem struct {
 	// ECDSA signature S value of the authorization (32 bytes). Together with R and yParity, proves the EOA owner authorized this code setting
 	S []byte `protobuf:"bytes,5,opt,name=s,proto3" json:"s,omitempty"`
 	// Y-parity (0 or 1) of the authorization signature. Used to recover the signer's public key and verify the authorization came from the EOA owner
-	YParity       uint32 `protobuf:"varint,6,opt,name=yParity,proto3" json:"yParity,omitempty"`
+	YParity uint32 `protobuf:"varint,6,opt,name=yParity,proto3" json:"yParity,omitempty"`
+	// Optional authority field present in some EIP-7702 clients, representing the authority address relevant to this authorization item
+	Authority     []byte `protobuf:"bytes,7,opt,name=authority,proto3" json:"authority,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1399,6 +1401,13 @@ func (x *AuthorizationListItem) GetYParity() uint32 {
 		return x.YParity
 	}
 	return 0
+}
+
+func (x *AuthorizationListItem) GetAuthority() []byte {
+	if x != nil {
+		return x.Authority
+	}
+	return nil
 }
 
 // Represents a validator withdrawal from the beacon chain to the execution layer. Part of Ethereum's proof-of-stake design allowing validators to withdraw staked ETH and rewards
@@ -2003,14 +2012,15 @@ const file_models_proto_rawDesc = "" +
 	"\x10transactionIndex\x18\a \x01(\rR\x10transactionIndex\x12\x1a\n" +
 	"\blogIndex\x18\b \x01(\rR\blogIndex\x12+\n" +
 	"\x0eblockTimestamp\x18\t \x01(\x04H\x00R\x0eblockTimestamp\x88\x01\x01B\x11\n" +
-	"\x0f_blockTimestamp\"\x97\x01\n" +
+	"\x0f_blockTimestamp\"\xb5\x01\n" +
 	"\x15AuthorizationListItem\x12\x18\n" +
 	"\achainId\x18\x01 \x01(\x04R\achainId\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\fR\aaddress\x12\x14\n" +
 	"\x05nonce\x18\x03 \x01(\x04R\x05nonce\x12\f\n" +
 	"\x01r\x18\x04 \x01(\fR\x01r\x12\f\n" +
 	"\x01s\x18\x05 \x01(\fR\x01s\x12\x18\n" +
-	"\ayParity\x18\x06 \x01(\rR\ayParity\"|\n" +
+	"\ayParity\x18\x06 \x01(\rR\ayParity\x12\x1c\n" +
+	"\tauthority\x18\a \x01(\fR\tauthority\"|\n" +
 	"\n" +
 	"Withdrawal\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\x04R\x05index\x12&\n" +
