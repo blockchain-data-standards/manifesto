@@ -39,7 +39,7 @@ func TestReceiptL1BlobBaseFeeConversion(t *testing.T) {
 
 	// Test Proto to JsonRpc conversion
 	jsonRpcMap := ReceiptToJsonRpc(protoReceipt)
-	
+
 	// Check that l1BlobBaseFee is properly converted back to hex
 	if l1BlobBaseFee, ok := jsonRpcMap["l1BlobBaseFee"]; !ok {
 		t.Error("Expected l1BlobBaseFee in JSON-RPC output")
@@ -80,7 +80,7 @@ func TestReceiptL1BlobBaseFeeOmitted(t *testing.T) {
 
 	// Test Proto to JsonRpc conversion
 	jsonRpcMap := ReceiptToJsonRpc(protoReceipt)
-	
+
 	// Check that l1BlobBaseFee is not in the output when nil
 	if _, ok := jsonRpcMap["l1BlobBaseFee"]; ok {
 		t.Error("Expected l1BlobBaseFee to be omitted from JSON-RPC output when nil")

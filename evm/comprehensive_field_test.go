@@ -8,27 +8,27 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 	// Test Transaction with all fields including execution results
 	t.Run("Transaction with execution result fields", func(t *testing.T) {
 		txMap := map[string]interface{}{
-			"hash":                  "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-			"nonce":                 "0x1",
-			"from":                  "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7",
-			"to":                    "0x4200000000000000000000000000000000000015",
-			"value":                 "0x100",
-			"input":                 "0xabcdef",
-			"gas":                   "0x5208",
-			"gasPrice":              "0x3b9aca00",
-			"type":                  "0x2",
-			"r":                     "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-			"s":                     "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-			"v":                     "0x1b",
-			"chainId":               "0x1",
-			"blockNumber":           "0x1000",
-			"blockHash":             "0xblockhash1234567890abcdef1234567890abcdef1234567890abcdef12345678",
-			"transactionIndex":      "0x5",
+			"hash":             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"nonce":            "0x1",
+			"from":             "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7",
+			"to":               "0x4200000000000000000000000000000000000015",
+			"value":            "0x100",
+			"input":            "0xabcdef",
+			"gas":              "0x5208",
+			"gasPrice":         "0x3b9aca00",
+			"type":             "0x2",
+			"r":                "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"s":                "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+			"v":                "0x1b",
+			"chainId":          "0x1",
+			"blockNumber":      "0x1000",
+			"blockHash":        "0xblockhash1234567890abcdef1234567890abcdef1234567890abcdef12345678",
+			"transactionIndex": "0x5",
 			// Execution result fields
-			"gasUsed":               "0x5000",
-			"effectiveGasPrice":     "0x3b9aca00",
-			"blobGasUsed":           "0x20000",
-			"blobGasPrice":          "0x1000",
+			"gasUsed":           "0x5000",
+			"effectiveGasPrice": "0x3b9aca00",
+			"blobGasUsed":       "0x20000",
+			"blobGasPrice":      "0x1000",
 		}
 
 		tx, err := ParseJsonRpcTransaction(txMap, nil)
@@ -52,7 +52,7 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 
 		// Test conversion back to JSON-RPC
 		jsonRpc := TransactionToJsonRpc(tx)
-		
+
 		// Verify execution result fields in output
 		if gasUsed, ok := jsonRpc["gasUsed"]; !ok || gasUsed != "0x5000" {
 			t.Errorf("Expected gasUsed in JSON-RPC output to be '0x5000', got '%v'", gasUsed)
@@ -66,7 +66,7 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 		if blobGasPrice, ok := jsonRpc["blobGasPrice"]; !ok || blobGasPrice != "0x1000" {
 			t.Errorf("Expected blobGasPrice in JSON-RPC output to be '0x1000', got '%v'", blobGasPrice)
 		}
-		
+
 		// Check blockTimestamp is output when present
 		if tx.BlockTimestamp != nil {
 			if blockTimestamp, ok := jsonRpc["blockTimestamp"]; !ok {
@@ -110,7 +110,7 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 
 		// Test conversion back to JSON-RPC
 		jsonRpcMap := ReceiptToJsonRpc(protoReceipt)
-		
+
 		// Check blockTimestamp is in output
 		if blockTimestamp, ok := jsonRpcMap["blockTimestamp"]; !ok {
 			t.Error("Expected blockTimestamp in JSON-RPC output")
@@ -182,27 +182,27 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 
 		// Receipt with all L2 fee fields
 		receipt := &JsonRpcReceipt{
-			BlockHash:           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-			BlockNumber:         "0x1000",
-			TransactionHash:     "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-			TransactionIndex:    "0x0",
-			From:                "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
-			To:                  "0x4200000000000000000000000000000000000015",
-			GasUsed:             "0xb44c",
-			CumulativeGasUsed:   "0xb44c",
-			EffectiveGasPrice:   "0x0",
-			LogsBloom:           "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-			Status:              "0x1",
-			Type:                "0x7e",
-			L1GasPrice:          "0x3c2053c3",
-			L1GasUsed:           "0x6da",
-			L1Fee:               "0x0",
-			L1BaseFeeScalar:     "0x8dd",
-			L1BlobBaseFee:       "0x1",
-			L1BlobBaseFeeScalar: "0x101c12",
-			DepositNonce:        "0x211c31f",
+			BlockHash:             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			BlockNumber:           "0x1000",
+			TransactionHash:       "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+			TransactionIndex:      "0x0",
+			From:                  "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
+			To:                    "0x4200000000000000000000000000000000000015",
+			GasUsed:               "0xb44c",
+			CumulativeGasUsed:     "0xb44c",
+			EffectiveGasPrice:     "0x0",
+			LogsBloom:             "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+			Status:                "0x1",
+			Type:                  "0x7e",
+			L1GasPrice:            "0x3c2053c3",
+			L1GasUsed:             "0x6da",
+			L1Fee:                 "0x0",
+			L1BaseFeeScalar:       "0x8dd",
+			L1BlobBaseFee:         "0x1",
+			L1BlobBaseFeeScalar:   "0x101c12",
+			DepositNonce:          "0x211c31f",
 			DepositReceiptVersion: "0x1",
-			Logs:                []*JsonRpcLog{},
+			Logs:                  []*JsonRpcLog{},
 		}
 
 		protoReceipt, err := receipt.ToProto()

@@ -1,7 +1,9 @@
 package evm
 
 import (
+	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
@@ -286,6 +288,59 @@ func NormalizeHex(value interface{}) (string, error) {
 	default:
 		return "", fmt.Errorf("value is not a string or number: %+v", v)
 	}
+}
+
+// NumberishString is a string-like type that can unmarshal from either a JSON
+// string (hex or decimal) or a JSON number. Internally it stores the canonical
+// 0x-prefixed QUANTITY form for numeric inputs; non-numeric strings (e.g., tags
+// like "latest") are preserved as-is.
+type NumberishString string
+
+// UnmarshalJSON accepts numbers or strings. For numeric inputs (number literal,
+// decimal string, or 0x-hex string) it stores the canonical 0x-hex QUANTITY.
+// For null it stores empty string. For non-numeric strings it stores as-is.
+func (ns *NumberishString) UnmarshalJSON(data []byte) error {
+	// null -> empty string
+	if bytes.Equal(data, []byte("null")) {
+		*ns = NumberishString("")
+		return nil
+	}
+	// If quoted: try to normalize string numerics; if not numeric, keep raw
+	if len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		if hexStr, err := DecimalStringToHex(s); err == nil {
+			*ns = NumberishString(hexStr)
+			return nil
+		}
+		// Not a numeric string (e.g., "latest"), keep as-is
+		*ns = NumberishString(s)
+		return nil
+	}
+	// Unquoted token: treat as JSON number; store canonical 0x hex
+	normalized, err := NormalizeHex(string(data))
+	if err != nil {
+		return err
+	}
+	*ns = NumberishString(normalized)
+	return nil
+}
+
+// ToUint64 converts the stored value to uint64 when it represents a numeric
+// quantity (either canonical 0x-hex or decimal). Returns an error when the
+// value is empty or a non-numeric string like "latest".
+func (ns NumberishString) ToUint64() (uint64, error) {
+	s := string(ns)
+	if s == "" {
+		return 0, fmt.Errorf("empty NumberishString")
+	}
+	// If already canonical 0x quantity, use hex path; else try decimal
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		return HexToUint64(s)
+	}
+	return strconv.ParseUint(s, 10, 64)
 }
 
 // Pointer helper functions

@@ -5,6 +5,8 @@ import (
 	"strconv"
 )
 
+// NumberishString moved to util.go
+
 type JsonRpcWithdrawal struct {
 	Index          string `json:"index"`
 	ValidatorIndex string `json:"validatorIndex"`
@@ -373,37 +375,37 @@ func ParseJsonRpcTransactions(transactions []interface{}, header *BlockHeader) (
 }
 
 type JsonRpcReceipt struct {
-	BlockHash             string        `json:"blockHash"`
-	BlockNumber           string        `json:"blockNumber"`
-	BlockTimestamp        string        `json:"blockTimestamp"`
-	ContractAddress       string        `json:"contractAddress"`
-	CumulativeGasUsed     string        `json:"cumulativeGasUsed"`
-	EffectiveGasPrice     string        `json:"effectiveGasPrice"`
-	From                  string        `json:"from"`
-	GasUsed               string        `json:"gasUsed"`
-	Logs                  []*JsonRpcLog `json:"logs"`
-	LogsBloom             string        `json:"logsBloom"`
-	Root                  string        `json:"root"`
-	Status                string        `json:"status"`
-	To                    string        `json:"to"`
-	TransactionHash       string        `json:"transactionHash"`
-	TransactionIndex      string        `json:"transactionIndex"`
-	Type                  string        `json:"type"`
-	BlobGasUsed           string        `json:"blobGasUsed"`
-	BlobGasPrice          string        `json:"blobGasPrice"`
-	L1Fee                 string        `json:"l1Fee"`
-	L1GasUsed             string        `json:"l1GasUsed"`
-	L1GasPrice            string        `json:"l1GasPrice"`
-	L1FeeScalar           string        `json:"l1FeeScalar"`
-	L1BaseFeeScalar       string        `json:"l1BaseFeeScalar"`
-	L1BlobBaseFee         string        `json:"l1BlobBaseFee"`
-	L1BlobBaseFeeScalar   string        `json:"l1BlobBaseFeeScalar"`
-	GasUsedForL1          string        `json:"gasUsedForL1"`
-	L1BlockNumber         string        `json:"l1BlockNumber"`
-	GatewayFee            string        `json:"gatewayFee"`
-	DepositNonce          string        `json:"depositNonce"`
-	DepositReceiptVersion string        `json:"depositReceiptVersion"`
-	Timeboosted           *bool         `json:"timeboosted"`
+	BlockHash             string          `json:"blockHash"`
+	BlockNumber           string          `json:"blockNumber"`
+	BlockTimestamp        NumberishString `json:"blockTimestamp"`
+	ContractAddress       string          `json:"contractAddress"`
+	CumulativeGasUsed     string          `json:"cumulativeGasUsed"`
+	EffectiveGasPrice     string          `json:"effectiveGasPrice"`
+	From                  string          `json:"from"`
+	GasUsed               string          `json:"gasUsed"`
+	Logs                  []*JsonRpcLog   `json:"logs"`
+	LogsBloom             string          `json:"logsBloom"`
+	Root                  string          `json:"root"`
+	Status                string          `json:"status"`
+	To                    string          `json:"to"`
+	TransactionHash       string          `json:"transactionHash"`
+	TransactionIndex      string          `json:"transactionIndex"`
+	Type                  string          `json:"type"`
+	BlobGasUsed           string          `json:"blobGasUsed"`
+	BlobGasPrice          string          `json:"blobGasPrice"`
+	L1Fee                 string          `json:"l1Fee"`
+	L1GasUsed             string          `json:"l1GasUsed"`
+	L1GasPrice            string          `json:"l1GasPrice"`
+	L1FeeScalar           string          `json:"l1FeeScalar"`
+	L1BaseFeeScalar       string          `json:"l1BaseFeeScalar"`
+	L1BlobBaseFee         string          `json:"l1BlobBaseFee"`
+	L1BlobBaseFeeScalar   string          `json:"l1BlobBaseFeeScalar"`
+	GasUsedForL1          string          `json:"gasUsedForL1"`
+	L1BlockNumber         string          `json:"l1BlockNumber"`
+	GatewayFee            string          `json:"gatewayFee"`
+	DepositNonce          string          `json:"depositNonce"`
+	DepositReceiptVersion string          `json:"depositReceiptVersion"`
+	Timeboosted           *bool           `json:"timeboosted"`
 }
 
 func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
@@ -583,8 +585,7 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 
 	var blockTimestamp *uint64
 	if r.BlockTimestamp != "" {
-		bt, err := NumberishToUint64(r.BlockTimestamp)
-		if err == nil {
+		if bt, err := r.BlockTimestamp.ToUint64(); err == nil {
 			blockTimestamp = &bt
 		}
 	}
@@ -630,15 +631,15 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 }
 
 type JsonRpcLog struct {
-	Address          string   `json:"address"`
-	BlockHash        string   `json:"blockHash"`
-	BlockNumber      string   `json:"blockNumber"`
-	BlockTimestamp   string   `json:"blockTimestamp"`
-	Data             string   `json:"data"`
-	LogIndex         string   `json:"logIndex"`
-	Topics           []string `json:"topics"`
-	TransactionHash  string   `json:"transactionHash"`
-	TransactionIndex string   `json:"transactionIndex"`
+	Address          string          `json:"address"`
+	BlockHash        string          `json:"blockHash"`
+	BlockNumber      string          `json:"blockNumber"`
+	BlockTimestamp   NumberishString `json:"blockTimestamp"`
+	Data             string          `json:"data"`
+	LogIndex         string          `json:"logIndex"`
+	Topics           []string        `json:"topics"`
+	TransactionHash  string          `json:"transactionHash"`
+	TransactionIndex string          `json:"transactionIndex"`
 }
 
 func (l *JsonRpcLog) ToProto() (*Log, error) {
@@ -652,7 +653,7 @@ func (l *JsonRpcLog) ToProto() (*Log, error) {
 	}
 	var blockTimestamp *uint64
 	if l.BlockTimestamp != "" {
-		u, err := NumberishToUint64(l.BlockTimestamp)
+		u, err := l.BlockTimestamp.ToUint64()
 		if err != nil {
 			return nil, err
 		}
@@ -1497,12 +1498,12 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 					}
 
 					authorizationList = append(authorizationList, &AuthorizationListItem{
-						ChainId: authChainId,
-						Address: authAddress,
-						Nonce:   authNonce,
-						R:       authR,
-						S:       authS,
-						YParity: authYParity,
+						ChainId:   authChainId,
+						Address:   authAddress,
+						Nonce:     authNonce,
+						R:         authR,
+						S:         authS,
+						YParity:   authYParity,
 						Authority: authAuthority,
 					})
 				}
