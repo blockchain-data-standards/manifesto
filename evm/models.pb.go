@@ -746,8 +746,14 @@ type Transaction struct {
 	IsSystemTx *bool `protobuf:"varint,50,opt,name=isSystemTx,proto3,oneof" json:"isSystemTx,omitempty"`
 	// Version of the deposit receipt for this transaction. Base chain specific field present when the transaction is a deposit transaction from L1 to L2
 	DepositReceiptVersion *string `protobuf:"bytes,51,opt,name=depositReceiptVersion,proto3,oneof" json:"depositReceiptVersion,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Unique identifier linking this transaction to its L1/L2 origin where applicable (e.g., Optimism/Base deposit transactions).
+	// For deposit/system transactions, this is a hash of the source event or message on the originating chain. Hex-encoded 32 bytes.
+	SourceHash []byte `protobuf:"bytes,52,opt,name=sourceHash,proto3,oneof" json:"sourceHash,omitempty"`
+	// Amount of native currency minted alongside the transaction execution on some L2 systems (e.g., deposit value bridged from L1), in wei.
+	// Hex-encoded decimal string, similar to value and other fee fields. Absent or 0x0 when not applicable.
+	Mint          *string `protobuf:"bytes,53,opt,name=mint,proto3,oneof" json:"mint,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Transaction) Reset() {
@@ -1133,6 +1139,20 @@ func (x *Transaction) GetIsSystemTx() bool {
 func (x *Transaction) GetDepositReceiptVersion() string {
 	if x != nil && x.DepositReceiptVersion != nil {
 		return *x.DepositReceiptVersion
+	}
+	return ""
+}
+
+func (x *Transaction) GetSourceHash() []byte {
+	if x != nil {
+		return x.SourceHash
+	}
+	return nil
+}
+
+func (x *Transaction) GetMint() string {
+	if x != nil && x.Mint != nil {
+		return *x.Mint
 	}
 	return ""
 }
@@ -1885,7 +1905,7 @@ const file_models_proto_rawDesc = "" +
 	"\x0eTransactionRef\x12'\n" +
 	"\x05block\x18\x01 \x01(\v2\x11.bds.evm.BlockRefR\x05block\x12*\n" +
 	"\x10transactionIndex\x18\x02 \x01(\rR\x10transactionIndex\x12(\n" +
-	"\x0ftransactionHash\x18\x03 \x01(\fR\x0ftransactionHash\"\xef\x13\n" +
+	"\x0ftransactionHash\x18\x03 \x01(\fR\x0ftransactionHash\"\xc5\x14\n" +
 	"\vTransaction\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\fR\x04hash\x12\x14\n" +
 	"\x05nonce\x18\x02 \x01(\x04R\x05nonce\x12\x12\n" +
@@ -1949,7 +1969,11 @@ const file_models_proto_rawDesc = "" +
 	"\n" +
 	"isSystemTx\x182 \x01(\bH%R\n" +
 	"isSystemTx\x88\x01\x01\x129\n" +
-	"\x15depositReceiptVersion\x183 \x01(\tH&R\x15depositReceiptVersion\x88\x01\x01B\x05\n" +
+	"\x15depositReceiptVersion\x183 \x01(\tH&R\x15depositReceiptVersion\x88\x01\x01\x12#\n" +
+	"\n" +
+	"sourceHash\x184 \x01(\fH'R\n" +
+	"sourceHash\x88\x01\x01\x12\x17\n" +
+	"\x04mint\x185 \x01(\tH(R\x04mint\x88\x01\x01B\x05\n" +
 	"\x03_toB\v\n" +
 	"\t_gasPriceB\x0f\n" +
 	"\r_maxFeePerGasB\x17\n" +
@@ -1998,7 +2022,9 @@ const file_models_proto_rawDesc = "" +
 	"\x14_submissionFeeRefundB\v\n" +
 	"\t_ticketIdB\r\n" +
 	"\v_isSystemTxB\x18\n" +
-	"\x16_depositReceiptVersion\"L\n" +
+	"\x16_depositReceiptVersionB\r\n" +
+	"\v_sourceHashB\a\n" +
+	"\x05_mint\"L\n" +
 	"\x0eAccessListItem\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\fR\aaddress\x12 \n" +
 	"\vstorageKeys\x18\x02 \x03(\fR\vstorageKeys\"\xbd\x02\n" +

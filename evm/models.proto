@@ -332,6 +332,14 @@ message Transaction {
 
   // Version of the deposit receipt for this transaction. Base chain specific field present when the transaction is a deposit transaction from L1 to L2
   optional string depositReceiptVersion = 51;
+
+  // Unique identifier linking this transaction to its L1/L2 origin where applicable (e.g., Optimism/Base deposit transactions).
+  // For deposit/system transactions, this is a hash of the source event or message on the originating chain. Hex-encoded 32 bytes.
+  optional bytes sourceHash = 52;
+
+  // Amount of native currency minted alongside the transaction execution on some L2 systems (e.g., deposit value bridged from L1), in wei.
+  // Hex-encoded decimal string, similar to value and other fee fields. Absent or 0x0 when not applicable.
+  optional string mint = 53;
 }
 
 // Represents an entry in an EIP-2930 access list. Pre-declares addresses and storage slots that will be accessed during transaction execution, enabling gas savings through reduced cold access costs

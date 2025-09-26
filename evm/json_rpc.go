@@ -780,6 +780,13 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 		}
 	}
 
+	// L2 mint value (decimal -> hex)
+	if tx.Mint != nil {
+		if hex, err := DecimalStringToHex(*tx.Mint); err == nil {
+			o["mint"] = hex
+		}
+	}
+
 	// Fee related fields – pointers to decimal strings
 	if tx.GasPrice != nil {
 		if hex, err := DecimalStringToHex(*tx.GasPrice); err == nil {
@@ -818,6 +825,11 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 	if tx.V != nil {
 		// v is QUANTITY
 		o["v"] = BytesToQuantityHex(tx.V)
+	}
+
+	// Source hash (bytes)
+	if len(tx.SourceHash) > 0 {
+		o["sourceHash"] = BytesToHex(tx.SourceHash)
 	}
 
 	// Chain ID (optional)
@@ -1705,6 +1717,15 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 	}
 
 	tx.DepositReceiptVersion = getOptionalString("depositReceiptVersion")
+
+	// Additional L2/Base fields
+	if sh := getString("sourceHash"); sh != "" {
+		if b, err := HexToBytes(sh); err == nil {
+			tx.SourceHash = b
+		}
+	}
+	// Mint value (decimal or hex string)
+	tx.Mint = getOptionalString("mint")
 
 	return tx, nil
 }
