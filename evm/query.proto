@@ -1,0 +1,257 @@
+syntax = "proto3";
+
+package bds.evm;
+option go_package = "github.com/blockchain-data-standards/manifesto/evm";
+
+import "models.proto";
+import "rpc.proto";
+
+enum SortOrder {
+  ASC = 0;
+  DESC = 1;
+}
+
+message CursorBlock {
+  uint64 number = 1;
+  bytes hash = 2;
+  bytes parentHash = 3;
+}
+
+message BlockFieldSelection {
+  bool number = 1;
+  bool timestamp = 2;
+  bool hash = 3;
+  bool parentHash = 4;
+  bool stateRoot = 5;
+  bool transactionsRoot = 6;
+  bool receiptsRoot = 7;
+  bool logsBloom = 8;
+  bool gasLimit = 9;
+  bool gasUsed = 10;
+  bool miner = 11;
+  bool extraData = 12;
+  bool size = 13;
+  bool sha3Uncles = 14;
+  bool nonce = 15;
+  bool baseFeePerGas = 16;
+  bool difficulty = 17;
+  bool totalDifficulty = 18;
+  bool mixHash = 19;
+  bool blobGasUsed = 20;
+  bool excessBlobGas = 21;
+  bool withdrawalsRoot = 22;
+  bool parentBeaconBlockRoot = 23;
+  bool transactionCount = 24;
+}
+
+message TransactionFieldSelection {
+  bool hash = 1;
+  bool nonce = 2;
+  bool from = 3;
+  bool to = 4;
+  bool value = 5;
+  bool input = 6;
+  bool type = 7;
+  bool gasLimit = 8;
+  bool gasPrice = 9;
+  bool maxFeePerGas = 10;
+  bool maxPriorityFeePerGas = 11;
+  bool gasUsed = 12;
+  bool effectiveGasPrice = 13;
+  bool blockNumber = 14;
+  bool blockHash = 15;
+  bool transactionIndex = 16;
+  bool blockTimestamp = 17;
+  bool chainId = 18;
+  bool accessList = 19;
+  bool maxFeePerBlobGas = 20;
+  bool blobVersionedHashes = 21;
+  bool r = 22;
+  bool s = 23;
+  bool v = 24;
+  bool yParity = 25;
+}
+
+message LogFieldSelection {
+  bool address = 1;
+  bool topics = 2;
+  bool data = 3;
+  bool blockNumber = 4;
+  bool blockHash = 5;
+  bool transactionHash = 6;
+  bool transactionIndex = 7;
+  bool logIndex = 8;
+  bool blockTimestamp = 9;
+}
+
+message TraceFieldSelection {
+  bool traceType = 1;
+  bool callType = 2;
+  bool from = 3;
+  bool to = 4;
+  bool value = 5;
+  bool input = 6;
+  bool output = 7;
+  bool gas = 8;
+  bool gasUsed = 9;
+  bool error = 10;
+  bool subtraces = 11;
+  bool traceAddress = 12;
+  bool transactionHash = 13;
+  bool transactionIndex = 14;
+  bool blockNumber = 15;
+  bool blockHash = 16;
+  bool blockTimestamp = 17;
+}
+
+message TransferFieldSelection {
+  bool from = 1;
+  bool to = 2;
+  bool value = 3;
+  bool transactionHash = 4;
+  bool transactionIndex = 5;
+  bool blockNumber = 6;
+  bool blockHash = 7;
+  bool traceAddress = 8;
+  bool blockTimestamp = 9;
+}
+
+message TransactionFilter {
+  repeated bytes from = 1;
+  repeated bytes to = 2;
+  repeated bytes selector = 3;
+}
+
+message LogFilter {
+  repeated bytes address = 1;
+  repeated TopicFilter topics = 2;
+}
+
+message TraceFilter {
+  repeated bytes from = 1;
+  repeated bytes to = 2;
+  repeated bytes selector = 3;
+  optional bool isTopLevel = 4;
+}
+
+message TransferFilter {
+  repeated bytes from = 1;
+  repeated bytes to = 2;
+  optional bool isTopLevel = 3;
+}
+
+message QueryBlocksRequest {
+  optional string fromBlock = 1;
+  optional string toBlock = 2;
+  optional SortOrder order = 3;
+  optional uint32 limit = 4;
+  optional CursorBlock cursor = 5;
+  optional uint64 chainId = 6;
+
+  BlockFieldSelection blockFields = 10;
+}
+
+message QueryTransactionsRequest {
+  optional string fromBlock = 1;
+  optional string toBlock = 2;
+  optional SortOrder order = 3;
+  optional uint32 limit = 4;
+  optional CursorBlock cursor = 5;
+  optional uint64 chainId = 6;
+
+  TransactionFilter filter = 10;
+  TransactionFieldSelection transactionFields = 11;
+  BlockFieldSelection blockFields = 12;
+}
+
+message QueryLogsRequest {
+  optional string fromBlock = 1;
+  optional string toBlock = 2;
+  optional SortOrder order = 3;
+  optional uint32 limit = 4;
+  optional CursorBlock cursor = 5;
+  optional uint64 chainId = 6;
+
+  LogFilter filter = 10;
+  LogFieldSelection logFields = 11;
+  TransactionFieldSelection transactionFields = 12;
+  BlockFieldSelection blockFields = 13;
+}
+
+message QueryTracesRequest {
+  optional string fromBlock = 1;
+  optional string toBlock = 2;
+  optional SortOrder order = 3;
+  optional uint32 limit = 4;
+  optional CursorBlock cursor = 5;
+  optional uint64 chainId = 6;
+
+  TraceFilter filter = 10;
+  TraceFieldSelection traceFields = 11;
+  TransactionFieldSelection transactionFields = 12;
+  BlockFieldSelection blockFields = 13;
+}
+
+message QueryTransfersRequest {
+  optional string fromBlock = 1;
+  optional string toBlock = 2;
+  optional SortOrder order = 3;
+  optional uint32 limit = 4;
+  optional CursorBlock cursor = 5;
+  optional uint64 chainId = 6;
+
+  TransferFilter filter = 10;
+  TransferFieldSelection transferFields = 11;
+  TransactionFieldSelection transactionFields = 12;
+  BlockFieldSelection blockFields = 13;
+}
+
+message QueryBlocksResponse {
+  repeated BlockHeader blocks = 1;
+  CursorBlock fromBlock = 2;
+  CursorBlock toBlock = 3;
+  optional CursorBlock cursorBlock = 4;
+}
+
+message QueryTransactionsResponse {
+  repeated Transaction transactions = 1;
+  repeated BlockHeader blocks = 2;
+  CursorBlock fromBlock = 3;
+  CursorBlock toBlock = 4;
+  optional CursorBlock cursorBlock = 5;
+}
+
+message QueryLogsResponse {
+  repeated Log logs = 1;
+  repeated Transaction transactions = 2;
+  repeated BlockHeader blocks = 3;
+  CursorBlock fromBlock = 4;
+  CursorBlock toBlock = 5;
+  optional CursorBlock cursorBlock = 6;
+}
+
+message QueryTracesResponse {
+  repeated Trace traces = 1;
+  repeated Transaction transactions = 2;
+  repeated BlockHeader blocks = 3;
+  CursorBlock fromBlock = 4;
+  CursorBlock toBlock = 5;
+  optional CursorBlock cursorBlock = 6;
+}
+
+message QueryTransfersResponse {
+  repeated NativeTransfer transfers = 1;
+  repeated Transaction transactions = 2;
+  repeated BlockHeader blocks = 3;
+  CursorBlock fromBlock = 4;
+  CursorBlock toBlock = 5;
+  optional CursorBlock cursorBlock = 6;
+}
+
+service QueryService {
+  rpc QueryBlocks(QueryBlocksRequest) returns (stream QueryBlocksResponse);
+  rpc QueryTransactions(QueryTransactionsRequest) returns (stream QueryTransactionsResponse);
+  rpc QueryLogs(QueryLogsRequest) returns (stream QueryLogsResponse);
+  rpc QueryTraces(QueryTracesRequest) returns (stream QueryTracesResponse);
+  rpc QueryTransfers(QueryTransfersRequest) returns (stream QueryTransfersResponse);
+}
