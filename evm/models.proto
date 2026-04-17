@@ -521,3 +521,57 @@ message Receipt {
   // Scalar for L1 blob base fee calculations on L2s. Similar to l1BaseFeeScalar but for blob data costs. Adjustable by L2 operators. Used after EIP-4844 activation to calculate data availability costs via blobs
   optional uint64 l1BlobBaseFeeScalar = 31;
 }
+
+// Trace types for debug_traceBlockByNumber / trace_block output
+enum TraceType {
+  TRACE_CALL = 0;
+  TRACE_CREATE = 1;
+  TRACE_SELFDESTRUCT = 2;
+  TRACE_REWARD = 3;
+}
+
+enum TraceCallType {
+  TRACE_CALL_CALL = 0;
+  TRACE_CALL_STATICCALL = 1;
+  TRACE_CALL_DELEGATECALL = 2;
+  TRACE_CALL_CALLCODE = 3;
+}
+
+// An internal call trace from EVM execution
+message Trace {
+  TraceType traceType = 1;
+  TraceCallType callType = 2;
+
+  bytes from = 3;
+  optional bytes to = 4;
+  string value = 5;
+  bytes input = 6;
+  bytes output = 7;
+
+  uint64 gas = 8;
+  uint64 gasUsed = 9;
+  optional string error = 10;
+
+  uint32 subtraces = 11;
+  repeated uint32 traceAddress = 12;
+
+  bytes transactionHash = 13;
+  uint32 transactionIndex = 14;
+  uint64 blockNumber = 15;
+  bytes blockHash = 16;
+  optional uint64 blockTimestamp = 17;
+}
+
+// A native token transfer extracted from traces
+message NativeTransfer {
+  bytes from = 1;
+  bytes to = 2;
+  string value = 3;
+
+  bytes transactionHash = 4;
+  uint32 transactionIndex = 5;
+  uint64 blockNumber = 6;
+  bytes blockHash = 7;
+  repeated uint32 traceAddress = 8;
+  optional uint64 blockTimestamp = 9;
+}

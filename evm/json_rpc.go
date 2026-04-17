@@ -2,7 +2,9 @@ package evm
 
 import (
 	"fmt"
+	"math/big"
 	"strconv"
+	"strings"
 )
 
 // NumberishString moved to util.go
@@ -1742,4 +1744,282 @@ func ParseJsonRpcWithdrawals(withdrawals []*JsonRpcWithdrawal) ([]*Withdrawal, e
 		protoWithdrawals = append(protoWithdrawals, protoWithdrawal)
 	}
 	return protoWithdrawals, nil
+}
+
+func TraceFromParity(raw map[string]interface{}, blockNumber uint64, blockHash []byte, blockTimestamp *uint64) (*Trace, error) {
+	action, _ := raw["action"].(map[string]interface{})
+	result, _ := raw["result"].(map[string]interface{})
+
+	traceType := traceTypeFromString(stringValue(raw["type"]))
+	callType := traceCallTypeFromString(stringValue(action["callType"]))
+	from, err := hexBytesOrEmpty(stringValue(action["from"]))
+	if err != nil {
+		return nil, err
+	}
+
+	var to []byte
+	for _, candidate := range []string{
+		stringValue(action["to"]),
+		stringValue(result["address"]),
+		stringValue(action["refundAddress"]),
+		stringValue(action["author"]),
+	} {
+		if candidate == "" {
+			continue
+		}
+		to, err = HexToBytes(candidate)
+		if err != nil {
+			return nil, err
+		}
+		break
+	}
+
+	value := normalizeNumberishString(stringValue(action["value"]))
+	input, err := hexBytesOrEmpty(stringValue(action["input"]))
+	if err != nil {
+		return nil, err
+	}
+	output, err := hexBytesOrEmpty(stringValue(result["output"]))
+	if err != nil {
+		return nil, err
+	}
+	gas, _ := numberishUint64(stringValue(action["gas"]))
+	gasUsed, _ := numberishUint64(stringValue(result["gasUsed"]))
+	subtraces, _ := numberishUint32FromAny(raw["subtraces"])
+	traceAddress := uint32SliceFromAny(raw["traceAddress"])
+	transactionHash, err := hexBytesOrEmpty(stringValue(raw["transactionHash"]))
+	if err != nil {
+		return nil, err
+	}
+	transactionIndex, _ := numberishUint32FromAny(raw["transactionPosition"])
+	if transactionIndex == 0 {
+		transactionIndex, _ = numberishUint32FromAny(raw["transactionIndex"])
+	}
+
+	trace := &Trace{
+		TraceType:        traceType,
+		CallType:         callType,
+		From:             from,
+		To:               to,
+		Value:            value,
+		Input:            input,
+		Output:           output,
+		Gas:              gas,
+		GasUsed:          gasUsed,
+		Subtraces:        subtraces,
+		TraceAddress:     traceAddress,
+		TransactionHash:  transactionHash,
+		TransactionIndex: transactionIndex,
+		BlockNumber:      blockNumber,
+		BlockHash:        blockHash,
+		BlockTimestamp:   blockTimestamp,
+	}
+	if errText := stringValue(raw["error"]); errText != "" {
+		trace.Error = &errText
+	}
+
+	return trace, nil
+}
+
+func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHash []byte, blockTimestamp *uint64) ([]*Trace, error) {
+	flattened := make([]*Trace, 0, 8)
+	if _, ok := raw["type"]; !ok {
+		if result, ok := raw["result"].(map[string]interface{}); ok {
+			raw = result
+		}
+	}
+	var walk func(map[string]interface{}, []uint32) error
+	walk = func(node map[string]interface{}, traceAddress []uint32) error {
+		traceType := traceTypeFromString(stringValue(node["type"]))
+		callType := traceCallTypeFromString(stringValue(node["type"]))
+		from, err := hexBytesOrEmpty(stringValue(node["from"]))
+		if err != nil {
+			return err
+		}
+		to, err := hexBytesOrEmpty(stringValue(node["to"]))
+		if err != nil {
+			return err
+		}
+		input, err := hexBytesOrEmpty(stringValue(node["input"]))
+		if err != nil {
+			return err
+		}
+		output, err := hexBytesOrEmpty(stringValue(node["output"]))
+		if err != nil {
+			return err
+		}
+		gas, _ := numberishUint64(stringValue(node["gas"]))
+		gasUsed, _ := numberishUint64(stringValue(node["gasUsed"]))
+		value := normalizeNumberishString(stringValue(node["value"]))
+		txHash, err := hexBytesOrEmpty(stringValue(node["transactionHash"]))
+		if err != nil {
+			return err
+		}
+		txIndex, _ := numberishUint32FromAny(node["transactionIndex"])
+		calls, _ := node["calls"].([]interface{})
+		trace := &Trace{
+			TraceType:        traceType,
+			CallType:         callType,
+			From:             from,
+			To:               to,
+			Value:            value,
+			Input:            input,
+			Output:           output,
+			Gas:              gas,
+			GasUsed:          gasUsed,
+			Subtraces:        uint32(len(calls)),
+			TraceAddress:     append([]uint32(nil), traceAddress...),
+			TransactionHash:  txHash,
+			TransactionIndex: txIndex,
+			BlockNumber:      blockNumber,
+			BlockHash:        blockHash,
+			BlockTimestamp:   blockTimestamp,
+		}
+		if errText := stringValue(node["error"]); errText != "" {
+			trace.Error = &errText
+		}
+		flattened = append(flattened, trace)
+		for i, rawChild := range calls {
+			child, ok := rawChild.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if err := walk(child, append(append([]uint32(nil), traceAddress...), uint32(i))); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := walk(raw, nil); err != nil {
+		return nil, err
+	}
+	return flattened, nil
+}
+
+func NativeTransfersFromTraces(traces []*Trace) []*NativeTransfer {
+	transfers := make([]*NativeTransfer, 0, len(traces))
+	for _, trace := range traces {
+		if trace == nil {
+			continue
+		}
+		if trace.TraceType != TraceType_TRACE_CALL && trace.TraceType != TraceType_TRACE_CREATE {
+			continue
+		}
+		if len(trace.To) == 0 {
+			continue
+		}
+		value := new(big.Int)
+		if trace.Value == "" {
+			continue
+		}
+		if strings.HasPrefix(trace.Value, "0x") || strings.HasPrefix(trace.Value, "0X") {
+			if _, ok := value.SetString(RemoveHexPrefix(trace.Value), 16); !ok {
+				continue
+			}
+		} else if _, ok := value.SetString(trace.Value, 10); !ok {
+			continue
+		}
+		if value.Sign() <= 0 {
+			continue
+		}
+		transfers = append(transfers, &NativeTransfer{
+			From:             trace.From,
+			To:               trace.To,
+			Value:            trace.Value,
+			TransactionHash:  trace.TransactionHash,
+			TransactionIndex: trace.TransactionIndex,
+			BlockNumber:      trace.BlockNumber,
+			BlockHash:        trace.BlockHash,
+			TraceAddress:     append([]uint32(nil), trace.TraceAddress...),
+			BlockTimestamp:   trace.BlockTimestamp,
+		})
+	}
+	return transfers
+}
+
+func stringValue(v interface{}) string {
+	s, _ := v.(string)
+	return s
+}
+
+func hexBytesOrEmpty(v string) ([]byte, error) {
+	if v == "" || v == "0x" {
+		return nil, nil
+	}
+	return HexToBytes(v)
+}
+
+func normalizeNumberishString(v string) string {
+	if v == "" {
+		return "0x0"
+	}
+	if normalized, err := DecimalStringToHex(v); err == nil {
+		return normalized
+	}
+	return v
+}
+
+func numberishUint64(v string) (uint64, error) {
+	if v == "" {
+		return 0, nil
+	}
+	return NumberishToUint64(v)
+}
+
+func numberishUint32FromAny(v interface{}) (uint32, error) {
+	switch t := v.(type) {
+	case string:
+		if t == "" {
+			return 0, nil
+		}
+		return NumberishToUint32(t)
+	case float64:
+		return uint32(t), nil
+	case int:
+		return uint32(t), nil
+	default:
+		return 0, nil
+	}
+}
+
+func uint32SliceFromAny(v interface{}) []uint32 {
+	items, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]uint32, 0, len(items))
+	for _, item := range items {
+		if n, err := numberishUint32FromAny(item); err == nil {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func traceTypeFromString(v string) TraceType {
+	switch strings.ToLower(v) {
+	case "call":
+		return TraceType_TRACE_CALL
+	case "create":
+		return TraceType_TRACE_CREATE
+	case "suicide", "selfdestruct":
+		return TraceType_TRACE_SELFDESTRUCT
+	case "reward":
+		return TraceType_TRACE_REWARD
+	default:
+		return TraceType_TRACE_CALL
+	}
+}
+
+func traceCallTypeFromString(v string) TraceCallType {
+	switch strings.ToLower(v) {
+	case "staticcall":
+		return TraceCallType_TRACE_CALL_STATICCALL
+	case "delegatecall":
+		return TraceCallType_TRACE_CALL_DELEGATECALL
+	case "callcode":
+		return TraceCallType_TRACE_CALL_CALLCODE
+	default:
+		return TraceCallType_TRACE_CALL_CALL
+	}
 }

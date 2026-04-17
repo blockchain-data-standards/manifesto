@@ -82,6 +82,111 @@ func (TransactionType) EnumDescriptor() ([]byte, []int) {
 	return file_models_proto_rawDescGZIP(), []int{0}
 }
 
+// Trace types for debug_traceBlockByNumber / trace_block output
+type TraceType int32
+
+const (
+	TraceType_TRACE_CALL         TraceType = 0
+	TraceType_TRACE_CREATE       TraceType = 1
+	TraceType_TRACE_SELFDESTRUCT TraceType = 2
+	TraceType_TRACE_REWARD       TraceType = 3
+)
+
+// Enum value maps for TraceType.
+var (
+	TraceType_name = map[int32]string{
+		0: "TRACE_CALL",
+		1: "TRACE_CREATE",
+		2: "TRACE_SELFDESTRUCT",
+		3: "TRACE_REWARD",
+	}
+	TraceType_value = map[string]int32{
+		"TRACE_CALL":         0,
+		"TRACE_CREATE":       1,
+		"TRACE_SELFDESTRUCT": 2,
+		"TRACE_REWARD":       3,
+	}
+)
+
+func (x TraceType) Enum() *TraceType {
+	p := new(TraceType)
+	*p = x
+	return p
+}
+
+func (x TraceType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TraceType) Descriptor() protoreflect.EnumDescriptor {
+	return file_models_proto_enumTypes[1].Descriptor()
+}
+
+func (TraceType) Type() protoreflect.EnumType {
+	return &file_models_proto_enumTypes[1]
+}
+
+func (x TraceType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TraceType.Descriptor instead.
+func (TraceType) EnumDescriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{1}
+}
+
+type TraceCallType int32
+
+const (
+	TraceCallType_TRACE_CALL_CALL         TraceCallType = 0
+	TraceCallType_TRACE_CALL_STATICCALL   TraceCallType = 1
+	TraceCallType_TRACE_CALL_DELEGATECALL TraceCallType = 2
+	TraceCallType_TRACE_CALL_CALLCODE     TraceCallType = 3
+)
+
+// Enum value maps for TraceCallType.
+var (
+	TraceCallType_name = map[int32]string{
+		0: "TRACE_CALL_CALL",
+		1: "TRACE_CALL_STATICCALL",
+		2: "TRACE_CALL_DELEGATECALL",
+		3: "TRACE_CALL_CALLCODE",
+	}
+	TraceCallType_value = map[string]int32{
+		"TRACE_CALL_CALL":         0,
+		"TRACE_CALL_STATICCALL":   1,
+		"TRACE_CALL_DELEGATECALL": 2,
+		"TRACE_CALL_CALLCODE":     3,
+	}
+)
+
+func (x TraceCallType) Enum() *TraceCallType {
+	p := new(TraceCallType)
+	*p = x
+	return p
+}
+
+func (x TraceCallType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TraceCallType) Descriptor() protoreflect.EnumDescriptor {
+	return file_models_proto_enumTypes[2].Descriptor()
+}
+
+func (TraceCallType) Type() protoreflect.EnumType {
+	return &file_models_proto_enumTypes[2]
+}
+
+func (x TraceCallType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TraceCallType.Descriptor instead.
+func (TraceCallType) EnumDescriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{2}
+}
+
 // A reference to a block on an EVM-compatible blockchain. This is used to identify a block without storing the full block data.
 type BlockRef struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1819,6 +1924,288 @@ func (x *Receipt) GetL1BlobBaseFeeScalar() uint64 {
 	return 0
 }
 
+// An internal call trace from EVM execution
+type Trace struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	TraceType        TraceType              `protobuf:"varint,1,opt,name=traceType,proto3,enum=bds.evm.TraceType" json:"traceType,omitempty"`
+	CallType         TraceCallType          `protobuf:"varint,2,opt,name=callType,proto3,enum=bds.evm.TraceCallType" json:"callType,omitempty"`
+	From             []byte                 `protobuf:"bytes,3,opt,name=from,proto3" json:"from,omitempty"`
+	To               []byte                 `protobuf:"bytes,4,opt,name=to,proto3,oneof" json:"to,omitempty"`
+	Value            string                 `protobuf:"bytes,5,opt,name=value,proto3" json:"value,omitempty"`
+	Input            []byte                 `protobuf:"bytes,6,opt,name=input,proto3" json:"input,omitempty"`
+	Output           []byte                 `protobuf:"bytes,7,opt,name=output,proto3" json:"output,omitempty"`
+	Gas              uint64                 `protobuf:"varint,8,opt,name=gas,proto3" json:"gas,omitempty"`
+	GasUsed          uint64                 `protobuf:"varint,9,opt,name=gasUsed,proto3" json:"gasUsed,omitempty"`
+	Error            *string                `protobuf:"bytes,10,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	Subtraces        uint32                 `protobuf:"varint,11,opt,name=subtraces,proto3" json:"subtraces,omitempty"`
+	TraceAddress     []uint32               `protobuf:"varint,12,rep,packed,name=traceAddress,proto3" json:"traceAddress,omitempty"`
+	TransactionHash  []byte                 `protobuf:"bytes,13,opt,name=transactionHash,proto3" json:"transactionHash,omitempty"`
+	TransactionIndex uint32                 `protobuf:"varint,14,opt,name=transactionIndex,proto3" json:"transactionIndex,omitempty"`
+	BlockNumber      uint64                 `protobuf:"varint,15,opt,name=blockNumber,proto3" json:"blockNumber,omitempty"`
+	BlockHash        []byte                 `protobuf:"bytes,16,opt,name=blockHash,proto3" json:"blockHash,omitempty"`
+	BlockTimestamp   *uint64                `protobuf:"varint,17,opt,name=blockTimestamp,proto3,oneof" json:"blockTimestamp,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *Trace) Reset() {
+	*x = Trace{}
+	mi := &file_models_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Trace) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Trace) ProtoMessage() {}
+
+func (x *Trace) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Trace.ProtoReflect.Descriptor instead.
+func (*Trace) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Trace) GetTraceType() TraceType {
+	if x != nil {
+		return x.TraceType
+	}
+	return TraceType_TRACE_CALL
+}
+
+func (x *Trace) GetCallType() TraceCallType {
+	if x != nil {
+		return x.CallType
+	}
+	return TraceCallType_TRACE_CALL_CALL
+}
+
+func (x *Trace) GetFrom() []byte {
+	if x != nil {
+		return x.From
+	}
+	return nil
+}
+
+func (x *Trace) GetTo() []byte {
+	if x != nil {
+		return x.To
+	}
+	return nil
+}
+
+func (x *Trace) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *Trace) GetInput() []byte {
+	if x != nil {
+		return x.Input
+	}
+	return nil
+}
+
+func (x *Trace) GetOutput() []byte {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *Trace) GetGas() uint64 {
+	if x != nil {
+		return x.Gas
+	}
+	return 0
+}
+
+func (x *Trace) GetGasUsed() uint64 {
+	if x != nil {
+		return x.GasUsed
+	}
+	return 0
+}
+
+func (x *Trace) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *Trace) GetSubtraces() uint32 {
+	if x != nil {
+		return x.Subtraces
+	}
+	return 0
+}
+
+func (x *Trace) GetTraceAddress() []uint32 {
+	if x != nil {
+		return x.TraceAddress
+	}
+	return nil
+}
+
+func (x *Trace) GetTransactionHash() []byte {
+	if x != nil {
+		return x.TransactionHash
+	}
+	return nil
+}
+
+func (x *Trace) GetTransactionIndex() uint32 {
+	if x != nil {
+		return x.TransactionIndex
+	}
+	return 0
+}
+
+func (x *Trace) GetBlockNumber() uint64 {
+	if x != nil {
+		return x.BlockNumber
+	}
+	return 0
+}
+
+func (x *Trace) GetBlockHash() []byte {
+	if x != nil {
+		return x.BlockHash
+	}
+	return nil
+}
+
+func (x *Trace) GetBlockTimestamp() uint64 {
+	if x != nil && x.BlockTimestamp != nil {
+		return *x.BlockTimestamp
+	}
+	return 0
+}
+
+// A native token transfer extracted from traces
+type NativeTransfer struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	From             []byte                 `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+	To               []byte                 `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+	Value            string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	TransactionHash  []byte                 `protobuf:"bytes,4,opt,name=transactionHash,proto3" json:"transactionHash,omitempty"`
+	TransactionIndex uint32                 `protobuf:"varint,5,opt,name=transactionIndex,proto3" json:"transactionIndex,omitempty"`
+	BlockNumber      uint64                 `protobuf:"varint,6,opt,name=blockNumber,proto3" json:"blockNumber,omitempty"`
+	BlockHash        []byte                 `protobuf:"bytes,7,opt,name=blockHash,proto3" json:"blockHash,omitempty"`
+	TraceAddress     []uint32               `protobuf:"varint,8,rep,packed,name=traceAddress,proto3" json:"traceAddress,omitempty"`
+	BlockTimestamp   *uint64                `protobuf:"varint,9,opt,name=blockTimestamp,proto3,oneof" json:"blockTimestamp,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *NativeTransfer) Reset() {
+	*x = NativeTransfer{}
+	mi := &file_models_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativeTransfer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativeTransfer) ProtoMessage() {}
+
+func (x *NativeTransfer) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativeTransfer.ProtoReflect.Descriptor instead.
+func (*NativeTransfer) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *NativeTransfer) GetFrom() []byte {
+	if x != nil {
+		return x.From
+	}
+	return nil
+}
+
+func (x *NativeTransfer) GetTo() []byte {
+	if x != nil {
+		return x.To
+	}
+	return nil
+}
+
+func (x *NativeTransfer) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *NativeTransfer) GetTransactionHash() []byte {
+	if x != nil {
+		return x.TransactionHash
+	}
+	return nil
+}
+
+func (x *NativeTransfer) GetTransactionIndex() uint32 {
+	if x != nil {
+		return x.TransactionIndex
+	}
+	return 0
+}
+
+func (x *NativeTransfer) GetBlockNumber() uint64 {
+	if x != nil {
+		return x.BlockNumber
+	}
+	return 0
+}
+
+func (x *NativeTransfer) GetBlockHash() []byte {
+	if x != nil {
+		return x.BlockHash
+	}
+	return nil
+}
+
+func (x *NativeTransfer) GetTraceAddress() []uint32 {
+	if x != nil {
+		return x.TraceAddress
+	}
+	return nil
+}
+
+func (x *NativeTransfer) GetBlockTimestamp() uint64 {
+	if x != nil && x.BlockTimestamp != nil {
+		return *x.BlockTimestamp
+	}
+	return 0
+}
+
 var File_models_proto protoreflect.FileDescriptor
 
 const file_models_proto_rawDesc = "" +
@@ -2111,14 +2498,58 @@ const file_models_proto_rawDesc = "" +
 	"\r_depositNonceB\x18\n" +
 	"\x16_depositReceiptVersionB\x10\n" +
 	"\x0e_l1BlobBaseFeeB\x16\n" +
-	"\x14_l1BlobBaseFeeScalar*W\n" +
+	"\x14_l1BlobBaseFeeScalar\"\xca\x04\n" +
+	"\x05Trace\x120\n" +
+	"\ttraceType\x18\x01 \x01(\x0e2\x12.bds.evm.TraceTypeR\ttraceType\x122\n" +
+	"\bcallType\x18\x02 \x01(\x0e2\x16.bds.evm.TraceCallTypeR\bcallType\x12\x12\n" +
+	"\x04from\x18\x03 \x01(\fR\x04from\x12\x13\n" +
+	"\x02to\x18\x04 \x01(\fH\x00R\x02to\x88\x01\x01\x12\x14\n" +
+	"\x05value\x18\x05 \x01(\tR\x05value\x12\x14\n" +
+	"\x05input\x18\x06 \x01(\fR\x05input\x12\x16\n" +
+	"\x06output\x18\a \x01(\fR\x06output\x12\x10\n" +
+	"\x03gas\x18\b \x01(\x04R\x03gas\x12\x18\n" +
+	"\agasUsed\x18\t \x01(\x04R\agasUsed\x12\x19\n" +
+	"\x05error\x18\n" +
+	" \x01(\tH\x01R\x05error\x88\x01\x01\x12\x1c\n" +
+	"\tsubtraces\x18\v \x01(\rR\tsubtraces\x12\"\n" +
+	"\ftraceAddress\x18\f \x03(\rR\ftraceAddress\x12(\n" +
+	"\x0ftransactionHash\x18\r \x01(\fR\x0ftransactionHash\x12*\n" +
+	"\x10transactionIndex\x18\x0e \x01(\rR\x10transactionIndex\x12 \n" +
+	"\vblockNumber\x18\x0f \x01(\x04R\vblockNumber\x12\x1c\n" +
+	"\tblockHash\x18\x10 \x01(\fR\tblockHash\x12+\n" +
+	"\x0eblockTimestamp\x18\x11 \x01(\x04H\x02R\x0eblockTimestamp\x88\x01\x01B\x05\n" +
+	"\x03_toB\b\n" +
+	"\x06_errorB\x11\n" +
+	"\x0f_blockTimestamp\"\xc4\x02\n" +
+	"\x0eNativeTransfer\x12\x12\n" +
+	"\x04from\x18\x01 \x01(\fR\x04from\x12\x0e\n" +
+	"\x02to\x18\x02 \x01(\fR\x02to\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\x12(\n" +
+	"\x0ftransactionHash\x18\x04 \x01(\fR\x0ftransactionHash\x12*\n" +
+	"\x10transactionIndex\x18\x05 \x01(\rR\x10transactionIndex\x12 \n" +
+	"\vblockNumber\x18\x06 \x01(\x04R\vblockNumber\x12\x1c\n" +
+	"\tblockHash\x18\a \x01(\fR\tblockHash\x12\"\n" +
+	"\ftraceAddress\x18\b \x03(\rR\ftraceAddress\x12+\n" +
+	"\x0eblockTimestamp\x18\t \x01(\x04H\x00R\x0eblockTimestamp\x88\x01\x01B\x11\n" +
+	"\x0f_blockTimestamp*W\n" +
 	"\x0fTransactionType\x12\n" +
 	"\n" +
 	"\x06LEGACY\x10\x00\x12\x0f\n" +
 	"\vACCESS_LIST\x10\x01\x12\x0f\n" +
 	"\vDYNAMIC_FEE\x10\x02\x12\b\n" +
 	"\x04BLOB\x10\x03\x12\f\n" +
-	"\bSET_CODE\x10\x04B4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
+	"\bSET_CODE\x10\x04*W\n" +
+	"\tTraceType\x12\x0e\n" +
+	"\n" +
+	"TRACE_CALL\x10\x00\x12\x10\n" +
+	"\fTRACE_CREATE\x10\x01\x12\x16\n" +
+	"\x12TRACE_SELFDESTRUCT\x10\x02\x12\x10\n" +
+	"\fTRACE_REWARD\x10\x03*u\n" +
+	"\rTraceCallType\x12\x13\n" +
+	"\x0fTRACE_CALL_CALL\x10\x00\x12\x19\n" +
+	"\x15TRACE_CALL_STATICCALL\x10\x01\x12\x1b\n" +
+	"\x17TRACE_CALL_DELEGATECALL\x10\x02\x12\x17\n" +
+	"\x13TRACE_CALL_CALLCODE\x10\x03B4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
 
 var (
 	file_models_proto_rawDescOnce sync.Once
@@ -2132,35 +2563,41 @@ func file_models_proto_rawDescGZIP() []byte {
 	return file_models_proto_rawDescData
 }
 
-var file_models_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_models_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_models_proto_goTypes = []any{
 	(TransactionType)(0),          // 0: bds.evm.TransactionType
-	(*BlockRef)(nil),              // 1: bds.evm.BlockRef
-	(*BlockHeader)(nil),           // 2: bds.evm.BlockHeader
-	(*Block)(nil),                 // 3: bds.evm.Block
-	(*TransactionRef)(nil),        // 4: bds.evm.TransactionRef
-	(*Transaction)(nil),           // 5: bds.evm.Transaction
-	(*AccessListItem)(nil),        // 6: bds.evm.AccessListItem
-	(*Log)(nil),                   // 7: bds.evm.Log
-	(*AuthorizationListItem)(nil), // 8: bds.evm.AuthorizationListItem
-	(*Withdrawal)(nil),            // 9: bds.evm.Withdrawal
-	(*Receipt)(nil),               // 10: bds.evm.Receipt
+	(TraceType)(0),                // 1: bds.evm.TraceType
+	(TraceCallType)(0),            // 2: bds.evm.TraceCallType
+	(*BlockRef)(nil),              // 3: bds.evm.BlockRef
+	(*BlockHeader)(nil),           // 4: bds.evm.BlockHeader
+	(*Block)(nil),                 // 5: bds.evm.Block
+	(*TransactionRef)(nil),        // 6: bds.evm.TransactionRef
+	(*Transaction)(nil),           // 7: bds.evm.Transaction
+	(*AccessListItem)(nil),        // 8: bds.evm.AccessListItem
+	(*Log)(nil),                   // 9: bds.evm.Log
+	(*AuthorizationListItem)(nil), // 10: bds.evm.AuthorizationListItem
+	(*Withdrawal)(nil),            // 11: bds.evm.Withdrawal
+	(*Receipt)(nil),               // 12: bds.evm.Receipt
+	(*Trace)(nil),                 // 13: bds.evm.Trace
+	(*NativeTransfer)(nil),        // 14: bds.evm.NativeTransfer
 }
 var file_models_proto_depIdxs = []int32{
-	2, // 0: bds.evm.Block.header:type_name -> bds.evm.BlockHeader
-	5, // 1: bds.evm.Block.fullTransactions:type_name -> bds.evm.Transaction
-	7, // 2: bds.evm.Block.logs:type_name -> bds.evm.Log
-	9, // 3: bds.evm.Block.withdrawals:type_name -> bds.evm.Withdrawal
-	1, // 4: bds.evm.TransactionRef.block:type_name -> bds.evm.BlockRef
-	6, // 5: bds.evm.Transaction.accessList:type_name -> bds.evm.AccessListItem
-	8, // 6: bds.evm.Transaction.authorizationList:type_name -> bds.evm.AuthorizationListItem
-	7, // 7: bds.evm.Receipt.logs:type_name -> bds.evm.Log
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	4,  // 0: bds.evm.Block.header:type_name -> bds.evm.BlockHeader
+	7,  // 1: bds.evm.Block.fullTransactions:type_name -> bds.evm.Transaction
+	9,  // 2: bds.evm.Block.logs:type_name -> bds.evm.Log
+	11, // 3: bds.evm.Block.withdrawals:type_name -> bds.evm.Withdrawal
+	3,  // 4: bds.evm.TransactionRef.block:type_name -> bds.evm.BlockRef
+	8,  // 5: bds.evm.Transaction.accessList:type_name -> bds.evm.AccessListItem
+	10, // 6: bds.evm.Transaction.authorizationList:type_name -> bds.evm.AuthorizationListItem
+	9,  // 7: bds.evm.Receipt.logs:type_name -> bds.evm.Log
+	1,  // 8: bds.evm.Trace.traceType:type_name -> bds.evm.TraceType
+	2,  // 9: bds.evm.Trace.callType:type_name -> bds.evm.TraceCallType
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_models_proto_init() }
@@ -2172,13 +2609,15 @@ func file_models_proto_init() {
 	file_models_proto_msgTypes[4].OneofWrappers = []any{}
 	file_models_proto_msgTypes[6].OneofWrappers = []any{}
 	file_models_proto_msgTypes[9].OneofWrappers = []any{}
+	file_models_proto_msgTypes[10].OneofWrappers = []any{}
+	file_models_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_models_proto_rawDesc), len(file_models_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   10,
+			NumEnums:      3,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
