@@ -340,9 +340,6 @@ message Transaction {
   // Amount of native currency minted alongside the transaction execution on some L2 systems (e.g., deposit value bridged from L1), in wei.
   // Hex-encoded decimal string, similar to value and other fee fields. Absent or 0x0 when not applicable.
   optional string mint = 53;
-   
-  // Scalar for DA footprint gas calculation on L2s. Used to calculate the DA footprint gas for the transaction.
-  optional uint64 daFootprintGasScalar = 54;
 }
 
 // Represents an entry in an EIP-2930 access list. Pre-declares addresses and storage slots that will be accessed during transaction execution, enabling gas savings through reduced cold access costs
@@ -523,6 +520,9 @@ message Receipt {
 
   // Scalar for L1 blob base fee calculations on L2s. Similar to l1BaseFeeScalar but for blob data costs. Adjustable by L2 operators. Used after EIP-4844 activation to calculate data availability costs via blobs
   optional uint64 l1BlobBaseFeeScalar = 31;
+
+  // Scalar for DA footprint gas calculation on L2s. Used to calculate the DA footprint gas for the transaction.
+  optional uint64 daFootprintGasScalar = 32;
 }
 
 // Trace types for debug_traceBlockByNumber / trace_block output
