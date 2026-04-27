@@ -342,7 +342,7 @@ message Transaction {
   optional string mint = 53;
    
   // Scalar for DA footprint gas calculation on L2s. Used to calculate the DA footprint gas for the transaction.
-  optional uint64 daFootprintGasScalar = 54
+  optional uint64 daFootprintGasScalar = 54;
 }
 
 // Represents an entry in an EIP-2930 access list. Pre-declares addresses and storage slots that will be accessed during transaction execution, enabling gas savings through reduced cold access costs
