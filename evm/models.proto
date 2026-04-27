@@ -520,6 +520,9 @@ message Receipt {
 
   // Scalar for L1 blob base fee calculations on L2s. Similar to l1BaseFeeScalar but for blob data costs. Adjustable by L2 operators. Used after EIP-4844 activation to calculate data availability costs via blobs
   optional uint64 l1BlobBaseFeeScalar = 31;
+
+  // Scalar for DA footprint gas calculation on L2s. Used to calculate the DA footprint gas for the transaction.
+  optional uint64 daFootprintGasScalar = 32;
 }
 
 // Trace types for debug_traceBlockByNumber / trace_block output
