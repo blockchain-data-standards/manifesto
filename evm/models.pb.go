@@ -1673,8 +1673,10 @@ type Receipt struct {
 	L1BlobBaseFee *string `protobuf:"bytes,30,opt,name=l1BlobBaseFee,proto3,oneof" json:"l1BlobBaseFee,omitempty"`
 	// Scalar for L1 blob base fee calculations on L2s. Similar to l1BaseFeeScalar but for blob data costs. Adjustable by L2 operators. Used after EIP-4844 activation to calculate data availability costs via blobs
 	L1BlobBaseFeeScalar *uint64 `protobuf:"varint,31,opt,name=l1BlobBaseFeeScalar,proto3,oneof" json:"l1BlobBaseFeeScalar,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Scalar for DA footprint gas calculation on L2s. Used to calculate the DA footprint gas for the transaction.
+	DaFootprintGasScalar *uint64 `protobuf:"varint,32,opt,name=daFootprintGasScalar,proto3,oneof" json:"daFootprintGasScalar,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *Receipt) Reset() {
@@ -1920,6 +1922,13 @@ func (x *Receipt) GetL1BlobBaseFee() string {
 func (x *Receipt) GetL1BlobBaseFeeScalar() uint64 {
 	if x != nil && x.L1BlobBaseFeeScalar != nil {
 		return *x.L1BlobBaseFeeScalar
+	}
+	return 0
+}
+
+func (x *Receipt) GetDaFootprintGasScalar() uint64 {
+	if x != nil && x.DaFootprintGasScalar != nil {
+		return *x.DaFootprintGasScalar
 	}
 	return 0
 }
@@ -2439,7 +2448,7 @@ const file_models_proto_rawDesc = "" +
 	"\x05index\x18\x01 \x01(\x04R\x05index\x12&\n" +
 	"\x0evalidatorIndex\x18\x02 \x01(\x04R\x0evalidatorIndex\x12\x18\n" +
 	"\aaddress\x18\x03 \x01(\fR\aaddress\x12\x16\n" +
-	"\x06amount\x18\x04 \x01(\x04R\x06amount\"\xd8\v\n" +
+	"\x06amount\x18\x04 \x01(\x04R\x06amount\"\xaa\f\n" +
 	"\aReceipt\x12(\n" +
 	"\x0ftransactionHash\x18\x01 \x01(\fR\x0ftransactionHash\x12 \n" +
 	"\vblockNumber\x18\x02 \x01(\x04R\vblockNumber\x12\x1c\n" +
@@ -2477,7 +2486,8 @@ const file_models_proto_rawDesc = "" +
 	"\fdepositNonce\x18\x1c \x01(\tH\x10R\fdepositNonce\x88\x01\x01\x129\n" +
 	"\x15depositReceiptVersion\x18\x1d \x01(\tH\x11R\x15depositReceiptVersion\x88\x01\x01\x12)\n" +
 	"\rl1BlobBaseFee\x18\x1e \x01(\tH\x12R\rl1BlobBaseFee\x88\x01\x01\x125\n" +
-	"\x13l1BlobBaseFeeScalar\x18\x1f \x01(\x04H\x13R\x13l1BlobBaseFeeScalar\x88\x01\x01B\x05\n" +
+	"\x13l1BlobBaseFeeScalar\x18\x1f \x01(\x04H\x13R\x13l1BlobBaseFeeScalar\x88\x01\x01\x127\n" +
+	"\x14daFootprintGasScalar\x18  \x01(\x04H\x14R\x14daFootprintGasScalar\x88\x01\x01B\x05\n" +
 	"\x03_toB\t\n" +
 	"\a_statusB\x12\n" +
 	"\x10_contractAddressB\a\n" +
@@ -2498,7 +2508,8 @@ const file_models_proto_rawDesc = "" +
 	"\r_depositNonceB\x18\n" +
 	"\x16_depositReceiptVersionB\x10\n" +
 	"\x0e_l1BlobBaseFeeB\x16\n" +
-	"\x14_l1BlobBaseFeeScalar\"\xca\x04\n" +
+	"\x14_l1BlobBaseFeeScalarB\x17\n" +
+	"\x15_daFootprintGasScalar\"\xca\x04\n" +
 	"\x05Trace\x120\n" +
 	"\ttraceType\x18\x01 \x01(\x0e2\x12.bds.evm.TraceTypeR\ttraceType\x122\n" +
 	"\bcallType\x18\x02 \x01(\x0e2\x16.bds.evm.TraceCallTypeR\bcallType\x12\x12\n" +
