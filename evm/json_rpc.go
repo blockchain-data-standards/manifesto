@@ -401,7 +401,8 @@ type JsonRpcReceipt struct {
 	L1FeeScalar           string          `json:"l1FeeScalar"`
 	L1BaseFeeScalar       string          `json:"l1BaseFeeScalar"`
 	L1BlobBaseFee         string          `json:"l1BlobBaseFee"`
-	L1BlobBaseFeeScalar   string          `json:"l1BlobBaseFeeScalar"`
+	L1BlobBaseFeeScalar    string          `json:"l1BlobBaseFeeScalar"`
+	DaFootprintGasScalar   string          `json:"daFootprintGasScalar"`
 	GasUsedForL1          string          `json:"gasUsedForL1"`
 	L1BlockNumber         string          `json:"l1BlockNumber"`
 	GatewayFee            string          `json:"gatewayFee"`
@@ -566,6 +567,14 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 		}
 		l1BlobBaseFeeScalar = &scl
 	}
+	var daFootprintGasScalar *uint64
+	if r.DaFootprintGasScalar != "" {
+		scl, err := NumberishToUint64(r.DaFootprintGasScalar)
+		if err != nil {
+			return nil, err
+		}
+		daFootprintGasScalar = &scl
+	}
 	var gatewayFee *string
 	if r.GatewayFee != "" {
 		gatewayFee = &r.GatewayFee
@@ -622,7 +631,8 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 		L1FeeScalar:           l1FeeScalar,
 		L1BaseFeeScalar:       l1BaseFeeScalar,
 		L1BlobBaseFee:         l1BlobBaseFee,
-		L1BlobBaseFeeScalar:   l1BlobBaseFeeScalar,
+		L1BlobBaseFeeScalar:  l1BlobBaseFeeScalar,
+		DaFootprintGasScalar: daFootprintGasScalar,
 		GasUsedForL1:          gasUsedForL1,
 		L1BlockNumber:         l1BlockNumber,
 		GatewayFee:            gatewayFee,
@@ -1138,6 +1148,9 @@ func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 	}
 	if r.L1BlobBaseFeeScalar != nil {
 		out["l1BlobBaseFeeScalar"] = fmt.Sprintf("0x%x", *r.L1BlobBaseFeeScalar)
+	}
+	if r.DaFootprintGasScalar != nil {
+		out["daFootprintGasScalar"] = fmt.Sprintf("0x%x", *r.DaFootprintGasScalar)
 	}
 	if r.DepositNonce != nil {
 		if hex, err := DecimalStringToHex(*r.DepositNonce); err == nil {
