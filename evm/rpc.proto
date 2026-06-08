@@ -10,6 +10,13 @@ import "models.proto";
 service RPCQueryService {
   rpc ChainId(ChainIdRequest) returns (ChainIdResponse);
 
+  // Get the latest block number the provider can currently serve (equivalent to eth_blockNumber).
+  //
+  // Unlike a consensus node, a data provider returns the head of its materialized view, which MAY
+  // lag the chain tip — this is NOT a node liveness/consensus signal. Consumers that need
+  // tip-freshness should assess it via a block timestamp (e.g. GetBlockByNumber("latest")).
+  rpc BlockNumber(BlockNumberRequest) returns (BlockNumberResponse);
+
   // Get a block by its number (equivalent to eth_getBlockByNumber)
   rpc GetBlockByNumber(GetBlockByNumberRequest) returns (GetBlockResponse);
   
@@ -38,6 +45,22 @@ message ChainIdResponse {
   // EIP-155 chain ID
   uint64 chainId = 1;
   bytes genesisHash = 2;
+}
+
+// Request for getting the latest block number
+message BlockNumberRequest {
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 1;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 2;
+}
+
+// Response containing the latest block number the provider can serve
+message BlockNumberResponse {
+  // The latest block number available from this provider's materialized view.
+  // MAY lag the chain tip (see the BlockNumber rpc doc).
+  uint64 blockNumber = 1;
 }
 
 // Request for getting a block by number

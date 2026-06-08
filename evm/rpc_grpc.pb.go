@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	RPCQueryService_ChainId_FullMethodName               = "/bds.evm.RPCQueryService/ChainId"
+	RPCQueryService_BlockNumber_FullMethodName           = "/bds.evm.RPCQueryService/BlockNumber"
 	RPCQueryService_GetBlockByNumber_FullMethodName      = "/bds.evm.RPCQueryService/GetBlockByNumber"
 	RPCQueryService_GetBlockByHash_FullMethodName        = "/bds.evm.RPCQueryService/GetBlockByHash"
 	RPCQueryService_GetLogs_FullMethodName               = "/bds.evm.RPCQueryService/GetLogs"
@@ -36,6 +37,12 @@ const (
 // Equivalent to Ethereum JSON-RPC methods for node interactions
 type RPCQueryServiceClient interface {
 	ChainId(ctx context.Context, in *ChainIdRequest, opts ...grpc.CallOption) (*ChainIdResponse, error)
+	// Get the latest block number the provider can currently serve (equivalent to eth_blockNumber).
+	//
+	// Unlike a consensus node, a data provider returns the head of its materialized view, which MAY
+	// lag the chain tip — this is NOT a node liveness/consensus signal. Consumers that need
+	// tip-freshness should assess it via a block timestamp (e.g. GetBlockByNumber("latest")).
+	BlockNumber(ctx context.Context, in *BlockNumberRequest, opts ...grpc.CallOption) (*BlockNumberResponse, error)
 	// Get a block by its number (equivalent to eth_getBlockByNumber)
 	GetBlockByNumber(ctx context.Context, in *GetBlockByNumberRequest, opts ...grpc.CallOption) (*GetBlockResponse, error)
 	// Get a block by its hash (equivalent to eth_getBlockByHash)
@@ -62,6 +69,16 @@ func (c *rPCQueryServiceClient) ChainId(ctx context.Context, in *ChainIdRequest,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ChainIdResponse)
 	err := c.cc.Invoke(ctx, RPCQueryService_ChainId_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rPCQueryServiceClient) BlockNumber(ctx context.Context, in *BlockNumberRequest, opts ...grpc.CallOption) (*BlockNumberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BlockNumberResponse)
+	err := c.cc.Invoke(ctx, RPCQueryService_BlockNumber_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +153,12 @@ func (c *rPCQueryServiceClient) GetBlockReceipts(ctx context.Context, in *GetBlo
 // Equivalent to Ethereum JSON-RPC methods for node interactions
 type RPCQueryServiceServer interface {
 	ChainId(context.Context, *ChainIdRequest) (*ChainIdResponse, error)
+	// Get the latest block number the provider can currently serve (equivalent to eth_blockNumber).
+	//
+	// Unlike a consensus node, a data provider returns the head of its materialized view, which MAY
+	// lag the chain tip — this is NOT a node liveness/consensus signal. Consumers that need
+	// tip-freshness should assess it via a block timestamp (e.g. GetBlockByNumber("latest")).
+	BlockNumber(context.Context, *BlockNumberRequest) (*BlockNumberResponse, error)
 	// Get a block by its number (equivalent to eth_getBlockByNumber)
 	GetBlockByNumber(context.Context, *GetBlockByNumberRequest) (*GetBlockResponse, error)
 	// Get a block by its hash (equivalent to eth_getBlockByHash)
@@ -160,6 +183,9 @@ type UnimplementedRPCQueryServiceServer struct{}
 
 func (UnimplementedRPCQueryServiceServer) ChainId(context.Context, *ChainIdRequest) (*ChainIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ChainId not implemented")
+}
+func (UnimplementedRPCQueryServiceServer) BlockNumber(context.Context, *BlockNumberRequest) (*BlockNumberResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlockNumber not implemented")
 }
 func (UnimplementedRPCQueryServiceServer) GetBlockByNumber(context.Context, *GetBlockByNumberRequest) (*GetBlockResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBlockByNumber not implemented")
@@ -214,6 +240,24 @@ func _RPCQueryService_ChainId_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RPCQueryServiceServer).ChainId(ctx, req.(*ChainIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RPCQueryService_BlockNumber_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BlockNumberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RPCQueryServiceServer).BlockNumber(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RPCQueryService_BlockNumber_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RPCQueryServiceServer).BlockNumber(ctx, req.(*BlockNumberRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -336,6 +380,10 @@ var RPCQueryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ChainId",
 			Handler:    _RPCQueryService_ChainId_Handler,
+		},
+		{
+			MethodName: "BlockNumber",
+			Handler:    _RPCQueryService_BlockNumber_Handler,
 		},
 		{
 			MethodName: "GetBlockByNumber",
