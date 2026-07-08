@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package bds.evm;
+option go_package = "github.com/blockchain-data-standards/manifesto/evm";
+
+import "models.proto";
+
+// Service for streaming subscriptions over chain data.
+//
+// Unlike the request/response RPCQueryService and the paginated QueryService,
+// StreamService opens a long-lived server stream that pushes one message per new
+// item as the chain advances. A provider feeds it from whatever head source it
+// has (a state poller, a gap-free chain view, …); the wire contract is the same
+// everywhere.
+service StreamService {
+  // Stream block headers as the chain head advances. The server sends one
+  // StreamBlocksResponse per new block, in ascending block-number order, until
+  // the client cancels the stream. A provider that observes a head jump backfills
+  // the intervening blocks so no block number is skipped.
+  rpc StreamBlocks(StreamBlocksRequest) returns (stream StreamBlocksResponse);
+}
+
+// Request to subscribe to new blocks.
+message StreamBlocksRequest {
+  // Optional chain ID to use for the request (routing is primarily via transport
+  // metadata; this is the same optional override the other EVM services accept).
+  optional uint64 chainId = 1;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID.
+  optional bytes chainGenesisHash = 2;
+
+  // Content-selection flags are added here as the stream is extended beyond
+  // headers (transaction hashes, full transactions, logs, …). Header-only today.
+}
+
+// A single new block pushed to the subscriber.
+message StreamBlocksResponse {
+  // The new block's header.
+  BlockHeader header = 1;
+
+  // Transactions / logs / etc. are added here alongside the header as the stream
+  // is extended, gated by the request's content-selection flags. Header-only today.
+}
