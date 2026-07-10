@@ -1,0 +1,27 @@
+[package]
+name = "bds"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Rust bindings for the Blockchain Data Standards (BDS) protobuf definitions, with JSON-RPC mapping helpers for the EVM family"
+repository = "https://github.com/blockchain-data-standards/manifesto"
+keywords = ["blockchain", "ethereum", "grpc", "protobuf", "json-rpc"]
+categories = ["encoding", "api-bindings"]
+
+[dependencies]
+# Generated message types (`bytes::Bytes`-backed byte fields).
+bytes = "1"
+prost = "0.14"
+# `google.protobuf.Any` in bds.common error details.
+prost-types = "0.14"
+# JSON-RPC <-> BDS mapping helpers (evm::json_rpc).
+serde_json = "1"
+thiserror = "2"
+# Generated client + server stubs.
+tonic = "0.14"
+tonic-prost = "0.14"
+
+[build-dependencies]
+# Pure-Rust protobuf compilation — building this crate needs no system protoc.
+protox = "0.9"
+tonic-prost-build = "0.14"
