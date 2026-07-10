@@ -1,0 +1,4 @@
+# Library crate consumed as a git dependency — consumers resolve their own
+# lockfiles, so we don't commit one here.
+/target
+Cargo.lock
