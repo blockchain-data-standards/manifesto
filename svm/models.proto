@@ -1,0 +1,145 @@
+syntax = "proto3";
+
+package bds.svm;
+option go_package = "github.com/blockchain-data-standards/manifesto/svm";
+
+// SVM (Solana Virtual Machine) chain-family data models.
+//
+// Field shapes closely follow Agave's
+// `solana-storage-proto` ConfirmedBlock (the de-facto archive fidelity
+// reference used by Bigtable) with BDS conventions applied.
+//
+// Encoding conventions (mirrors bds.evm):
+// - Pubkeys/addresses: 32-byte `bytes`. Signatures: 64-byte `bytes`.
+//   Blockhashes: 32-byte `bytes`.
+// - Lamports, fees, slots, compute units: `uint64`.
+// - Transaction errors: the JSON-stringified `err` object exactly as Solana
+//   JSON-RPC renders it (e.g. `{"InstructionError":[0,{"Custom":1}]}`).
+//   Absent = success. `status` is derived (`err` absent => `{"Ok":null}`).
+
+// A confirmed (finalized-sealed) block at a slot.
+message ConfirmedBlock {
+  uint64 slot = 1;
+  bytes blockhash = 2;
+  bytes previousBlockhash = 3;
+  uint64 parentSlot = 4;
+  optional uint64 blockHeight = 5;
+  optional int64 blockTime = 6;
+  repeated ConfirmedTransaction transactions = 7;
+  repeated Reward rewards = 8;
+  // SIMD-0118: present on epoch-boundary blocks since mainnet epoch 707.
+  optional uint64 numRewardPartitions = 9;
+}
+
+// A transaction plus its status meta, as stored in a block.
+message ConfirmedTransaction {
+  Transaction transaction = 1;
+  optional TransactionStatusMeta meta = 2;
+  // "legacy" or "0". Absent when unknown. Serving layers must apply
+  // maxSupportedTransactionVersion gating (a v0 transaction returned to a
+  // client that did not opt in is a protocol error, Agave code -32015).
+  optional string version = 3;
+}
+
+message Transaction {
+  // First signature is the transaction id.
+  repeated bytes signatures = 1;
+  Message message = 2;
+}
+
+message Message {
+  MessageHeader header = 1;
+  repeated bytes accountKeys = 2;
+  bytes recentBlockhash = 3;
+  repeated CompiledInstruction instructions = 4;
+  // v0 transactions only; empty for legacy.
+  repeated AddressTableLookup addressTableLookups = 5;
+}
+
+message MessageHeader {
+  uint32 numRequiredSignatures = 1;
+  uint32 numReadonlySignedAccounts = 2;
+  uint32 numReadonlyUnsignedAccounts = 3;
+}
+
+message CompiledInstruction {
+  uint32 programIdIndex = 1;
+  // Indexes into the combined account key list.
+  bytes accounts = 2;
+  // Raw instruction data (decoded from the base58 wire form).
+  bytes data = 3;
+  optional uint32 stackHeight = 4;
+}
+
+message AddressTableLookup {
+  bytes accountKey = 1;
+  bytes writableIndexes = 2;
+  bytes readonlyIndexes = 3;
+}
+
+message TransactionStatusMeta {
+  // JSON-stringified TransactionError; absent = success.
+  optional string err = 1;
+  uint64 fee = 2;
+  repeated uint64 preBalances = 3;
+  repeated uint64 postBalances = 4;
+  repeated InnerInstructions innerInstructions = 5;
+  // True when the source data had `innerInstructions: null` (pre-recording
+  // history) as opposed to an empty list.
+  bool innerInstructionsNone = 6;
+  repeated string logMessages = 7;
+  bool logMessagesNone = 8;
+  repeated TokenBalance preTokenBalances = 9;
+  bool preTokenBalancesNone = 10;
+  repeated TokenBalance postTokenBalances = 11;
+  bool postTokenBalancesNone = 12;
+  repeated Reward rewards = 13;
+  bool rewardsNone = 14;
+  // v0 address-table-resolved accounts; empty for legacy transactions.
+  repeated bytes loadedWritableAddresses = 15;
+  repeated bytes loadedReadonlyAddresses = 16;
+  optional ReturnData returnData = 17;
+  optional uint64 computeUnitsConsumed = 18;
+  // Agave v3.x-era addition; absent on older history.
+  optional uint64 costUnits = 19;
+}
+
+message InnerInstructions {
+  // Index of the top-level instruction these inner instructions belong to.
+  uint32 index = 1;
+  repeated CompiledInstruction instructions = 2;
+}
+
+message TokenBalance {
+  uint32 accountIndex = 1;
+  // Mint and owner are base58-decoded 32-byte keys.
+  bytes mint = 2;
+  optional bytes owner = 3;
+  optional bytes programId = 4;
+  UiTokenAmount uiTokenAmount = 5;
+}
+
+message UiTokenAmount {
+  // Raw token amount as a decimal string (u64-range, kept as string per
+  // Solana JSON-RPC; never reformat).
+  string amount = 1;
+  uint32 decimals = 2;
+  // uiAmountString from the source; preferred over the lossy float form.
+  optional string uiAmountString = 3;
+}
+
+message ReturnData {
+  bytes programId = 1;
+  // Raw bytes (decoded from the base64 wire form).
+  bytes data = 2;
+}
+
+message Reward {
+  bytes pubkey = 1;
+  // Can be negative (e.g. rent debits in old history).
+  int64 lamports = 2;
+  optional uint64 postBalance = 3;
+  // "Fee" | "Rent" | "Voting" | "Staking" — kept verbatim.
+  optional string rewardType = 4;
+  optional uint32 commission = 5;
+}
