@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"strconv"
+	"strings"
 )
 
 // Mapping helpers from bds.svm protobuf messages to Solana JSON-RPC wire
@@ -349,19 +350,49 @@ func uiTokenAmountToJsonRpc(a *UiTokenAmount) map[string]interface{} {
 		"amount":   a.Amount,
 		"decimals": a.Decimals,
 	}
+	// uiAmountString is the scaled decimal ("1.5"), never the raw integer.
+	// Derive it by shifting the decimal point in the digit string rather than
+	// via float — token amounts are u64 and lose precision above 2^53.
 	if a.UiAmountString != nil {
 		res["uiAmountString"] = *a.UiAmountString
 	} else {
-		res["uiAmountString"] = a.Amount
+		res["uiAmountString"] = shiftDecimalString(a.Amount, a.Decimals)
 	}
-	// Agave also emits the lossy float form. Derive it from the raw amount so
-	// the wire shape is complete; null when the amount is not parseable.
+	// Agave also emits the lossy float form; keep it for wire completeness.
+	// null when the amount is not parseable.
 	if raw, err := strconv.ParseFloat(a.Amount, 64); err == nil {
 		res["uiAmount"] = raw / math.Pow10(int(a.Decimals))
 	} else {
 		res["uiAmount"] = nil
 	}
 	return res
+}
+
+// shiftDecimalString scales a non-negative integer digit string down by
+// 10^decimals exactly, trimming trailing fraction zeros the way Agave's
+// uiAmountString does ("1.500000" -> "1.5", "1000000" -> "1").
+func shiftDecimalString(amount string, decimals uint32) string {
+	if decimals == 0 || amount == "" {
+		return amount
+	}
+	for _, c := range amount {
+		if c < '0' || c > '9' {
+			return amount // not a plain digit string; pass through untouched
+		}
+	}
+
+	d := int(decimals)
+	if len(amount) <= d {
+		amount = strings.Repeat("0", d-len(amount)+1) + amount
+	}
+	split := len(amount) - d
+	intPart, frac := amount[:split], amount[split:]
+
+	frac = strings.TrimRight(frac, "0")
+	if frac == "" {
+		return intPart
+	}
+	return intPart + "." + frac
 }
 
 func rewardsToJsonRpc(rs []*Reward) []interface{} {

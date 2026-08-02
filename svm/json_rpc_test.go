@@ -279,3 +279,40 @@ func TestBlockRoundTripsThroughEncodingJson(t *testing.T) {
 		t.Fatalf("reward lamports = %v, want -25", first["lamports"])
 	}
 }
+
+// uiAmountString is the SCALED decimal, never the raw integer. Falling back to
+// the raw amount misreports the balance by 10^decimals, and deriving it via
+// float loses precision above 2^53 — token amounts are u64.
+func TestUiAmountStringDerivedWhenAbsent(t *testing.T) {
+	cases := []struct {
+		amount   string
+		decimals uint32
+		want     string
+	}{
+		{"1500000", 6, "1.5"},
+		{"1000000", 6, "1"},  // trailing fraction zeros trimmed
+		{"1", 6, "0.000001"}, // shorter than decimals -> zero padded
+		{"0", 6, "0"},
+		{"123", 0, "123"}, // decimals=0 passes through
+		{"18446744073709551615", 9, "18446744073.709551615"}, // u64 max, exact
+	}
+
+	for _, tc := range cases {
+		got := uiTokenAmountToJsonRpc(&UiTokenAmount{Amount: tc.amount, Decimals: tc.decimals})
+		if got["uiAmountString"] != tc.want {
+			t.Fatalf("amount=%s decimals=%d: uiAmountString = %v, want %q",
+				tc.amount, tc.decimals, got["uiAmountString"], tc.want)
+		}
+		if got["amount"] != tc.amount {
+			t.Fatalf("raw amount must be preserved verbatim, got %v", got["amount"])
+		}
+	}
+
+	// An explicit uiAmountString from the source always wins.
+	explicit := uiTokenAmountToJsonRpc(&UiTokenAmount{
+		Amount: "1500000", Decimals: 6, UiAmountString: str("1.500"),
+	})
+	if explicit["uiAmountString"] != "1.500" {
+		t.Fatalf("source uiAmountString must be preserved, got %v", explicit["uiAmountString"])
+	}
+}
