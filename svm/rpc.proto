@@ -3,7 +3,7 @@ syntax = "proto3";
 package bds.svm;
 option go_package = "github.com/blockchain-data-standards/manifesto/svm";
 
-import "models.proto";
+import "svm/models.proto";
 
 // Equivalent to the Solana JSON-RPC methods servable from immutable
 // block/transaction history (the set Agave itself serves from long-term

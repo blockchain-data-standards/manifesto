@@ -9,7 +9,8 @@
     "generate:evm": "bun run generate:evm:proto",
     "generate:evm:proto": "protoc -I=evm --go_out=evm --go_opt=paths=source_relative --go-grpc_out=evm --go-grpc_opt=paths=source_relative evm/models.proto evm/rpc.proto evm/bulk.proto evm/query.proto evm/stream.proto",
     "generate:common": "bun run generate:common:proto",
-    "generate:common:proto": "protoc -I=common --go_out=common --go_opt=paths=source_relative --go-grpc_out=common --go-grpc_opt=paths=source_relative common/errors.proto"
+    "generate:common:proto": "protoc -I=common --go_out=common --go_opt=paths=source_relative --go-grpc_out=common --go-grpc_opt=paths=source_relative common/errors.proto",
+    "generate:svm:proto": "protoc -I=. --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative svm/models.proto svm/rpc.proto"
   },
   "keywords": [],
   "author": "",
@@ -21,4 +22,4 @@
   "peerDependencies": {
     "typescript": "^5.0.0"
   }
-} 
+}
