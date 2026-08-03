@@ -1,0 +1,213 @@
+syntax = "proto3";
+
+package bds.svm;
+option go_package = "github.com/blockchain-data-standards/manifesto/svm";
+
+import "models.proto";
+
+// Equivalent to the Solana JSON-RPC methods servable from immutable
+// block/transaction history (the set Agave itself serves from long-term
+// storage). Account-state and live-cluster-state methods are deliberately
+// absent — they cannot be answered from an archive.
+//
+// Error/status contract (three layers, see prism plan D8):
+// - Benign absence (above tip, below floor, not ingested) => gRPC OUT_OF_RANGE.
+// - Skipped slots are DATA, not errors: OK responses carry SlotStatus so
+//   consumers can cache "immutably skipped" forever and synthesize Agave's
+//   -32007/-32009.
+// - Version gating (-32015) and minContextSlot (-32016) => FAILED_PRECONDITION.
+// - Server faults (dangling index reference, decode failure) => INTERNAL.
+service RPCQueryService {
+  // Cluster identity (Solana has no numeric chain id; the genesis hash is
+  // the network identity, e.g. mainnet-beta
+  // 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d).
+  rpc GetGenesisHash(GetGenesisHashRequest) returns (GetGenesisHashResponse);
+
+  // Equivalent to `getBlock` (encoding concerns live client-side; the
+  // response is the structured block).
+  rpc GetBlock(GetBlockRequest) returns (GetBlockResponse);
+
+  // Equivalent to `getBlocks`: the non-skipped slots in [startSlot, endSlot].
+  rpc GetBlocks(GetBlocksRequest) returns (GetBlocksResponse);
+
+  // Equivalent to `getBlocksWithLimit`.
+  rpc GetBlocksWithLimit(GetBlocksWithLimitRequest) returns (GetBlocksResponse);
+
+  // Equivalent to `getTransaction`. Not found => OK with unset transaction
+  // (matching JSON-RPC `result: null`).
+  rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
+
+  // Equivalent to `getBlockTime`.
+  rpc GetBlockTime(GetBlockTimeRequest) returns (GetBlockTimeResponse);
+
+  // Equivalent to `getFirstAvailableBlock`: the lake's coverage floor.
+  rpc GetFirstAvailableBlock(GetFirstAvailableBlockRequest) returns (GetFirstAvailableBlockResponse);
+
+  // Equivalent to `getSignatureStatuses` with searchTransactionHistory:true
+  // semantics (archived statuses; confirmations null / finalized unless the
+  // signature is only known to the live tip).
+  rpc GetSignatureStatuses(GetSignatureStatusesRequest) returns (GetSignatureStatusesResponse);
+
+  // Equivalent to `getSignaturesForAddress`: newest-first, exclusive
+  // before/until signature cursors, limit <= 1000.
+  rpc GetSignaturesForAddress(GetSignaturesForAddressRequest) returns (GetSignaturesForAddressResponse);
+}
+
+// Commitment level for read visibility. FINALIZED is the zero value on
+// purpose: it is Agave's default for every history method.
+enum Commitment {
+  COMMITMENT_FINALIZED = 0;
+  COMMITMENT_CONFIRMED = 1;
+}
+
+// Whether a slot holds a block or was skipped (leader produced no block /
+// fork abandoned). Only meaningful for slots at or below the finalized
+// watermark — skip status is not knowable earlier.
+enum SlotStatus {
+  SLOT_PRESENT = 0;
+  SLOT_SKIPPED = 1;
+}
+
+// Mirror of getBlock's transactionDetails parameter.
+enum TransactionDetails {
+  TRANSACTION_DETAILS_FULL = 0;
+  TRANSACTION_DETAILS_ACCOUNTS = 1;
+  TRANSACTION_DETAILS_SIGNATURES = 2;
+  TRANSACTION_DETAILS_NONE = 3;
+}
+
+message GetGenesisHashRequest {
+}
+
+message GetGenesisHashResponse {
+  bytes genesisHash = 1;
+}
+
+message GetBlockRequest {
+  uint64 slot = 1;
+  TransactionDetails transactionDetails = 2;
+  // Inverted so the proto3 default (false) matches Agave's default
+  // (rewards: true).
+  bool excludeRewards = 3;
+  // Only valid value today is 0. Absent => legacy-only client: a block
+  // containing a v0 transaction fails with FAILED_PRECONDITION (-32015).
+  optional uint32 maxSupportedTransactionVersion = 4;
+  Commitment commitment = 5;
+  optional uint64 minContextSlot = 6;
+  // Cluster identity assertion (ADR-0014 pattern); NOT_FOUND on mismatch.
+  optional bytes genesisHash = 7;
+}
+
+message GetBlockResponse {
+  SlotStatus slotStatus = 1;
+  // Unset when slotStatus == SLOT_SKIPPED.
+  ConfirmedBlock block = 2;
+  // For TRANSACTION_DETAILS_SIGNATURES the block carries no transactions;
+  // the flat signature list rides here instead.
+  repeated bytes signatures = 3;
+}
+
+message GetBlocksRequest {
+  uint64 startSlot = 1;
+  // Inclusive. Range capped at 500000 (Agave parity); INVALID_ARGUMENT above.
+  uint64 endSlot = 2;
+  Commitment commitment = 3;
+  optional bytes genesisHash = 4;
+  optional uint64 minContextSlot = 5;
+}
+
+message GetBlocksWithLimitRequest {
+  uint64 startSlot = 1;
+  // Capped at 500000 (Agave parity).
+  uint64 limit = 2;
+  Commitment commitment = 3;
+  optional bytes genesisHash = 4;
+  optional uint64 minContextSlot = 5;
+}
+
+message GetBlocksResponse {
+  repeated uint64 slots = 1;
+}
+
+message GetTransactionRequest {
+  // 64-byte transaction signature (the transaction id).
+  bytes signature = 1;
+  optional uint32 maxSupportedTransactionVersion = 2;
+  Commitment commitment = 3;
+  optional bytes genesisHash = 4;
+  optional uint64 minContextSlot = 5;
+}
+
+message GetTransactionResponse {
+  // Unset => not found (JSON-RPC `result: null`).
+  ConfirmedTransaction transaction = 1;
+  uint64 slot = 2;
+  optional int64 blockTime = 3;
+}
+
+message GetBlockTimeRequest {
+  uint64 slot = 1;
+  optional bytes genesisHash = 2;
+}
+
+message GetBlockTimeResponse {
+  SlotStatus slotStatus = 1;
+  optional int64 blockTime = 2;
+}
+
+message GetFirstAvailableBlockRequest {
+  optional bytes genesisHash = 1;
+}
+
+message GetFirstAvailableBlockResponse {
+  uint64 slot = 1;
+}
+
+message GetSignatureStatusesRequest {
+  // Up to 256 signatures (Agave parity).
+  repeated bytes signatures = 1;
+  optional bytes genesisHash = 2;
+}
+
+message SignatureStatus {
+  // Unset slot + unset confirmationStatus encoding is avoided by `found`.
+  bool found = 1;
+  uint64 slot = 2;
+  // JSON-stringified TransactionError; absent = success.
+  optional string err = 3;
+  Commitment confirmationStatus = 4;
+}
+
+message GetSignatureStatusesResponse {
+  // Parallel to the request order.
+  repeated SignatureStatus statuses = 1;
+}
+
+message GetSignaturesForAddressRequest {
+  // 32-byte account address.
+  bytes address = 1;
+  // Exclusive cursor: start searching backwards from this signature.
+  optional bytes before = 2;
+  // Exclusive cursor: stop when this signature is reached.
+  optional bytes until = 3;
+  // 1..=1000; 0 => default 1000.
+  uint32 limit = 4;
+  Commitment commitment = 5;
+  optional bytes genesisHash = 6;
+  optional uint64 minContextSlot = 7;
+}
+
+message SignatureInfo {
+  bytes signature = 1;
+  uint64 slot = 2;
+  // JSON-stringified TransactionError; absent = success.
+  optional string err = 3;
+  // Agave-formatted memo string ("[len] text"; multiple joined by "; ").
+  optional string memo = 4;
+  optional int64 blockTime = 5;
+}
+
+message GetSignaturesForAddressResponse {
+  // Newest-first.
+  repeated SignatureInfo signatures = 1;
+}
