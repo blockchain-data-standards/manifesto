@@ -185,9 +185,11 @@ func TestReturnDataTuple(t *testing.T) {
 		t.Fatalf("returnData payload = %v, want base64 of {1,2}", tuple[0])
 	}
 
+	// Absent return data omits the key entirely (Agave or_skip semantics, as
+	// captured from a live node in testdata/parsed_golden.json).
 	absent := MetaToJsonRpc(&TransactionStatusMeta{})
-	if v, present := absent["returnData"]; !present || v != nil {
-		t.Fatalf("returnData = %#v, want explicit nil when absent", v)
+	if v, present := absent["returnData"]; present {
+		t.Fatalf("returnData = %#v, want the key omitted when absent", v)
 	}
 }
 

@@ -96,6 +96,15 @@ message GetBlockRequest {
   optional uint64 minContextSlot = 6;
   // Cluster identity assertion (ADR-0014 pattern); NOT_FOUND on mismatch.
   optional bytes genesisHash = 7;
+  // Also run the server's instruction parsers (Agave's parse_instruction set:
+  // system, stake, vote, spl-token, spl-token-2022, spl-memo, spl-associated-
+  // token-account, address-lookup-table, bpf-loader, bpf-upgradeable-loader)
+  // and attach the result to each instruction as CompiledInstruction.parsed.
+  // Instructions of any other program carry no `parsed` and are rendered in
+  // Agave's partiallyDecoded form by the caller — same fallback the node
+  // itself applies. Default false: the parse costs CPU and response bytes,
+  // and `encoding: json` consumers never need it.
+  bool includeParsed = 8;
 }
 
 message GetBlockResponse {

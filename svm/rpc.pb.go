@@ -264,7 +264,16 @@ type GetBlockRequest struct {
 	Commitment                     Commitment `protobuf:"varint,5,opt,name=commitment,proto3,enum=bds.svm.Commitment" json:"commitment,omitempty"`
 	MinContextSlot                 *uint64    `protobuf:"varint,6,opt,name=minContextSlot,proto3,oneof" json:"minContextSlot,omitempty"`
 	// Cluster identity assertion (ADR-0014 pattern); NOT_FOUND on mismatch.
-	GenesisHash   []byte `protobuf:"bytes,7,opt,name=genesisHash,proto3,oneof" json:"genesisHash,omitempty"`
+	GenesisHash []byte `protobuf:"bytes,7,opt,name=genesisHash,proto3,oneof" json:"genesisHash,omitempty"`
+	// Also run the server's instruction parsers (Agave's parse_instruction set:
+	// system, stake, vote, spl-token, spl-token-2022, spl-memo, spl-associated-
+	// token-account, address-lookup-table, bpf-loader, bpf-upgradeable-loader)
+	// and attach the result to each instruction as CompiledInstruction.parsed.
+	// Instructions of any other program carry no `parsed` and are rendered in
+	// Agave's partiallyDecoded form by the caller — same fallback the node
+	// itself applies. Default false: the parse costs CPU and response bytes,
+	// and `encoding: json` consumers never need it.
+	IncludeParsed bool `protobuf:"varint,8,opt,name=includeParsed,proto3" json:"includeParsed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -346,6 +355,13 @@ func (x *GetBlockRequest) GetGenesisHash() []byte {
 		return x.GenesisHash
 	}
 	return nil
+}
+
+func (x *GetBlockRequest) GetIncludeParsed() bool {
+	if x != nil {
+		return x.IncludeParsed
+	}
+	return false
 }
 
 type GetBlockResponse struct {
@@ -1333,7 +1349,7 @@ const file_svm_rpc_proto_rawDesc = "" +
 	"\rsvm/rpc.proto\x12\abds.svm\x1a\x10svm/models.proto\"\x17\n" +
 	"\x15GetGenesisHashRequest\":\n" +
 	"\x16GetGenesisHashResponse\x12 \n" +
-	"\vgenesisHash\x18\x01 \x01(\fR\vgenesisHash\"\xb6\x03\n" +
+	"\vgenesisHash\x18\x01 \x01(\fR\vgenesisHash\"\xdc\x03\n" +
 	"\x0fGetBlockRequest\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x04R\x04slot\x12K\n" +
 	"\x12transactionDetails\x18\x02 \x01(\x0e2\x1b.bds.svm.TransactionDetailsR\x12transactionDetails\x12&\n" +
@@ -1343,7 +1359,8 @@ const file_svm_rpc_proto_rawDesc = "" +
 	"commitment\x18\x05 \x01(\x0e2\x13.bds.svm.CommitmentR\n" +
 	"commitment\x12+\n" +
 	"\x0eminContextSlot\x18\x06 \x01(\x04H\x01R\x0eminContextSlot\x88\x01\x01\x12%\n" +
-	"\vgenesisHash\x18\a \x01(\fH\x02R\vgenesisHash\x88\x01\x01B!\n" +
+	"\vgenesisHash\x18\a \x01(\fH\x02R\vgenesisHash\x88\x01\x01\x12$\n" +
+	"\rincludeParsed\x18\b \x01(\bR\rincludeParsedB!\n" +
 	"\x1f_maxSupportedTransactionVersionB\x11\n" +
 	"\x0f_minContextSlotB\x0e\n" +
 	"\f_genesisHash\"\x96\x01\n" +
