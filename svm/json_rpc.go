@@ -1,6 +1,7 @@
 package svm
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"math"
@@ -384,6 +385,17 @@ func uiTokenAmountToJsonRpc(a *UiTokenAmount) map[string]interface{} {
 	// null when the amount is not parseable AND for a zero amount — in the
 	// captured node output (testdata/parsed_golden.json) all 12 zero-amount
 	// balances carry uiAmount null while all 68 non-zero ones carry a number.
+	//
+	// The float is amount-as-f64 divided by 10^decimals — token_amount_to_
+	// ui_amount_v3's plain path VERBATIM, double rounding included (the int
+	// to f64 conversion rounds first for amounts above 2^53). Do NOT "fix"
+	// this to exact decimal parsing: a 7-block live differential (2026-08-04,
+	// slots 436139374..435900000) showed division matches the node's
+	// getBlock output at 126/154 divergence candidates and its
+	// getTransaction output at ALL of them; the residual 28 getBlock values
+	// sit ±1-2 ulp off, contradict the same provider's own getTransaction
+	// for the same balance, and are unreproducible from any Agave 2.3.13
+	// code path — provider-side storage noise on a deprecated field.
 	if raw, err := strconv.ParseFloat(a.Amount, 64); err == nil && raw != 0 {
 		res["uiAmount"] = raw / math.Pow10(int(a.Decimals))
 	} else {
@@ -584,8 +596,50 @@ func messageToJsonRpcParsed(m *Message, loadedWritable, loadedReadonly [][]byte,
 		roUnsigned = int(m.Header.NumReadonlyUnsignedAccounts)
 	}
 
-	keys := make([]interface{}, 0, numStatic+len(loadedWritable)+len(loadedReadonly))
-	for i, k := range m.AccountKeys {
+	// Writability is header math THEN demotion, exactly Agave's
+	// is_maybe_writable / LoadedMessage::is_writable chain (the getBlock
+	// encode path uses ReservedAccountKeys::new_all_activated for both
+	// message versions):
+	//   writable = requested_writable(i)
+	//     && !reserved_account_keys.contains(key)
+	//     && !(called_as_program(i) && !upgradeable_loader_present)
+	// called_as_program scans TOP-LEVEL instruction program ids only;
+	// upgradeable_loader_present scans every key the message loads (static
+	// for legacy — which is all it has — static+loaded for v0).
+	calledAsProgram := make(map[int]bool, len(m.Instructions))
+	for _, ix := range m.Instructions {
+		if ix != nil {
+			calledAsProgram[int(ix.ProgramIdIndex)] = true
+		}
+	}
+	upgradeableLoaderPresent := false
+	demoted := func(i int, key string) bool {
+		if reservedAccountKeys[key] {
+			return true
+		}
+		return calledAsProgram[i] && !upgradeableLoaderPresent
+	}
+
+	total := numStatic + len(loadedWritable) + len(loadedReadonly)
+	encoded := make([]string, 0, total)
+	for _, k := range m.AccountKeys {
+		encoded = append(encoded, Base58Encode(k))
+	}
+	for _, k := range loadedWritable {
+		encoded = append(encoded, Base58Encode(k))
+	}
+	for _, k := range loadedReadonly {
+		encoded = append(encoded, Base58Encode(k))
+	}
+	for _, k := range encoded {
+		if k == BpfUpgradeableLoaderID {
+			upgradeableLoaderPresent = true
+			break
+		}
+	}
+
+	keys := make([]interface{}, 0, total)
+	for i, k := range encoded[:numStatic] {
 		signer := i < reqSigs
 		var writable bool
 		if signer {
@@ -594,20 +648,22 @@ func messageToJsonRpcParsed(m *Message, loadedWritable, loadedReadonly [][]byte,
 			writable = i < numStatic-roUnsigned
 		}
 		keys = append(keys, map[string]interface{}{
-			"pubkey":   Base58Encode(k),
+			"pubkey":   k,
 			"signer":   signer,
-			"writable": writable,
+			"writable": writable && !demoted(i, k),
 			"source":   "transaction",
 		})
 	}
-	for _, k := range loadedWritable {
+	for j, k := range encoded[numStatic : numStatic+len(loadedWritable)] {
 		keys = append(keys, map[string]interface{}{
-			"pubkey": Base58Encode(k), "signer": false, "writable": true, "source": "lookupTable",
+			"pubkey": k, "signer": false,
+			"writable": !demoted(numStatic+j, k),
+			"source":   "lookupTable",
 		})
 	}
-	for _, k := range loadedReadonly {
+	for _, k := range encoded[numStatic+len(loadedWritable):] {
 		keys = append(keys, map[string]interface{}{
-			"pubkey": Base58Encode(k), "signer": false, "writable": false, "source": "lookupTable",
+			"pubkey": k, "signer": false, "writable": false, "source": "lookupTable",
 		})
 	}
 
@@ -649,8 +705,13 @@ func parsedInstructionToJsonRpc(ci *CompiledInstruction, keys []string) map[stri
 		return nil
 	}
 	if ci.Parsed != nil {
+		// UseNumber: the envelope carries u64 values (lamports, space) that
+		// exceed 2^53 on real mainnet traffic (u64::MAX lamports exists in the
+		// wild); a plain Unmarshal would round them through float64.
+		dec := json.NewDecoder(bytes.NewReader(ci.Parsed))
+		dec.UseNumber()
 		var out map[string]interface{}
-		if err := json.Unmarshal(ci.Parsed, &out); err == nil {
+		if err := dec.Decode(&out); err == nil {
 			return out
 		}
 		// A malformed attachment falls through to partiallyDecoded rather than
