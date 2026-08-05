@@ -391,8 +391,15 @@ type CompiledInstruction struct {
 	// Indexes into the combined account key list.
 	Accounts []byte `protobuf:"bytes,2,opt,name=accounts,proto3" json:"accounts,omitempty"`
 	// Raw instruction data (decoded from the base58 wire form).
-	Data          []byte  `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
-	StackHeight   *uint32 `protobuf:"varint,4,opt,name=stackHeight,proto3,oneof" json:"stackHeight,omitempty"`
+	Data        []byte  `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	StackHeight *uint32 `protobuf:"varint,4,opt,name=stackHeight,proto3,oneof" json:"stackHeight,omitempty"`
+	// Agave's ParsedInstruction for this instruction, serde-serialized JSON —
+	// {"program","programId","parsed":{...},"stackHeight"} — byte-for-byte what
+	// solana-transaction-status emits, so a JSON-RPC layer splices it verbatim.
+	// Present only when the request set includeParsed AND one of Agave's
+	// parsable programs matched; absent means render partiallyDecoded. The
+	// distinction is presence, not emptiness — an empty value never occurs.
+	Parsed        []byte `protobuf:"bytes,5,opt,name=parsed,proto3,oneof" json:"parsed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -453,6 +460,13 @@ func (x *CompiledInstruction) GetStackHeight() uint32 {
 		return *x.StackHeight
 	}
 	return 0
+}
+
+func (x *CompiledInstruction) GetParsed() []byte {
+	if x != nil {
+		return x.Parsed
+	}
+	return nil
 }
 
 type AddressTableLookup struct {
@@ -1074,13 +1088,15 @@ const file_svm_models_proto_rawDesc = "" +
 	"\rMessageHeader\x124\n" +
 	"\x15numRequiredSignatures\x18\x01 \x01(\rR\x15numRequiredSignatures\x12<\n" +
 	"\x19numReadonlySignedAccounts\x18\x02 \x01(\rR\x19numReadonlySignedAccounts\x12@\n" +
-	"\x1bnumReadonlyUnsignedAccounts\x18\x03 \x01(\rR\x1bnumReadonlyUnsignedAccounts\"\xa4\x01\n" +
+	"\x1bnumReadonlyUnsignedAccounts\x18\x03 \x01(\rR\x1bnumReadonlyUnsignedAccounts\"\xcc\x01\n" +
 	"\x13CompiledInstruction\x12&\n" +
 	"\x0eprogramIdIndex\x18\x01 \x01(\rR\x0eprogramIdIndex\x12\x1a\n" +
 	"\baccounts\x18\x02 \x01(\fR\baccounts\x12\x12\n" +
 	"\x04data\x18\x03 \x01(\fR\x04data\x12%\n" +
-	"\vstackHeight\x18\x04 \x01(\rH\x00R\vstackHeight\x88\x01\x01B\x0e\n" +
-	"\f_stackHeight\"\x88\x01\n" +
+	"\vstackHeight\x18\x04 \x01(\rH\x00R\vstackHeight\x88\x01\x01\x12\x1b\n" +
+	"\x06parsed\x18\x05 \x01(\fH\x01R\x06parsed\x88\x01\x01B\x0e\n" +
+	"\f_stackHeightB\t\n" +
+	"\a_parsed\"\x88\x01\n" +
 	"\x12AddressTableLookup\x12\x1e\n" +
 	"\n" +
 	"accountKey\x18\x01 \x01(\fR\n" +

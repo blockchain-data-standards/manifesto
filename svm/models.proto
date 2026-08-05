@@ -69,6 +69,13 @@ message CompiledInstruction {
   // Raw instruction data (decoded from the base58 wire form).
   bytes data = 3;
   optional uint32 stackHeight = 4;
+  // Agave's ParsedInstruction for this instruction, serde-serialized JSON —
+  // {"program","programId","parsed":{...},"stackHeight"} — byte-for-byte what
+  // solana-transaction-status emits, so a JSON-RPC layer splices it verbatim.
+  // Present only when the request set includeParsed AND one of Agave's
+  // parsable programs matched; absent means render partiallyDecoded. The
+  // distinction is presence, not emptiness — an empty value never occurs.
+  optional bytes parsed = 5;
 }
 
 message AddressTableLookup {

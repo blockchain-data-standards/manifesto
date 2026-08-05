@@ -1,6 +1,7 @@
 package svm
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"math"
@@ -91,7 +92,18 @@ func ConfirmedTransactionToJsonRpc(ct *ConfirmedTransaction) map[string]interfac
 
 	res := map[string]interface{}{}
 	if ct.Transaction != nil {
-		res["transaction"] = TransactionToJsonRpc(ct.Transaction)
+		txr := TransactionToJsonRpc(ct.Transaction)
+		// addressTableLookups presence keys on version, not emptiness: a v0
+		// message carries the key even with zero lookups (MessageToJsonRpc
+		// cannot know the version, so the omission is repaired here).
+		if ct.Version != nil && *ct.Version != "legacy" {
+			if msg, ok := txr["message"].(map[string]interface{}); ok {
+				if _, has := msg["addressTableLookups"]; !has {
+					msg["addressTableLookups"] = []interface{}{}
+				}
+			}
+		}
+		res["transaction"] = txr
 	}
 	if ct.Meta != nil {
 		res["meta"] = MetaToJsonRpc(ct.Meta)
@@ -198,6 +210,14 @@ func CompiledInstructionToJsonRpc(ci *CompiledInstruction) map[string]interface{
 // MetaToJsonRpc renders `transaction.meta`, preserving Agave's null-vs-empty
 // distinctions via the proto's *None flags.
 func MetaToJsonRpc(m *TransactionStatusMeta) map[string]interface{} {
+	return metaToJsonRpc(m, CompiledInstructionToJsonRpc, true)
+}
+
+// metaToJsonRpc is the shared meta renderer. Two things differ between
+// `json` and `jsonParsed`: the instruction renderer, and loadedAddresses —
+// present under `json`, OMITTED under `jsonParsed` (Agave merges the loaded
+// keys into the parsed accountKeys instead of repeating them in meta).
+func metaToJsonRpc(m *TransactionStatusMeta, renderIx func(*CompiledInstruction) map[string]interface{}, includeLoadedAddresses bool) map[string]interface{} {
 	if m == nil {
 		return nil
 	}
@@ -231,7 +251,7 @@ func MetaToJsonRpc(m *TransactionStatusMeta) map[string]interface{} {
 		for _, ii := range m.InnerInstructions {
 			instrs := make([]interface{}, 0, len(ii.Instructions))
 			for _, ci := range ii.Instructions {
-				instrs = append(instrs, CompiledInstructionToJsonRpc(ci))
+				instrs = append(instrs, renderIx(ci))
 			}
 			inner = append(inner, map[string]interface{}{
 				"index":        ii.Index,
@@ -271,11 +291,16 @@ func MetaToJsonRpc(m *TransactionStatusMeta) map[string]interface{} {
 	// loadedAddresses is a v0 concept; Agave emits it whenever the client opted
 	// into versioned transactions. Emitting the empty pair for legacy matches
 	// Agave's own behaviour under maxSupportedTransactionVersion.
-	res["loadedAddresses"] = map[string]interface{}{
-		"writable": base58Slice(m.LoadedWritableAddresses),
-		"readonly": base58Slice(m.LoadedReadonlyAddresses),
+	if includeLoadedAddresses {
+		res["loadedAddresses"] = map[string]interface{}{
+			"writable": base58Slice(m.LoadedWritableAddresses),
+			"readonly": base58Slice(m.LoadedReadonlyAddresses),
+		}
 	}
 
+	// Absent return data omits the key entirely (Agave's OptionSerializer
+	// or_skip semantics) — never `returnData: null`. Pinned by the captured
+	// node output in testdata/parsed_golden.json.
 	if m.ReturnData != nil {
 		res["returnData"] = map[string]interface{}{
 			"programId": Base58Encode(m.ReturnData.ProgramId),
@@ -285,8 +310,6 @@ func MetaToJsonRpc(m *TransactionStatusMeta) map[string]interface{} {
 				"base64",
 			},
 		}
-	} else {
-		res["returnData"] = nil
 	}
 
 	if m.ComputeUnitsConsumed != nil {
@@ -359,8 +382,21 @@ func uiTokenAmountToJsonRpc(a *UiTokenAmount) map[string]interface{} {
 		res["uiAmountString"] = shiftDecimalString(a.Amount, a.Decimals)
 	}
 	// Agave also emits the lossy float form; keep it for wire completeness.
-	// null when the amount is not parseable.
-	if raw, err := strconv.ParseFloat(a.Amount, 64); err == nil {
+	// null when the amount is not parseable AND for a zero amount — in the
+	// captured node output (testdata/parsed_golden.json) all 12 zero-amount
+	// balances carry uiAmount null while all 68 non-zero ones carry a number.
+	//
+	// The float is amount-as-f64 divided by 10^decimals — token_amount_to_
+	// ui_amount_v3's plain path VERBATIM, double rounding included (the int
+	// to f64 conversion rounds first for amounts above 2^53). Do NOT "fix"
+	// this to exact decimal parsing: a 7-block live differential (2026-08-04,
+	// slots 436139374..435900000) showed division matches the node's
+	// getBlock output at 126/154 divergence candidates and its
+	// getTransaction output at ALL of them; the residual 28 getBlock values
+	// sit ±1-2 ulp off, contradict the same provider's own getTransaction
+	// for the same balance, and are unreproducible from any Agave 2.3.13
+	// code path — provider-side storage noise on a deprecated field.
+	if raw, err := strconv.ParseFloat(a.Amount, 64); err == nil && raw != 0 {
 		res["uiAmount"] = raw / math.Pow10(int(a.Decimals))
 	} else {
 		res["uiAmount"] = nil
@@ -435,4 +471,276 @@ func base58Slice(bs [][]byte) []interface{} {
 		out = append(out, Base58Encode(b))
 	}
 	return out
+}
+
+// ---------------------------------------------------------------------------
+// encoding: "jsonParsed"
+//
+// The parsed form differs from `json` in exactly three places, all inside the
+// transaction envelope; block-level fields, meta balances, rewards and token
+// balances are byte-identical between the two:
+//
+//   - message.accountKeys: objects {pubkey, signer, writable, source} over the
+//     MERGED key list (static ++ loadedWritable ++ loadedReadonly) instead of
+//     base58 strings of the static list. The message-level `header` key is
+//     omitted (Agave's UiParsedMessage has no header field).
+//   - every instruction (top-level and inner): Agave's ParsedInstruction when
+//     the server attached one (CompiledInstruction.parsed, spliced verbatim),
+//     else Agave's partiallyDecoded form {programId, accounts, data,
+//     stackHeight} with indexes resolved to base58 pubkeys.
+//
+// The signer/writable flags for static keys follow the message header:
+// signer  = i < numRequiredSignatures
+// writable= signers:     i < numRequiredSignatures-numReadonlySignedAccounts
+//           non-signers: i < len(static)-numReadonlyUnsignedAccounts
+// Loaded addresses are never signers; writability is which list they came
+// from. This is the header math only — Agave additionally demotes certain
+// program-id accounts in newer runtime rules; the golden tests pin any
+// divergence when it appears.
+// ---------------------------------------------------------------------------
+
+// BlockToJsonRpcParsed renders `encoding: "jsonParsed"`. See BlockToJsonRpc
+// for the envelope contract (nil block, signatures mode, rewards).
+func BlockToJsonRpcParsed(block *ConfirmedBlock, signatures [][]byte) map[string]interface{} {
+	if block == nil {
+		return nil
+	}
+	res := BlockToJsonRpc(block, signatures)
+	// Signatures mode carries no transactions — nothing to re-render.
+	if signatures != nil || block.Transactions == nil {
+		return res
+	}
+	txs := make([]interface{}, 0, len(block.Transactions))
+	for _, t := range block.Transactions {
+		txs = append(txs, ConfirmedTransactionToJsonRpcParsed(t))
+	}
+	res["transactions"] = txs
+	return res
+}
+
+// ConfirmedTransactionToJsonRpcParsed renders one transactions[] entry in
+// parsed form. The merged key list needs meta (loaded addresses live there),
+// which is why this cannot be a per-message concern.
+func ConfirmedTransactionToJsonRpcParsed(ct *ConfirmedTransaction) map[string]interface{} {
+	if ct == nil {
+		return nil
+	}
+
+	// Merged key list, in Agave's documented order.
+	var keys []string
+	if ct.Transaction != nil && ct.Transaction.Message != nil {
+		m := ct.Transaction.Message
+		keys = make([]string, 0, len(m.AccountKeys))
+		for _, k := range m.AccountKeys {
+			keys = append(keys, Base58Encode(k))
+		}
+	}
+	if ct.Meta != nil {
+		for _, k := range ct.Meta.LoadedWritableAddresses {
+			keys = append(keys, Base58Encode(k))
+		}
+		for _, k := range ct.Meta.LoadedReadonlyAddresses {
+			keys = append(keys, Base58Encode(k))
+		}
+	}
+
+	renderIx := func(ci *CompiledInstruction) map[string]interface{} {
+		return parsedInstructionToJsonRpc(ci, keys)
+	}
+
+	res := map[string]interface{}{}
+	if ct.Transaction != nil {
+		t := ct.Transaction
+		sigs := make([]interface{}, 0, len(t.Signatures))
+		for _, s := range t.Signatures {
+			sigs = append(sigs, Base58Encode(s))
+		}
+		tx := map[string]interface{}{"signatures": sigs}
+		if t.Message != nil {
+			var lw, lr [][]byte
+			if ct.Meta != nil {
+				lw, lr = ct.Meta.LoadedWritableAddresses, ct.Meta.LoadedReadonlyAddresses
+			}
+			tx["message"] = messageToJsonRpcParsed(t.Message, lw, lr, ct.Version != nil && *ct.Version != "legacy", renderIx)
+		}
+		res["transaction"] = tx
+	}
+	if ct.Meta != nil {
+		res["meta"] = metaToJsonRpc(ct.Meta, renderIx, false)
+	} else {
+		res["meta"] = nil
+	}
+	if ct.Version != nil {
+		if *ct.Version == "legacy" {
+			res["version"] = "legacy"
+		} else if n, err := strconv.ParseUint(*ct.Version, 10, 32); err == nil {
+			res["version"] = n
+		} else {
+			res["version"] = *ct.Version
+		}
+	}
+	return res
+}
+
+// messageToJsonRpcParsed renders `transaction.message` in parsed form.
+func messageToJsonRpcParsed(m *Message, loadedWritable, loadedReadonly [][]byte, emitLookups bool, renderIx func(*CompiledInstruction) map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+
+	numStatic := len(m.AccountKeys)
+	var reqSigs, roSigned, roUnsigned int
+	if m.Header != nil {
+		reqSigs = int(m.Header.NumRequiredSignatures)
+		roSigned = int(m.Header.NumReadonlySignedAccounts)
+		roUnsigned = int(m.Header.NumReadonlyUnsignedAccounts)
+	}
+
+	// Writability is header math THEN demotion, exactly Agave's
+	// is_maybe_writable / LoadedMessage::is_writable chain (the getBlock
+	// encode path uses ReservedAccountKeys::new_all_activated for both
+	// message versions):
+	//   writable = requested_writable(i)
+	//     && !reserved_account_keys.contains(key)
+	//     && !(called_as_program(i) && !upgradeable_loader_present)
+	// called_as_program scans TOP-LEVEL instruction program ids only;
+	// upgradeable_loader_present scans every key the message loads (static
+	// for legacy — which is all it has — static+loaded for v0).
+	calledAsProgram := make(map[int]bool, len(m.Instructions))
+	for _, ix := range m.Instructions {
+		if ix != nil {
+			calledAsProgram[int(ix.ProgramIdIndex)] = true
+		}
+	}
+	upgradeableLoaderPresent := false
+	demoted := func(i int, key string) bool {
+		if reservedAccountKeys[key] {
+			return true
+		}
+		return calledAsProgram[i] && !upgradeableLoaderPresent
+	}
+
+	total := numStatic + len(loadedWritable) + len(loadedReadonly)
+	encoded := make([]string, 0, total)
+	for _, k := range m.AccountKeys {
+		encoded = append(encoded, Base58Encode(k))
+	}
+	for _, k := range loadedWritable {
+		encoded = append(encoded, Base58Encode(k))
+	}
+	for _, k := range loadedReadonly {
+		encoded = append(encoded, Base58Encode(k))
+	}
+	for _, k := range encoded {
+		if k == BpfUpgradeableLoaderID {
+			upgradeableLoaderPresent = true
+			break
+		}
+	}
+
+	keys := make([]interface{}, 0, total)
+	for i, k := range encoded[:numStatic] {
+		signer := i < reqSigs
+		var writable bool
+		if signer {
+			writable = i < reqSigs-roSigned
+		} else {
+			writable = i < numStatic-roUnsigned
+		}
+		keys = append(keys, map[string]interface{}{
+			"pubkey":   k,
+			"signer":   signer,
+			"writable": writable && !demoted(i, k),
+			"source":   "transaction",
+		})
+	}
+	for j, k := range encoded[numStatic : numStatic+len(loadedWritable)] {
+		keys = append(keys, map[string]interface{}{
+			"pubkey": k, "signer": false,
+			"writable": !demoted(numStatic+j, k),
+			"source":   "lookupTable",
+		})
+	}
+	for _, k := range encoded[numStatic+len(loadedWritable):] {
+		keys = append(keys, map[string]interface{}{
+			"pubkey": k, "signer": false, "writable": false, "source": "lookupTable",
+		})
+	}
+
+	instrs := make([]interface{}, 0, len(m.Instructions))
+	for _, i := range m.Instructions {
+		instrs = append(instrs, renderIx(i))
+	}
+
+	res := map[string]interface{}{
+		"accountKeys":     keys,
+		"recentBlockhash": Base58Encode(m.RecentBlockhash),
+		"instructions":    instrs,
+	}
+	// No header key: UiParsedMessage does not carry one.
+	//
+	// addressTableLookups presence keys on the transaction VERSION, not on
+	// emptiness: a v0 message carries the key even with zero lookups, legacy
+	// omits it. The repeated proto field cannot express that distinction, so
+	// the caller passes it down from ConfirmedTransaction.version.
+	if emitLookups {
+		lookups := make([]interface{}, 0, len(m.AddressTableLookups))
+		for _, l := range m.AddressTableLookups {
+			lookups = append(lookups, map[string]interface{}{
+				"accountKey":      Base58Encode(l.AccountKey),
+				"writableIndexes": byteIndexes(l.WritableIndexes),
+				"readonlyIndexes": byteIndexes(l.ReadonlyIndexes),
+			})
+		}
+		res["addressTableLookups"] = lookups
+	}
+	return res
+}
+
+// parsedInstructionToJsonRpc renders one instruction in parsed form: the
+// server-attached ParsedInstruction verbatim when present, else Agave's
+// partiallyDecoded shape over the merged key list.
+func parsedInstructionToJsonRpc(ci *CompiledInstruction, keys []string) map[string]interface{} {
+	if ci == nil {
+		return nil
+	}
+	if ci.Parsed != nil {
+		// UseNumber: the envelope carries u64 values (lamports, space) that
+		// exceed 2^53 on real mainnet traffic (u64::MAX lamports exists in the
+		// wild); a plain Unmarshal would round them through float64.
+		dec := json.NewDecoder(bytes.NewReader(ci.Parsed))
+		dec.UseNumber()
+		var out map[string]interface{}
+		if err := dec.Decode(&out); err == nil {
+			return out
+		}
+		// A malformed attachment falls through to partiallyDecoded rather than
+		// dropping the instruction; the shape stays valid either way.
+	}
+	accounts := make([]interface{}, 0, len(ci.Accounts))
+	for _, idx := range ci.Accounts {
+		accounts = append(accounts, keyAt(keys, int(idx)))
+	}
+	res := map[string]interface{}{
+		"programId": keyAt(keys, int(ci.ProgramIdIndex)),
+		"accounts":  accounts,
+		"data":      Base58Encode(ci.Data),
+	}
+	if ci.StackHeight != nil {
+		res["stackHeight"] = *ci.StackHeight
+	} else {
+		res["stackHeight"] = nil
+	}
+	return res
+}
+
+// keyAt resolves a merged-list index defensively: writer-produced data never
+// carries an out-of-range index, but a serving path must not panic on one.
+// The empty string is deliberately visible in output rather than silently
+// substituting a wrong key.
+func keyAt(keys []string, i int) string {
+	if i >= 0 && i < len(keys) {
+		return keys[i]
+	}
+	return ""
 }
