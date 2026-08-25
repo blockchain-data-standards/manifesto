@@ -29,3 +29,12 @@ tracing = { version = "0.1", default-features = false, features = ["std"] }
 # Pure-Rust protobuf compilation — building this crate needs no system protoc.
 protox = "0.9"
 tonic-prost-build = "0.14"
+
+[dev-dependencies]
+# Benchmarks the JSON mapping, which is edge-boost's hot path on a cache hit.
+bytes = "1"
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "json_mapping"
+harness = false
