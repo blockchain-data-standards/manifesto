@@ -20,6 +20,10 @@ thiserror = "2"
 # Generated client + server stubs.
 tonic = "0.14"
 tonic-prost = "0.14"
+# Phase spans inside `RpcQueryCall::execute` (`bds.rpc` / `bds.to_json`) so a
+# traced caller can split wire+server time from proto→JSON mapping time.
+# Inert (near-zero cost) without an interested subscriber.
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 [build-dependencies]
 # Pure-Rust protobuf compilation — building this crate needs no system protoc.

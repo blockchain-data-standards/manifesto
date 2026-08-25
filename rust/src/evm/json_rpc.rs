@@ -163,9 +163,11 @@ fn map_get_block_by_number(params: &Value) -> Result<RpcQueryCall, MapError> {
 }
 
 fn map_get_block_by_hash(params: &Value) -> Result<RpcQueryCall, MapError> {
-    let hash_str = param(params, 0).and_then(Value::as_str).ok_or(MapError::Unmappable(
-        "eth_getBlockByHash: params[0] must be a 0x-hex block hash",
-    ))?;
+    let hash_str = param(params, 0)
+        .and_then(Value::as_str)
+        .ok_or(MapError::Unmappable(
+            "eth_getBlockByHash: params[0] must be a 0x-hex block hash",
+        ))?;
     let block_hash = parse_hex_bytes_exact(hash_str, 32)?;
     let include_transactions = param(params, 1).and_then(Value::as_bool).unwrap_or(false);
     Ok(RpcQueryCall::GetBlockByHash(GetBlockByHashRequest {
@@ -177,27 +179,35 @@ fn map_get_block_by_hash(params: &Value) -> Result<RpcQueryCall, MapError> {
 }
 
 fn map_get_transaction_by_hash(params: &Value) -> Result<RpcQueryCall, MapError> {
-    let hash_str = param(params, 0).and_then(Value::as_str).ok_or(MapError::Unmappable(
-        "eth_getTransactionByHash: params[0] must be a 0x-hex transaction hash",
-    ))?;
+    let hash_str = param(params, 0)
+        .and_then(Value::as_str)
+        .ok_or(MapError::Unmappable(
+            "eth_getTransactionByHash: params[0] must be a 0x-hex transaction hash",
+        ))?;
     let transaction_hash = parse_hex_bytes_exact(hash_str, 32)?;
-    Ok(RpcQueryCall::GetTransactionByHash(GetTransactionByHashRequest {
-        transaction_hash: transaction_hash.into(),
-        chain_id: None,
-        chain_genesis_hash: None,
-    }))
+    Ok(RpcQueryCall::GetTransactionByHash(
+        GetTransactionByHashRequest {
+            transaction_hash: transaction_hash.into(),
+            chain_id: None,
+            chain_genesis_hash: None,
+        },
+    ))
 }
 
 fn map_get_transaction_receipt(params: &Value) -> Result<RpcQueryCall, MapError> {
-    let hash_str = param(params, 0).and_then(Value::as_str).ok_or(MapError::Unmappable(
-        "eth_getTransactionReceipt: params[0] must be a 0x-hex transaction hash",
-    ))?;
+    let hash_str = param(params, 0)
+        .and_then(Value::as_str)
+        .ok_or(MapError::Unmappable(
+            "eth_getTransactionReceipt: params[0] must be a 0x-hex transaction hash",
+        ))?;
     let transaction_hash = parse_hex_bytes_exact(hash_str, 32)?;
-    Ok(RpcQueryCall::GetTransactionReceipt(GetTransactionReceiptRequest {
-        transaction_hash: transaction_hash.into(),
-        chain_id: None,
-        chain_genesis_hash: None,
-    }))
+    Ok(RpcQueryCall::GetTransactionReceipt(
+        GetTransactionReceiptRequest {
+            transaction_hash: transaction_hash.into(),
+            chain_id: None,
+            chain_genesis_hash: None,
+        },
+    ))
 }
 
 fn map_get_block_receipts(params: &Value) -> Result<RpcQueryCall, MapError> {
@@ -235,7 +245,9 @@ fn map_get_block_receipts(params: &Value) -> Result<RpcQueryCall, MapError> {
 fn map_get_logs(params: &Value) -> Result<RpcQueryCall, MapError> {
     let filter = param(params, 0)
         .and_then(Value::as_object)
-        .ok_or(MapError::Unmappable("eth_getLogs: params[0] must be a filter object"))?;
+        .ok_or(MapError::Unmappable(
+            "eth_getLogs: params[0] must be a filter object",
+        ))?;
 
     let block_hash = filter
         .get("blockHash")
@@ -261,7 +273,9 @@ fn map_get_logs(params: &Value) -> Result<RpcQueryCall, MapError> {
             .iter()
             .map(|v| {
                 v.as_str()
-                    .ok_or(MapError::Unmappable("eth_getLogs: address array entries must be strings"))
+                    .ok_or(MapError::Unmappable(
+                        "eth_getLogs: address array entries must be strings",
+                    ))
                     .and_then(|s| parse_hex_bytes_exact(s, 20))
                     .map(Bytes::from)
             })
@@ -322,7 +336,9 @@ fn build_topic_filters(topics: Option<&Value>) -> Result<Vec<TopicFilter>, MapEr
                 .iter()
                 .map(|v| {
                     v.as_str()
-                        .ok_or(MapError::Unmappable("eth_getLogs: topic array entries must be strings"))
+                        .ok_or(MapError::Unmappable(
+                            "eth_getLogs: topic array entries must be strings",
+                        ))
                         .and_then(|s| parse_hex_bytes(s).map(Bytes::from))
                 })
                 .collect::<Result<Vec<_>, _>>()?,
@@ -370,9 +386,10 @@ pub fn call_to_json_rpc(call: &RpcQueryCall) -> (&'static str, Value) {
             "eth_getTransactionReceipt",
             Value::Array(vec![Value::String(bytes_to_hex(&req.transaction_hash))]),
         ),
-        RpcQueryCall::GetLogs(req) => {
-            ("eth_getLogs", Value::Array(vec![get_logs_filter_to_json(req)]))
-        }
+        RpcQueryCall::GetLogs(req) => (
+            "eth_getLogs",
+            Value::Array(vec![get_logs_filter_to_json(req)]),
+        ),
         RpcQueryCall::GetBlockReceipts(req) => (
             "eth_getBlockReceipts",
             Value::Array(vec![get_block_receipts_param_to_json(req)]),
@@ -398,7 +415,12 @@ fn get_logs_filter_to_json(req: &GetLogsRequest) -> Value {
     if !req.addresses.is_empty() {
         o.insert(
             "address".into(),
-            Value::Array(req.addresses.iter().map(|a| Value::String(bytes_to_hex(a))).collect()),
+            Value::Array(
+                req.addresses
+                    .iter()
+                    .map(|a| Value::String(bytes_to_hex(a)))
+                    .collect(),
+            ),
         );
     }
     if !req.topics.is_empty() {
@@ -414,7 +436,10 @@ fn get_logs_filter_to_json(req: &GetLogsRequest) -> Value {
                             Value::Null
                         } else {
                             Value::Array(
-                                t.values.iter().map(|v| Value::String(bytes_to_hex(v))).collect(),
+                                t.values
+                                    .iter()
+                                    .map(|v| Value::String(bytes_to_hex(v)))
+                                    .collect(),
                             )
                         }
                     })
@@ -468,7 +493,10 @@ fn hex_digit_pairs_to_bytes(hex_digits: &str) -> Result<Vec<u8>, &'static str> {
 }
 
 fn parse_hex_bytes(s: &str) -> Result<Vec<u8>, MapError> {
-    let stripped = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);
+    let stripped = s
+        .strip_prefix("0x")
+        .or_else(|| s.strip_prefix("0X"))
+        .unwrap_or(s);
     hex_digit_pairs_to_bytes(stripped).map_err(MapError::Unmappable)
 }
 
@@ -497,8 +525,26 @@ fn parse_hex_u64(s: &str) -> Result<u64, MapError> {
 impl RpcQueryCall {
     /// Sends this call over `client`.
     ///
+    /// `client` is generic over the underlying tonic service — the same
+    /// bounds the generated `RpcQueryServiceClient` impl uses — so a caller
+    /// may pass a client wrapped in tower middleware (most usefully
+    /// [`RpcQueryServiceClient::with_interceptor`], to inject per-call
+    /// metadata such as a W3C `traceparent`). A plain
+    /// `RpcQueryServiceClient<Channel>` still works unchanged.
+    ///
     /// `timeout`, when set, becomes the gRPC `grpc-timeout` deadline for the
     /// call (via [`tonic::Request::set_timeout`]).
+    ///
+    /// Two [`tracing`] spans break the call down for a traced caller —
+    /// inert (near-zero cost) without an interested subscriber:
+    ///
+    /// - **`bds.rpc`** — the gRPC await: request send, server time, response
+    ///   transfer, and prost decode. A server that extracts `traceparent`
+    ///   nests its server span under this one, which splits wire from server
+    ///   time in the trace.
+    /// - **`bds.to_json`** — BDS proto structs → JSON-RPC [`Value`] mapping:
+    ///   pure CPU in the caller's process, and the only other place a
+    ///   multi-MB block response spends time on this path.
     ///
     /// `Ok(Some(_))` carries the JSON-RPC-shaped result. `Ok(None)` means the
     /// server answered but the block/transaction/receipt was absent — the
@@ -511,43 +557,94 @@ impl RpcQueryCall {
     /// # Errors
     ///
     /// Returns the `tonic::Status` produced by the underlying gRPC call.
-    pub async fn execute(
+    pub async fn execute<T>(
         self,
-        client: &mut RpcQueryServiceClient<tonic::transport::Channel>,
+        client: &mut RpcQueryServiceClient<T>,
         timeout: Option<Duration>,
-    ) -> Result<Option<Value>, tonic::Status> {
+    ) -> Result<Option<Value>, tonic::Status>
+    where
+        T: tonic::client::GrpcService<tonic::body::Body>,
+        T::Error: Into<tonic::codegen::StdError>,
+        T::ResponseBody: tonic::codegen::Body<Data = Bytes> + Send + 'static,
+        <T::ResponseBody as tonic::codegen::Body>::Error: Into<tonic::codegen::StdError> + Send,
+    {
+        use tracing::Instrument as _;
         match self {
             Self::ChainId(req) => {
-                let resp = client.chain_id(with_timeout(req, timeout)).await?.into_inner();
-                Ok(Some(Value::String(quantity_hex(resp.chain_id))))
+                let resp = client
+                    .chain_id(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                Ok(to_json_span().in_scope(|| Some(Value::String(quantity_hex(resp.chain_id)))))
             }
             Self::GetBlockByNumber(req) => {
-                let resp = client.get_block_by_number(with_timeout(req, timeout)).await?.into_inner();
-                Ok(get_block_response_to_json(&resp))
+                let resp = client
+                    .get_block_by_number(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                Ok(to_json_span().in_scope(|| get_block_response_to_json(&resp)))
             }
             Self::GetBlockByHash(req) => {
-                let resp = client.get_block_by_hash(with_timeout(req, timeout)).await?.into_inner();
-                Ok(get_block_response_to_json(&resp))
+                let resp = client
+                    .get_block_by_hash(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                Ok(to_json_span().in_scope(|| get_block_response_to_json(&resp)))
             }
             Self::GetTransactionByHash(req) => {
-                let resp = client.get_transaction_by_hash(with_timeout(req, timeout)).await?.into_inner();
-                Ok(resp.transaction.as_ref().map(transaction_to_json))
+                let resp = client
+                    .get_transaction_by_hash(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                Ok(to_json_span().in_scope(|| resp.transaction.as_ref().map(transaction_to_json)))
             }
             Self::GetTransactionReceipt(req) => {
-                let resp =
-                    client.get_transaction_receipt(with_timeout(req, timeout)).await?.into_inner();
-                Ok(resp.receipt.as_ref().map(receipt_to_json))
+                let resp = client
+                    .get_transaction_receipt(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                Ok(to_json_span().in_scope(|| resp.receipt.as_ref().map(receipt_to_json)))
             }
             Self::GetLogs(req) => {
-                let resp = client.get_logs(with_timeout(req, timeout)).await?.into_inner();
-                Ok(Some(Value::Array(resp.logs.iter().map(log_to_json).collect())))
+                let resp = client
+                    .get_logs(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                Ok(to_json_span()
+                    .in_scope(|| Some(Value::Array(resp.logs.iter().map(log_to_json).collect()))))
             }
             Self::GetBlockReceipts(req) => {
-                let resp = client.get_block_receipts(with_timeout(req, timeout)).await?.into_inner();
-                Ok(Some(Value::Array(resp.receipts.iter().map(receipt_to_json).collect())))
+                let resp = client
+                    .get_block_receipts(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                Ok(to_json_span().in_scope(|| {
+                    Some(Value::Array(
+                        resp.receipts.iter().map(receipt_to_json).collect(),
+                    ))
+                }))
             }
         }
     }
+}
+
+/// Span over the raw gRPC await inside [`RpcQueryCall::execute`] — see its
+/// doc for what the span covers.
+fn rpc_span() -> tracing::Span {
+    tracing::info_span!("bds.rpc")
+}
+
+/// Span over the proto → JSON-RPC [`Value`] mapping inside
+/// [`RpcQueryCall::execute`].
+fn to_json_span() -> tracing::Span {
+    tracing::info_span!("bds.to_json")
 }
 
 fn with_timeout<T>(msg: T, timeout: Option<Duration>) -> tonic::Request<T> {
@@ -560,7 +657,12 @@ fn with_timeout<T>(msg: T, timeout: Option<Duration>) -> tonic::Request<T> {
 
 fn get_block_response_to_json(resp: &GetBlockResponse) -> Option<Value> {
     let header = resp.block.as_ref()?;
-    Some(block_to_json(header, &resp.transactions, &resp.full_transactions, &resp.withdrawals))
+    Some(block_to_json(
+        header,
+        &resp.transactions,
+        &resp.full_transactions,
+        &resp.withdrawals,
+    ))
 }
 
 // --- response mapping ----------------------------------------------------
@@ -579,18 +681,48 @@ pub fn block_to_json(
     let mut o = Map::new();
     o.insert("number".into(), Value::String(quantity_hex(header.number)));
     o.insert("hash".into(), Value::String(bytes_to_hex(&header.hash)));
-    o.insert("parentHash".into(), Value::String(bytes_to_hex(&header.parent_hash)));
-    o.insert("sha3Uncles".into(), Value::String(bytes_to_hex(&header.sha3_uncles)));
-    o.insert("logsBloom".into(), Value::String(bytes_to_hex(&header.logs_bloom)));
-    o.insert("transactionsRoot".into(), Value::String(bytes_to_hex(&header.transactions_root)));
-    o.insert("stateRoot".into(), Value::String(bytes_to_hex(&header.state_root)));
-    o.insert("receiptsRoot".into(), Value::String(bytes_to_hex(&header.receipts_root)));
+    o.insert(
+        "parentHash".into(),
+        Value::String(bytes_to_hex(&header.parent_hash)),
+    );
+    o.insert(
+        "sha3Uncles".into(),
+        Value::String(bytes_to_hex(&header.sha3_uncles)),
+    );
+    o.insert(
+        "logsBloom".into(),
+        Value::String(bytes_to_hex(&header.logs_bloom)),
+    );
+    o.insert(
+        "transactionsRoot".into(),
+        Value::String(bytes_to_hex(&header.transactions_root)),
+    );
+    o.insert(
+        "stateRoot".into(),
+        Value::String(bytes_to_hex(&header.state_root)),
+    );
+    o.insert(
+        "receiptsRoot".into(),
+        Value::String(bytes_to_hex(&header.receipts_root)),
+    );
     o.insert("miner".into(), Value::String(bytes_to_hex(&header.miner)));
-    o.insert("extraData".into(), Value::String(bytes_to_hex(&header.extra_data)));
+    o.insert(
+        "extraData".into(),
+        Value::String(bytes_to_hex(&header.extra_data)),
+    );
     o.insert("size".into(), Value::String(quantity_hex(header.size)));
-    o.insert("gasLimit".into(), Value::String(quantity_hex(header.gas_limit)));
-    o.insert("gasUsed".into(), Value::String(quantity_hex(header.gas_used)));
-    o.insert("timestamp".into(), Value::String(quantity_hex(header.timestamp)));
+    o.insert(
+        "gasLimit".into(),
+        Value::String(quantity_hex(header.gas_limit)),
+    );
+    o.insert(
+        "gasUsed".into(),
+        Value::String(quantity_hex(header.gas_used)),
+    );
+    o.insert(
+        "timestamp".into(),
+        Value::String(quantity_hex(header.timestamp)),
+    );
 
     if let Some(nonce) = header.nonce {
         // Unlike every other quantity field, the nonce is zero-padded to a
@@ -599,7 +731,11 @@ pub fn block_to_json(
     }
     insert_decimal_omit(&mut o, "baseFeePerGas", header.base_fee_per_gas.as_deref());
     insert_decimal_omit(&mut o, "difficulty", header.difficulty.as_deref());
-    insert_decimal_omit(&mut o, "totalDifficulty", header.total_difficulty.as_deref());
+    insert_decimal_omit(
+        &mut o,
+        "totalDifficulty",
+        header.total_difficulty.as_deref(),
+    );
     if let Some(v) = header.mix_hash.as_deref() {
         o.insert("mixHash".into(), Value::String(bytes_to_hex(v)));
     }
@@ -616,7 +752,10 @@ pub fn block_to_json(
         o.insert("excessBlobGas".into(), Value::String(quantity_hex(v)));
     }
     if let Some(v) = header.parent_beacon_block_root.as_deref() {
-        o.insert("parentBeaconBlockRoot".into(), Value::String(bytes_to_hex(v)));
+        o.insert(
+            "parentBeaconBlockRoot".into(),
+            Value::String(bytes_to_hex(v)),
+        );
     }
     if let Some(v) = header.l1_block_number {
         o.insert("l1BlockNumber".into(), Value::String(quantity_hex(v)));
@@ -637,7 +776,10 @@ pub fn block_to_json(
         o.insert("proposerIndex".into(), Value::String(quantity_hex(v)));
     }
     if let Some(v) = header.transaction_count {
-        o.insert("transactionCount".into(), Value::String(quantity_hex(u64::from(v))));
+        o.insert(
+            "transactionCount".into(),
+            Value::String(quantity_hex(u64::from(v))),
+        );
     }
     if let Some(v) = &header.proposer_public_key {
         o.insert("proposerPublicKey".into(), Value::String(v.clone()));
@@ -660,13 +802,24 @@ pub fn block_to_json(
     // Always present (possibly `[]`), unlike the optional fields above.
     o.insert(
         "uncles".into(),
-        Value::Array(header.uncles.iter().map(|u| Value::String(bytes_to_hex(u))).collect()),
+        Value::Array(
+            header
+                .uncles
+                .iter()
+                .map(|u| Value::String(bytes_to_hex(u)))
+                .collect(),
+        ),
     );
 
     let transactions = if !full_transactions.is_empty() {
         Value::Array(full_transactions.iter().map(transaction_to_json).collect())
     } else if !transaction_hashes.is_empty() {
-        Value::Array(transaction_hashes.iter().map(|h| Value::String(bytes_to_hex(h))).collect())
+        Value::Array(
+            transaction_hashes
+                .iter()
+                .map(|h| Value::String(bytes_to_hex(h)))
+                .collect(),
+        )
     } else {
         Value::Array(Vec::new())
     };
@@ -685,7 +838,10 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
     o.insert("from".into(), Value::String(bytes_to_hex(&tx.from)));
     o.insert("gas".into(), Value::String(quantity_hex(tx.gas_limit)));
     o.insert("input".into(), Value::String(bytes_to_hex(&tx.input)));
-    o.insert("type".into(), Value::String(quantity_hex(u64::from(tx.r#type))));
+    o.insert(
+        "type".into(),
+        Value::String(quantity_hex(u64::from(tx.r#type))),
+    );
 
     o.insert(
         "to".into(),
@@ -699,7 +855,10 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
         o.insert("blockNumber".into(), Value::String(quantity_hex(v)));
     }
     if let Some(v) = tx.transaction_index {
-        o.insert("transactionIndex".into(), Value::String(quantity_hex(u64::from(v))));
+        o.insert(
+            "transactionIndex".into(),
+            Value::String(quantity_hex(u64::from(v))),
+        );
     }
     if let Some(v) = tx.block_timestamp {
         o.insert("blockTimestamp".into(), Value::String(quantity_hex(v)));
@@ -715,12 +874,20 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
     insert_decimal_omit(&mut o, "mint", tx.mint.as_deref());
     insert_decimal_omit(&mut o, "gasPrice", tx.gas_price.as_deref());
     insert_decimal_omit(&mut o, "maxFeePerGas", tx.max_fee_per_gas.as_deref());
-    insert_decimal_omit(&mut o, "maxPriorityFeePerGas", tx.max_priority_fee_per_gas.as_deref());
+    insert_decimal_omit(
+        &mut o,
+        "maxPriorityFeePerGas",
+        tx.max_priority_fee_per_gas.as_deref(),
+    );
 
     if let Some(v) = tx.gas_used {
         o.insert("gasUsed".into(), Value::String(quantity_hex(v)));
     }
-    insert_decimal_omit(&mut o, "effectiveGasPrice", tx.effective_gas_price.as_deref());
+    insert_decimal_omit(
+        &mut o,
+        "effectiveGasPrice",
+        tx.effective_gas_price.as_deref(),
+    );
 
     // r/s are non-optional `bytes` on the wire, but an absent bytes field and
     // an explicitly-empty one decode identically in proto3 — mirror Go's
@@ -744,26 +911,40 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
     // other optional fields on this message.
     o.insert(
         "chainId".into(),
-        tx.chain_id.map_or(Value::Null, |v| Value::String(quantity_hex(v))),
+        tx.chain_id
+            .map_or(Value::Null, |v| Value::String(quantity_hex(v))),
     );
     o.insert(
         "yParity".into(),
-        tx.y_parity.map_or(Value::Null, |v| Value::String(quantity_hex(u64::from(v)))),
+        tx.y_parity
+            .map_or(Value::Null, |v| Value::String(quantity_hex(u64::from(v)))),
     );
 
     // Always present (possibly `[]`) — json_rpc.go pre-allocates this array
     // unconditionally, unlike blobVersionedHashes/authorizationList below.
     o.insert(
         "accessList".into(),
-        Value::Array(tx.access_list.iter().map(access_list_item_to_json).collect()),
+        Value::Array(
+            tx.access_list
+                .iter()
+                .map(access_list_item_to_json)
+                .collect(),
+        ),
     );
 
-    insert_decimal_omit(&mut o, "maxFeePerBlobGas", tx.max_fee_per_blob_gas.as_deref());
+    insert_decimal_omit(
+        &mut o,
+        "maxFeePerBlobGas",
+        tx.max_fee_per_blob_gas.as_deref(),
+    );
     if !tx.blob_versioned_hashes.is_empty() {
         o.insert(
             "blobVersionedHashes".into(),
             Value::Array(
-                tx.blob_versioned_hashes.iter().map(|h| Value::String(bytes_to_hex(h))).collect(),
+                tx.blob_versioned_hashes
+                    .iter()
+                    .map(|h| Value::String(bytes_to_hex(h)))
+                    .collect(),
             ),
         );
     }
@@ -776,7 +957,10 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
         o.insert(
             "authorizationList".into(),
             Value::Array(
-                tx.authorization_list.iter().map(authorization_list_item_to_json).collect(),
+                tx.authorization_list
+                    .iter()
+                    .map(authorization_list_item_to_json)
+                    .collect(),
             ),
         );
     }
@@ -822,7 +1006,11 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
     }
     insert_decimal_omit(&mut o, "retryValue", tx.retry_value.as_deref());
     insert_decimal_omit(&mut o, "maxRefund", tx.max_refund.as_deref());
-    insert_decimal_omit(&mut o, "submissionFeeRefund", tx.submission_fee_refund.as_deref());
+    insert_decimal_omit(
+        &mut o,
+        "submissionFeeRefund",
+        tx.submission_fee_refund.as_deref(),
+    );
     if let Some(v) = nonempty(&tx.ticket_id) {
         o.insert("ticketId".into(), Value::String(bytes_to_hex(v)));
     }
@@ -831,7 +1019,11 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
     if let Some(v) = tx.is_system_tx {
         o.insert("isSystemTx".into(), Value::Bool(v));
     }
-    insert_decimal_omit(&mut o, "depositReceiptVersion", tx.deposit_receipt_version.as_deref());
+    insert_decimal_omit(
+        &mut o,
+        "depositReceiptVersion",
+        tx.deposit_receipt_version.as_deref(),
+    );
 
     Value::Object(o)
 }
@@ -841,7 +1033,12 @@ fn access_list_item_to_json(item: &AccessListItem) -> Value {
     o.insert("address".into(), Value::String(bytes_to_hex(&item.address)));
     o.insert(
         "storageKeys".into(),
-        Value::Array(item.storage_keys.iter().map(|k| Value::String(bytes_to_hex(k))).collect()),
+        Value::Array(
+            item.storage_keys
+                .iter()
+                .map(|k| Value::String(bytes_to_hex(k)))
+                .collect(),
+        ),
     );
     Value::Object(o)
 }
@@ -853,9 +1050,15 @@ fn authorization_list_item_to_json(item: &AuthorizationListItem) -> Value {
     o.insert("nonce".into(), Value::String(quantity_hex(item.nonce)));
     o.insert("r".into(), Value::String(bytes_to_hex_fixed(&item.r, 32)));
     o.insert("s".into(), Value::String(bytes_to_hex_fixed(&item.s, 32)));
-    o.insert("yParity".into(), Value::String(quantity_hex(u64::from(item.y_parity))));
+    o.insert(
+        "yParity".into(),
+        Value::String(quantity_hex(u64::from(item.y_parity))),
+    );
     if !item.authority.is_empty() {
-        o.insert("authority".into(), Value::String(bytes_to_hex(&item.authority)));
+        o.insert(
+            "authority".into(),
+            Value::String(bytes_to_hex(&item.authority)),
+        );
     }
     Value::Object(o)
 }
@@ -866,28 +1069,55 @@ fn authorization_list_item_to_json(item: &AuthorizationListItem) -> Value {
 #[must_use]
 pub fn receipt_to_json(r: &Receipt) -> Value {
     let mut o = Map::new();
-    o.insert("transactionHash".into(), Value::String(bytes_to_hex(&r.transaction_hash)));
-    o.insert("transactionIndex".into(), Value::String(quantity_hex(u64::from(r.transaction_index))));
-    o.insert("blockHash".into(), Value::String(bytes_to_hex(&r.block_hash)));
-    o.insert("blockNumber".into(), Value::String(quantity_hex(r.block_number)));
+    o.insert(
+        "transactionHash".into(),
+        Value::String(bytes_to_hex(&r.transaction_hash)),
+    );
+    o.insert(
+        "transactionIndex".into(),
+        Value::String(quantity_hex(u64::from(r.transaction_index))),
+    );
+    o.insert(
+        "blockHash".into(),
+        Value::String(bytes_to_hex(&r.block_hash)),
+    );
+    o.insert(
+        "blockNumber".into(),
+        Value::String(quantity_hex(r.block_number)),
+    );
     o.insert("from".into(), Value::String(bytes_to_hex(&r.from)));
-    o.insert("cumulativeGasUsed".into(), Value::String(quantity_hex(r.cumulative_gas_used)));
+    o.insert(
+        "cumulativeGasUsed".into(),
+        Value::String(quantity_hex(r.cumulative_gas_used)),
+    );
     o.insert("gasUsed".into(), Value::String(quantity_hex(r.gas_used)));
-    o.insert("logsBloom".into(), Value::String(bytes_to_hex(&r.logs_bloom)));
-    o.insert("logs".into(), Value::Array(r.logs.iter().map(log_to_json).collect()));
+    o.insert(
+        "logsBloom".into(),
+        Value::String(bytes_to_hex(&r.logs_bloom)),
+    );
+    o.insert(
+        "logs".into(),
+        Value::Array(r.logs.iter().map(log_to_json).collect()),
+    );
     // contractAddress and to are always present (null when absent/empty).
     o.insert(
         "contractAddress".into(),
         nonempty(&r.contract_address).map_or(Value::Null, |b| Value::String(bytes_to_hex(b))),
     );
-    o.insert("to".into(), nonempty(&r.to).map_or(Value::Null, |b| Value::String(bytes_to_hex(b))));
+    o.insert(
+        "to".into(),
+        nonempty(&r.to).map_or(Value::Null, |b| Value::String(bytes_to_hex(b))),
+    );
 
     // Unlike "to"/"contractAddress" above, status is simply omitted (not
     // null) when absent.
     if let Some(v) = r.status {
         o.insert("status".into(), Value::String(quantity_hex(u64::from(v))));
     }
-    o.insert("type".into(), Value::String(quantity_hex(u64::from(r.r#type))));
+    o.insert(
+        "type".into(),
+        Value::String(quantity_hex(u64::from(r.r#type))),
+    );
 
     if !r.effective_gas_price.is_empty() {
         if let Some(v) = decimal_string_to_hex(&r.effective_gas_price) {
@@ -931,10 +1161,17 @@ pub fn receipt_to_json(r: &Receipt) -> Value {
         o.insert("l1BlobBaseFeeScalar".into(), Value::String(quantity_hex(v)));
     }
     if let Some(v) = r.da_footprint_gas_scalar {
-        o.insert("daFootprintGasScalar".into(), Value::String(quantity_hex(v)));
+        o.insert(
+            "daFootprintGasScalar".into(),
+            Value::String(quantity_hex(v)),
+        );
     }
     insert_decimal_omit(&mut o, "depositNonce", r.deposit_nonce.as_deref());
-    insert_decimal_omit(&mut o, "depositReceiptVersion", r.deposit_receipt_version.as_deref());
+    insert_decimal_omit(
+        &mut o,
+        "depositReceiptVersion",
+        r.deposit_receipt_version.as_deref(),
+    );
     if let Some(v) = r.timeboosted {
         o.insert("timeboosted".into(), Value::Bool(v));
     }
@@ -951,14 +1188,34 @@ pub fn log_to_json(log: &Log) -> Value {
     o.insert("address".into(), Value::String(bytes_to_hex(&log.address)));
     o.insert(
         "topics".into(),
-        Value::Array(log.topics.iter().map(|t| Value::String(bytes_to_hex(t))).collect()),
+        Value::Array(
+            log.topics
+                .iter()
+                .map(|t| Value::String(bytes_to_hex(t)))
+                .collect(),
+        ),
     );
     o.insert("data".into(), Value::String(bytes_to_hex(&log.data)));
-    o.insert("blockNumber".into(), Value::String(quantity_hex(log.block_number)));
-    o.insert("transactionHash".into(), Value::String(bytes_to_hex(&log.transaction_hash)));
-    o.insert("transactionIndex".into(), Value::String(quantity_hex(u64::from(log.transaction_index))));
-    o.insert("blockHash".into(), Value::String(bytes_to_hex(&log.block_hash)));
-    o.insert("logIndex".into(), Value::String(quantity_hex(u64::from(log.log_index))));
+    o.insert(
+        "blockNumber".into(),
+        Value::String(quantity_hex(log.block_number)),
+    );
+    o.insert(
+        "transactionHash".into(),
+        Value::String(bytes_to_hex(&log.transaction_hash)),
+    );
+    o.insert(
+        "transactionIndex".into(),
+        Value::String(quantity_hex(u64::from(log.transaction_index))),
+    );
+    o.insert(
+        "blockHash".into(),
+        Value::String(bytes_to_hex(&log.block_hash)),
+    );
+    o.insert(
+        "logIndex".into(),
+        Value::String(quantity_hex(u64::from(log.log_index))),
+    );
     o.insert("removed".into(), Value::Bool(false));
     if let Some(v) = log.block_timestamp {
         o.insert("blockTimestamp".into(), Value::String(quantity_hex(v)));
@@ -972,7 +1229,10 @@ pub fn log_to_json(log: &Log) -> Value {
 pub fn withdrawal_to_json(w: &Withdrawal) -> Value {
     let mut o = Map::new();
     o.insert("index".into(), Value::String(quantity_hex(w.index)));
-    o.insert("validatorIndex".into(), Value::String(quantity_hex(w.validator_index)));
+    o.insert(
+        "validatorIndex".into(),
+        Value::String(quantity_hex(w.validator_index)),
+    );
     o.insert("address".into(), Value::String(bytes_to_hex(&w.address)));
     o.insert("amount".into(), Value::String(quantity_hex(w.amount)));
     Value::Object(o)
@@ -1104,8 +1364,10 @@ fn decimal_digits_to_hex(dec: &str) -> String {
         digits = next;
     }
     hex_digits.reverse();
-    let hex_str: String =
-        hex_digits.iter().map(|d| char::from_digit(u32::from(*d), 16).unwrap_or('0')).collect();
+    let hex_str: String = hex_digits
+        .iter()
+        .map(|d| char::from_digit(u32::from(*d), 16).unwrap_or('0'))
+        .collect();
     format!("0x{hex_str}")
 }
 
@@ -1160,12 +1422,21 @@ fn json_kind(v: &Value) -> &'static str {
     }
 }
 
-fn as_object<'a>(v: &'a Value, expected: &'static str) -> Result<&'a Map<String, Value>, FromJsonError> {
-    v.as_object().ok_or(FromJsonError::Shape { expected, found: json_kind(v) })
+fn as_object<'a>(
+    v: &'a Value,
+    expected: &'static str,
+) -> Result<&'a Map<String, Value>, FromJsonError> {
+    v.as_object().ok_or(FromJsonError::Shape {
+        expected,
+        found: json_kind(v),
+    })
 }
 
 fn as_array<'a>(v: &'a Value, expected: &'static str) -> Result<&'a Vec<Value>, FromJsonError> {
-    v.as_array().ok_or(FromJsonError::Shape { expected, found: json_kind(v) })
+    v.as_array().ok_or(FromJsonError::Shape {
+        expected,
+        found: json_kind(v),
+    })
 }
 
 /// The value at `key`, treating JSON `null` the same as absent — mirrors
@@ -1179,15 +1450,24 @@ fn field_str<'a>(o: &'a Map<String, Value>, key: &'static str) -> Option<&'a str
     field(o, key).and_then(Value::as_str)
 }
 
-fn required_str<'a>(o: &'a Map<String, Value>, key: &'static str) -> Result<&'a str, FromJsonError> {
+fn required_str<'a>(
+    o: &'a Map<String, Value>,
+    key: &'static str,
+) -> Result<&'a str, FromJsonError> {
     field_str(o, key).ok_or(FromJsonError::MissingField(key))
 }
 
 fn hex_to_bytes(field_name: &'static str, s: &str) -> Result<Bytes, FromJsonError> {
-    let stripped = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);
+    let stripped = s
+        .strip_prefix("0x")
+        .or_else(|| s.strip_prefix("0X"))
+        .unwrap_or(s);
     hex_digit_pairs_to_bytes(stripped)
         .map(Bytes::from)
-        .map_err(|_| FromJsonError::InvalidHex { field: field_name, value: s.to_string() })
+        .map_err(|_| FromJsonError::InvalidHex {
+            field: field_name,
+            value: s.to_string(),
+        })
 }
 
 /// A `bytes` field that is non-optional on the wire but, mirroring Go's
@@ -1224,17 +1504,23 @@ fn numberish_to_u64(field_name: &'static str, s: &str) -> Result<u64, FromJsonEr
         if digits.is_empty() {
             return Ok(0);
         }
-        u64::from_str_radix(digits, 16)
-            .map_err(|_| FromJsonError::InvalidNumber { field: field_name, value: s.to_string() })
+        u64::from_str_radix(digits, 16).map_err(|_| FromJsonError::InvalidNumber {
+            field: field_name,
+            value: s.to_string(),
+        })
     } else {
-        s.parse::<u64>()
-            .map_err(|_| FromJsonError::InvalidNumber { field: field_name, value: s.to_string() })
+        s.parse::<u64>().map_err(|_| FromJsonError::InvalidNumber {
+            field: field_name,
+            value: s.to_string(),
+        })
     }
 }
 
 fn numberish_to_u32(field_name: &'static str, s: &str) -> Result<u32, FromJsonError> {
-    u32::try_from(numberish_to_u64(field_name, s)?)
-        .map_err(|_| FromJsonError::InvalidNumber { field: field_name, value: s.to_string() })
+    u32::try_from(numberish_to_u64(field_name, s)?).map_err(|_| FromJsonError::InvalidNumber {
+        field: field_name,
+        value: s.to_string(),
+    })
 }
 
 /// A numeric field that's genuinely required — mirrors the handful of
@@ -1253,17 +1539,25 @@ fn required_u32_field(o: &Map<String, Value>, key: &'static str) -> Result<u32, 
 /// The transaction/receipt `type` convention: defaults to `0` (legacy) when
 /// absent or unparseable, rather than erroring (json_rpc.go:1402-1406).
 fn u32_field_default_zero(o: &Map<String, Value>, key: &'static str) -> u32 {
-    field_str(o, key).and_then(|s| numberish_to_u32(key, s).ok()).unwrap_or(0)
+    field_str(o, key)
+        .and_then(|s| numberish_to_u32(key, s).ok())
+        .unwrap_or(0)
 }
 
-fn optional_u64_field(o: &Map<String, Value>, key: &'static str) -> Result<Option<u64>, FromJsonError> {
+fn optional_u64_field(
+    o: &Map<String, Value>,
+    key: &'static str,
+) -> Result<Option<u64>, FromJsonError> {
     match field_str(o, key) {
         None | Some("") => Ok(None),
         Some(s) => Ok(Some(numberish_to_u64(key, s)?)),
     }
 }
 
-fn optional_u32_field(o: &Map<String, Value>, key: &'static str) -> Result<Option<u32>, FromJsonError> {
+fn optional_u32_field(
+    o: &Map<String, Value>,
+    key: &'static str,
+) -> Result<Option<u32>, FromJsonError> {
     match field_str(o, key) {
         None | Some("") => Ok(None),
         Some(s) => Ok(Some(numberish_to_u32(key, s)?)),
@@ -1297,7 +1591,10 @@ fn quantity_string_field(
         None | Some("") => Ok(None),
         Some(s) => {
             if decimal_string_to_hex(s).is_none() {
-                return Err(FromJsonError::InvalidNumber { field: key, value: s.to_string() });
+                return Err(FromJsonError::InvalidNumber {
+                    field: key,
+                    value: s.to_string(),
+                });
             }
             Ok(Some(s.to_string()))
         }
@@ -1306,20 +1603,26 @@ fn quantity_string_field(
 
 /// `l1FeeScalar`-style field: unlike most fields here, a JSON-RPC node may
 /// send this as either a quoted numeric string or a bare JSON number.
-fn optional_f64_field(o: &Map<String, Value>, key: &'static str) -> Result<Option<f64>, FromJsonError> {
+fn optional_f64_field(
+    o: &Map<String, Value>,
+    key: &'static str,
+) -> Result<Option<f64>, FromJsonError> {
     match field(o, key) {
         None => Ok(None),
         Some(Value::Number(n)) => Ok(n.as_f64()),
         Some(Value::String(s)) if s.is_empty() => Ok(None),
         Some(Value::String(s)) => {
-            s.parse::<f64>().map(Some).map_err(|_| FromJsonError::InvalidNumber {
-                field: key,
-                value: s.clone(),
-            })
+            s.parse::<f64>()
+                .map(Some)
+                .map_err(|_| FromJsonError::InvalidNumber {
+                    field: key,
+                    value: s.clone(),
+                })
         }
-        Some(_) => {
-            Err(FromJsonError::WrongType { field: key, reason: "expected a number or numeric string" })
-        }
+        Some(_) => Err(FromJsonError::WrongType {
+            field: key,
+            reason: "expected a number or numeric string",
+        }),
     }
 }
 
@@ -1332,15 +1635,20 @@ fn optional_numberish_u64_field(
 ) -> Result<Option<u64>, FromJsonError> {
     match field(o, key) {
         None => Ok(None),
-        Some(Value::Number(n)) => n
-            .as_u64()
-            .map(Some)
-            .ok_or_else(|| FromJsonError::InvalidNumber { field: key, value: n.to_string() }),
+        Some(Value::Number(n)) => {
+            n.as_u64()
+                .map(Some)
+                .ok_or_else(|| FromJsonError::InvalidNumber {
+                    field: key,
+                    value: n.to_string(),
+                })
+        }
         Some(Value::String(s)) if s.is_empty() => Ok(None),
         Some(Value::String(s)) => Ok(Some(numberish_to_u64(key, s)?)),
-        Some(_) => {
-            Err(FromJsonError::WrongType { field: key, reason: "expected a number or numeric string" })
-        }
+        Some(_) => Err(FromJsonError::WrongType {
+            field: key,
+            reason: "expected a number or numeric string",
+        }),
     }
 }
 
@@ -1411,9 +1719,10 @@ pub fn receipt_from_json(v: &Value) -> Result<Receipt, FromJsonError> {
     let o = as_object(v, "a receipt object")?;
     let logs = match field(o, "logs") {
         None => Vec::new(),
-        Some(v) => {
-            as_array(v, "a logs array")?.iter().map(log_from_json).collect::<Result<Vec<_>, _>>()?
-        }
+        Some(v) => as_array(v, "a logs array")?
+            .iter()
+            .map(log_from_json)
+            .collect::<Result<Vec<_>, _>>()?,
     };
     Ok(Receipt {
         transaction_hash: req_bytes(o, "transactionHash")?,
@@ -1429,7 +1738,9 @@ pub fn receipt_from_json(v: &Value) -> Result<Receipt, FromJsonError> {
         cumulative_gas_used: required_u64_field(o, "cumulativeGasUsed")?,
         // Non-optional proto string; passed through verbatim like Go's
         // `EffectiveGasPrice string` field (no validation, "" when absent).
-        effective_gas_price: field_str(o, "effectiveGasPrice").unwrap_or_default().to_string(),
+        effective_gas_price: field_str(o, "effectiveGasPrice")
+            .unwrap_or_default()
+            .to_string(),
         logs_bloom: req_bytes(o, "logsBloom")?,
         logs,
         // "" and "0x" both mean absent (json_rpc.go:479).
@@ -1471,7 +1782,10 @@ fn access_list_item_from_json(o: &Map<String, Value>) -> Result<AccessListItem, 
             None => Vec::new(),
         },
     };
-    Ok(AccessListItem { address, storage_keys })
+    Ok(AccessListItem {
+        address,
+        storage_keys,
+    })
 }
 
 fn authorization_list_item_from_json(
@@ -1512,7 +1826,10 @@ fn transaction_from_json_object(
         None | Some("") => "0".to_string(),
         Some(s) => {
             if decimal_string_to_hex(s).is_none() {
-                return Err(FromJsonError::InvalidNumber { field: "value", value: s.to_string() });
+                return Err(FromJsonError::InvalidNumber {
+                    field: "value",
+                    value: s.to_string(),
+                });
             }
             s.to_string()
         }
@@ -1782,7 +2099,9 @@ pub fn get_transaction_by_hash_response_from_json(
     if v.is_null() {
         return Ok(GetTransactionByHashResponse::default());
     }
-    Ok(GetTransactionByHashResponse { transaction: Some(transaction_from_json(v)?) })
+    Ok(GetTransactionByHashResponse {
+        transaction: Some(transaction_from_json(v)?),
+    })
 }
 
 /// Converts an `eth_getTransactionReceipt` `result` into a
@@ -1799,7 +2118,9 @@ pub fn get_transaction_receipt_response_from_json(
     if v.is_null() {
         return Ok(GetTransactionReceiptResponse::default());
     }
-    Ok(GetTransactionReceiptResponse { receipt: Some(receipt_from_json(v)?) })
+    Ok(GetTransactionReceiptResponse {
+        receipt: Some(receipt_from_json(v)?),
+    })
 }
 
 /// Converts an `eth_getLogs` `result` (an array of log objects) into a
@@ -1811,7 +2132,12 @@ pub fn get_transaction_receipt_response_from_json(
 /// missing/malformed.
 pub fn get_logs_response_from_json(v: &Value) -> Result<GetLogsResponse, FromJsonError> {
     let arr = as_array(v, "a logs array")?;
-    Ok(GetLogsResponse { logs: arr.iter().map(log_from_json).collect::<Result<Vec<_>, _>>()? })
+    Ok(GetLogsResponse {
+        logs: arr
+            .iter()
+            .map(log_from_json)
+            .collect::<Result<Vec<_>, _>>()?,
+    })
 }
 
 /// Converts an `eth_getBlockReceipts` `result` (an array of receipt objects)
@@ -1826,7 +2152,10 @@ pub fn get_block_receipts_response_from_json(
 ) -> Result<GetBlockReceiptsResponse, FromJsonError> {
     let arr = as_array(v, "a receipts array")?;
     Ok(GetBlockReceiptsResponse {
-        receipts: arr.iter().map(receipt_from_json).collect::<Result<Vec<_>, _>>()?,
+        receipts: arr
+            .iter()
+            .map(receipt_from_json)
+            .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
@@ -1834,6 +2163,27 @@ pub fn get_block_receipts_response_from_json(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    // --- execute seam ------------------------------------------------
+
+    /// The point of `execute` being generic: a client wrapped in tonic
+    /// middleware must be accepted, so callers can inject per-call metadata
+    /// (e.g. a W3C `traceparent`) without this crate knowing about any
+    /// particular tracing stack. The property is purely a type-level one, so
+    /// the check is that this function compiles; it is never called (channel
+    /// construction would need a tokio reactor even for a lazy connect).
+    #[allow(dead_code)]
+    fn execute_accepts_intercepted_clients(
+        call: RpcQueryCall,
+        client: &mut RpcQueryServiceClient<
+            tonic::service::interceptor::InterceptedService<
+                tonic::transport::Channel,
+                fn(tonic::Request<()>) -> Result<tonic::Request<()>, tonic::Status>,
+            >,
+        >,
+    ) {
+        drop(call.execute(client, None));
+    }
 
     // --- request mapping ---------------------------------------------
 
@@ -2023,8 +2373,11 @@ mod tests {
     #[test]
     fn get_logs_address_string_and_array() {
         let addr = format!("0x{}", "33".repeat(20));
-        let call =
-            map_request("eth_getLogs", &logs_filter(json!({ "address": addr.clone() }))).unwrap();
+        let call = map_request(
+            "eth_getLogs",
+            &logs_filter(json!({ "address": addr.clone() })),
+        )
+        .unwrap();
         match call {
             RpcQueryCall::GetLogs(req) => assert_eq!(req.addresses.len(), 1),
             _ => panic!("wrong variant"),
@@ -2045,8 +2398,7 @@ mod tests {
     #[test]
     fn get_logs_address_wrong_length_is_unmappable() {
         let addr = format!("0x{}", "33".repeat(19));
-        let err =
-            map_request("eth_getLogs", &logs_filter(json!({ "address": addr }))).unwrap_err();
+        let err = map_request("eth_getLogs", &logs_filter(json!({ "address": addr }))).unwrap_err();
         assert!(matches!(err, MapError::Unmappable(_)));
     }
 
@@ -2054,14 +2406,16 @@ mod tests {
     fn get_logs_topics_null_preserves_position() {
         let topic0 = format!("0x{}", "55".repeat(32));
         let topic2 = format!("0x{}", "66".repeat(32));
-        let params =
-            logs_filter(json!({ "topics": [topic0, Value::Null, topic2] }));
+        let params = logs_filter(json!({ "topics": [topic0, Value::Null, topic2] }));
         let call = map_request("eth_getLogs", &params).unwrap();
         match call {
             RpcQueryCall::GetLogs(req) => {
                 assert_eq!(req.topics.len(), 3);
                 assert_eq!(req.topics[0].values.len(), 1);
-                assert!(req.topics[1].values.is_empty(), "null position must stay a wildcard");
+                assert!(
+                    req.topics[1].values.is_empty(),
+                    "null position must stay a wildcard"
+                );
                 assert_eq!(req.topics[2].values.len(), 1);
             }
             _ => panic!("wrong variant"),
@@ -2167,7 +2521,12 @@ mod tests {
 
     #[test]
     fn withdrawal_to_json_shape() {
-        let w = Withdrawal { index: 1, validator_index: 2, address: Bytes::from_static(&[0xaa; 20]), amount: 3 };
+        let w = Withdrawal {
+            index: 1,
+            validator_index: 2,
+            address: Bytes::from_static(&[0xaa; 20]),
+            amount: 3,
+        };
         let v = withdrawal_to_json(&w);
         assert_eq!(v["index"], "0x1");
         assert_eq!(v["validatorIndex"], "0x2");
@@ -2239,10 +2598,26 @@ mod tests {
     fn transaction_to_json_minimal_shape() {
         let v = transaction_to_json(&base_transaction());
         assert_eq!(v["to"], Value::Null);
-        assert_eq!(v["chainId"], Value::Null, "chainId is always present, null when absent");
-        assert_eq!(v["yParity"], Value::Null, "yParity is always present, null when absent");
-        assert_eq!(v["accessList"], json!([]), "accessList is always present, even empty");
-        assert_eq!(v["l1Fee"], Value::Null, "l1Fee is always present, null when absent");
+        assert_eq!(
+            v["chainId"],
+            Value::Null,
+            "chainId is always present, null when absent"
+        );
+        assert_eq!(
+            v["yParity"],
+            Value::Null,
+            "yParity is always present, null when absent"
+        );
+        assert_eq!(
+            v["accessList"],
+            json!([]),
+            "accessList is always present, even empty"
+        );
+        assert_eq!(
+            v["l1Fee"],
+            Value::Null,
+            "l1Fee is always present, null when absent"
+        );
         // empty proto `value` string is omitted entirely, never "0x0".
         assert!(v.get("value").is_none());
         assert!(v.get("r").is_none());
@@ -2250,17 +2625,27 @@ mod tests {
         assert!(v.get("v").is_none());
         assert!(v.get("blobVersionedHashes").is_none());
         assert!(v.get("authorizationList").is_none());
-        assert!(v.get("l1GasUsed").is_none(), "tx.l1GasUsed omits (no null fallback)");
+        assert!(
+            v.get("l1GasUsed").is_none(),
+            "tx.l1GasUsed omits (no null fallback)"
+        );
     }
 
     #[test]
     fn transaction_to_json_to_field_empty_vs_present() {
         let mut tx = base_transaction();
         tx.to = Some(Bytes::new());
-        assert_eq!(transaction_to_json(&tx)["to"], Value::Null, "present-but-empty `to` is null");
+        assert_eq!(
+            transaction_to_json(&tx)["to"],
+            Value::Null,
+            "present-but-empty `to` is null"
+        );
 
         tx.to = Some(Bytes::from_static(&[0xaa; 20]));
-        assert_eq!(transaction_to_json(&tx)["to"], format!("0x{}", "aa".repeat(20)));
+        assert_eq!(
+            transaction_to_json(&tx)["to"],
+            format!("0x{}", "aa".repeat(20))
+        );
     }
 
     #[test]
@@ -2288,7 +2673,10 @@ mod tests {
         let mut tx = base_transaction();
         tx.l1_fee = Some("not-a-number".to_string());
         let v = transaction_to_json(&tx);
-        assert!(v.get("l1Fee").is_none(), "Some(unparseable) => omitted, not null");
+        assert!(
+            v.get("l1Fee").is_none(),
+            "Some(unparseable) => omitted, not null"
+        );
     }
 
     #[test]
@@ -2318,7 +2706,10 @@ mod tests {
         assert_eq!(v["blobVersionedHashes"].as_array().unwrap().len(), 1);
         let auth = &v["authorizationList"][0];
         assert_eq!(auth["chainId"], "0x1");
-        assert!(auth.get("authority").is_none(), "empty authority is omitted");
+        assert!(
+            auth.get("authority").is_none(),
+            "empty authority is omitted"
+        );
     }
 
     // --- response mapping: receipt -----------------------------------
@@ -2369,7 +2760,10 @@ mod tests {
         assert_eq!(v["l1Fee"], Value::Null);
         assert_eq!(v["l1GasUsed"], Value::Null);
         assert_eq!(v["l1GasPrice"], Value::Null);
-        assert!(v.get("gatewayFee").is_none(), "gatewayFee omits (no null fallback)");
+        assert!(
+            v.get("gatewayFee").is_none(),
+            "gatewayFee omits (no null fallback)"
+        );
     }
 
     #[test]
@@ -2386,7 +2780,10 @@ mod tests {
         assert_eq!(receipt_to_json(&r)["contractAddress"], Value::Null);
 
         r.contract_address = Some(Bytes::from_static(&[0xbb; 20]));
-        assert_eq!(receipt_to_json(&r)["contractAddress"], format!("0x{}", "bb".repeat(20)));
+        assert_eq!(
+            receipt_to_json(&r)["contractAddress"],
+            format!("0x{}", "bb".repeat(20))
+        );
     }
 
     #[test]
@@ -2465,8 +2862,12 @@ mod tests {
         let v = block_to_json(&base_header(), &[], &[], &[]);
         assert!(v.get("withdrawals").is_none());
 
-        let withdrawals =
-            vec![Withdrawal { index: 1, validator_index: 1, address: Bytes::from_static(&[0xcc; 20]), amount: 1 }];
+        let withdrawals = vec![Withdrawal {
+            index: 1,
+            validator_index: 1,
+            address: Bytes::from_static(&[0xcc; 20]),
+            amount: 1,
+        }];
         let v = block_to_json(&base_header(), &[], &[], &withdrawals);
         assert_eq!(v["withdrawals"].as_array().unwrap().len(), 1);
     }
@@ -2715,11 +3116,17 @@ mod tests {
 
         let mut with_number = base.clone();
         with_number["blockTimestamp"] = json!(1_700_000_000_u64);
-        assert_eq!(log_from_json(&with_number).unwrap().block_timestamp, Some(1_700_000_000));
+        assert_eq!(
+            log_from_json(&with_number).unwrap().block_timestamp,
+            Some(1_700_000_000)
+        );
 
         let mut with_string = base;
         with_string["blockTimestamp"] = json!("0x6553f100");
-        assert_eq!(log_from_json(&with_string).unwrap().block_timestamp, Some(1_700_000_000));
+        assert_eq!(
+            log_from_json(&with_string).unwrap().block_timestamp,
+            Some(1_700_000_000)
+        );
     }
 
     #[test]
@@ -2754,12 +3161,18 @@ mod tests {
 
     #[test]
     fn receipt_from_json_type_defaults_to_zero_when_absent() {
-        assert_eq!(receipt_from_json(&minimal_receipt_json()).unwrap().r#type, 0);
+        assert_eq!(
+            receipt_from_json(&minimal_receipt_json()).unwrap().r#type,
+            0
+        );
     }
 
     #[test]
     fn receipt_from_json_status_omitted_vs_present() {
-        assert!(receipt_from_json(&minimal_receipt_json()).unwrap().status.is_none());
+        assert!(receipt_from_json(&minimal_receipt_json())
+            .unwrap()
+            .status
+            .is_none());
         let mut v = minimal_receipt_json();
         v["status"] = json!("0x1");
         assert_eq!(receipt_from_json(&v).unwrap().status, Some(1));
@@ -2802,7 +3215,10 @@ mod tests {
 
     #[test]
     fn transaction_from_json_value_defaults_to_zero_string_when_absent() {
-        assert_eq!(transaction_from_json(&minimal_tx_json()).unwrap().value, "0");
+        assert_eq!(
+            transaction_from_json(&minimal_tx_json()).unwrap().value,
+            "0"
+        );
     }
 
     #[test]
@@ -2837,7 +3253,11 @@ mod tests {
             "not-an-object",
         ]);
         let tx = transaction_from_json(&v).unwrap();
-        assert_eq!(tx.access_list.len(), 1, "only the well-formed item survives");
+        assert_eq!(
+            tx.access_list.len(),
+            1,
+            "only the well-formed item survives"
+        );
     }
 
     #[test]
@@ -2885,11 +3305,17 @@ mod tests {
     fn transaction_from_json_l1_blob_base_fee_scalar_accepts_number_or_string() {
         let mut v = minimal_tx_json();
         v["l1BlobBaseFeeScalar"] = json!(9);
-        assert_eq!(transaction_from_json(&v).unwrap().l1_blob_base_fee_scalar, Some(9));
+        assert_eq!(
+            transaction_from_json(&v).unwrap().l1_blob_base_fee_scalar,
+            Some(9)
+        );
 
         let mut v2 = minimal_tx_json();
         v2["l1BlobBaseFeeScalar"] = json!("0xa");
-        assert_eq!(transaction_from_json(&v2).unwrap().l1_blob_base_fee_scalar, Some(10));
+        assert_eq!(
+            transaction_from_json(&v2).unwrap().l1_blob_base_fee_scalar,
+            Some(10)
+        );
     }
 
     #[test]
@@ -2909,14 +3335,20 @@ mod tests {
     fn block_header_from_json_three_field_bug_fix() {
         let v = minimal_block_json();
         let h = block_header_from_json(&v).unwrap();
-        assert!(h.base_fee_per_gas.is_none(), "absent key must stay None, not a fabricated \"0x0\"");
+        assert!(
+            h.base_fee_per_gas.is_none(),
+            "absent key must stay None, not a fabricated \"0x0\""
+        );
         assert!(h.difficulty.is_none());
         assert!(h.total_difficulty.is_none());
 
         let mut v2 = minimal_block_json();
         v2["baseFeePerGas"] = json!("0x3b9aca00");
         assert_eq!(
-            block_header_from_json(&v2).unwrap().base_fee_per_gas.as_deref(),
+            block_header_from_json(&v2)
+                .unwrap()
+                .base_fee_per_gas
+                .as_deref(),
             Some("0x3b9aca00")
         );
     }
@@ -2930,7 +3362,10 @@ mod tests {
 
     #[test]
     fn block_header_from_json_size_defaults_to_zero_when_absent() {
-        assert_eq!(block_header_from_json(&minimal_block_json()).unwrap().size, 0);
+        assert_eq!(
+            block_header_from_json(&minimal_block_json()).unwrap().size,
+            0
+        );
     }
 
     #[test]
@@ -2939,7 +3374,10 @@ mod tests {
         v["nonce"] = json!("0x42");
         let h = block_header_from_json(&v).unwrap();
         assert_eq!(h.nonce, Some(0x42));
-        assert_eq!(block_to_json(&h, &[], &[], &[])["nonce"], "0x0000000000000042");
+        assert_eq!(
+            block_to_json(&h, &[], &[], &[])["nonce"],
+            "0x0000000000000042"
+        );
     }
 
     // --- from_json: response wrappers ---------------------------------
@@ -2965,7 +3403,10 @@ mod tests {
         assert!(resp2.transactions.is_empty());
         assert_eq!(resp2.full_transactions.len(), 1);
         // Backfilled from the block header since the tx object omits them.
-        assert_eq!(resp2.full_transactions[0].block_number, Some(resp2.block.as_ref().unwrap().number));
+        assert_eq!(
+            resp2.full_transactions[0].block_number,
+            Some(resp2.block.as_ref().unwrap().number)
+        );
     }
 
     #[test]
@@ -2977,19 +3418,28 @@ mod tests {
             "address": format!("0x{}", "cc".repeat(20)),
             "amount": "0x1",
         }]);
-        assert_eq!(get_block_response_from_json(&v).unwrap().withdrawals.len(), 1);
+        assert_eq!(
+            get_block_response_from_json(&v).unwrap().withdrawals.len(),
+            1
+        );
     }
 
     #[test]
     fn get_transaction_by_hash_response_from_json_null_and_present() {
-        assert!(get_transaction_by_hash_response_from_json(&Value::Null).unwrap().transaction.is_none());
+        assert!(get_transaction_by_hash_response_from_json(&Value::Null)
+            .unwrap()
+            .transaction
+            .is_none());
         let resp = get_transaction_by_hash_response_from_json(&minimal_tx_json()).unwrap();
         assert!(resp.transaction.is_some());
     }
 
     #[test]
     fn get_transaction_receipt_response_from_json_null_and_present() {
-        assert!(get_transaction_receipt_response_from_json(&Value::Null).unwrap().receipt.is_none());
+        assert!(get_transaction_receipt_response_from_json(&Value::Null)
+            .unwrap()
+            .receipt
+            .is_none());
         let resp = get_transaction_receipt_response_from_json(&minimal_receipt_json()).unwrap();
         assert!(resp.receipt.is_some());
     }
@@ -3063,7 +3513,10 @@ mod tests {
             o.insert("size".into(), json!("0x3e8"));
             o.insert("nonce".into(), json!("0x42"));
             o.insert("baseFeePerGas".into(), json!("0x3b9aca00"));
-            o.insert("withdrawalsRoot".into(), json!(format!("0x{}", "08".repeat(32))));
+            o.insert(
+                "withdrawalsRoot".into(),
+                json!(format!("0x{}", "08".repeat(32))),
+            );
             o.insert("uncles".into(), json!([]));
             o.insert("transactions".into(), json!([tx]));
             o.insert(
@@ -3077,12 +3530,20 @@ mod tests {
 
         let resp = get_block_response_from_json(&block).unwrap();
         let header = resp.block.as_ref().unwrap();
-        let out = block_to_json(header, &resp.transactions, &resp.full_transactions, &resp.withdrawals);
+        let out = block_to_json(
+            header,
+            &resp.transactions,
+            &resp.full_transactions,
+            &resp.withdrawals,
+        );
 
         assert_eq!(out["number"], "0x2a");
         assert_eq!(out["nonce"], "0x0000000000000042");
         assert_eq!(out["baseFeePerGas"], "0x3b9aca00");
-        assert!(out.get("difficulty").is_none(), "absent difficulty stays omitted, not fabricated 0x0");
+        assert!(
+            out.get("difficulty").is_none(),
+            "absent difficulty stays omitted, not fabricated 0x0"
+        );
         assert!(out.get("totalDifficulty").is_none());
         assert_eq!(out["withdrawalsRoot"], format!("0x{}", "08".repeat(32)));
         assert_eq!(out["uncles"], json!([]));
