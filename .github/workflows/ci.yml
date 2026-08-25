@@ -1,0 +1,80 @@
+name: ci
+
+# This repository is the source of truth for the BDS wire contract: the protos,
+# the Go bindings, and the Rust `bds` crate that edge-boost maps JSON-RPC
+# through on every cache hit. Until now nothing verified any of it on a push.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# A second push to the same branch makes the first one irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: rust (bds crate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned rather than `stable`: a toolchain that moves on its own turns an
+      # unrelated push red. Bump it deliberately.
+      - name: Configure Rust toolchain
+        uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Format
+        run: cargo fmt --check
+
+      # The crate declares no `[lints]` section, so the denial has to be here
+      # or clippy is advisory only. `--all-targets` covers tests and benches,
+      # which is where most of this crate's code now lives.
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Covers the unit tests, the hex-equivalence checks against the frozen
+      # reference implementations, and `tests/corpus_roundtrip.rs`, which maps
+      # 24 real production responses through `JSON -> proto -> JSON` and diffs
+      # them against what production served.
+      - name: Test
+        run: cargo test
+
+      # Not a performance gate -- criterion on a shared runner is too noisy for
+      # that. This only proves the benchmark still compiles and runs, so it
+      # cannot rot between the times someone needs it.
+      - name: Benchmark smoke
+        run: cargo bench --bench json_mapping -- --test
+
+  go:
+    name: go (bindings + parsers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Deliberately `vet` and `test`, not `build ./...`. The root `main.go` is
+      # a package-main module marker with no `func main`, so a whole-tree build
+      # can never pass; that is by design, not breakage.
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
