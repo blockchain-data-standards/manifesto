@@ -48,24 +48,28 @@ func parseAuth(t *testing.T, chainId interface{}) (*AuthorizationListItem, error
 
 // A chain id wider than 64 bits must survive verbatim: the block is canonical
 // and immutable, so an indexer that narrows it cannot store the block at all.
-func TestAuthorizationChainIdSurvivesBeyondUint64(t *testing.T) {
+func TestAuthorizationChainIdBeyondUint64IsAbsentNotZero(t *testing.T) {
 	auth, err := parseAuth(t, wideChainId)
 	if err != nil {
-		t.Fatalf("wide chainId must parse: %v", err)
+		t.Fatalf("the block must still parse: %v", err)
 	}
-	if auth.AuthChainId != wideChainId {
-		t.Fatalf("stored %q, want %q", auth.AuthChainId, wideChainId)
+	if auth.ChainId != nil {
+		t.Fatalf("narrowed to %d, want absent", *auth.ChainId)
+	}
+	tx := &Transaction{AuthorizationList: []*AuthorizationListItem{auth}}
+	out := TransactionToJsonRpc(tx)["authorizationList"].([]interface{})[0].(map[string]interface{})
+	if got, ok := out["chainId"]; !ok || got != nil {
+		t.Fatalf("chainId = %v, want null — 0x0 would claim it is valid on any chain", got)
 	}
 }
 
-// Regression: ChainId is a string, so fmt.Sprintf("0x%x", …) would hex the
-// string's bytes and render chain 1 as "0x31". go vet does not flag it.
+// The representable path is untouched: ordinary chain ids still render as
+// minimal hex quantities.
 func TestAuthorizationChainIdRendersAsNumberNotBytes(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
 		{"0x1", "0x1"},
 		{"11155111", "0xaa36a7"},
 		{"0x0", "0x0"},
-		{wideChainId, wideChainId},
 	} {
 		auth, err := parseAuth(t, tc.in)
 		if err != nil {
@@ -121,31 +125,26 @@ func TestDecimalStringToHexRejectsNegatives(t *testing.T) {
 	}
 }
 
-// The break is clean, not silent: field 1 held the old uint64 chainId and is
-// now reserved, so an old payload's chain id lands in unknown fields rather
-// than being read as a value. It must not surface as 0 — in EIP-7702 that
-// means "valid on any chain", so a misread would rewrite the authorization's
-// scope instead of dropping it.
-func TestAuthorizationOldWirePayloadDoesNotBecomeAnyChain(t *testing.T) {
+// The wire format is unchanged: field 1 is still a uint64 varint, so a payload
+// written before this change decodes exactly as it did. `optional` adds
+// presence, not a new encoding.
+func TestAuthorizationOldWirePayloadStillDecodes(t *testing.T) {
 	old := protowire.AppendVarint(protowire.AppendTag(nil, 1, protowire.VarintType), 11155111)
 	old = protowire.AppendBytes(protowire.AppendTag(old, 2, protowire.BytesType), []byte{0xaa, 0xbb})
 
 	var item AuthorizationListItem
 	if err := proto.Unmarshal(old, &item); err != nil {
-		t.Fatalf("old payload must still decode: %v", err)
+		t.Fatalf("old payload must decode: %v", err)
 	}
-	if item.AuthChainId != "" {
-		t.Fatalf("reserved field 1 leaked into authChainId as %q", item.AuthChainId)
-	}
-	if len(item.Address) != 2 {
-		t.Fatal("the rest of the message must survive the reserved field")
+	if item.ChainId == nil || *item.ChainId != 11155111 {
+		t.Fatalf("chain id = %v, want 11155111", item.ChainId)
 	}
 }
 
-// A new payload must not write field 1 at all: a reader still on the old
-// schema has to see the field as absent, never as a wrong varint.
-func TestAuthorizationNewWirePayloadLeavesFieldOneUnset(t *testing.T) {
-	auth, err := parseAuth(t, "11155111")
+// An unrepresentable chain id must leave field 1 off the wire entirely. Writing
+// 0 would be indistinguishable from a genuine "valid on any chain".
+func TestAuthorizationUnrepresentableChainIdIsNotOnTheWire(t *testing.T) {
+	auth, err := parseAuth(t, wideChainId)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,10 +153,19 @@ func TestAuthorizationNewWirePayloadLeavesFieldOneUnset(t *testing.T) {
 		t.Fatal(err)
 	}
 	if hasField(t, encoded, 1) {
-		t.Fatal("field 1 is reserved but was written")
+		t.Fatal("field 1 was written; an unrepresentable chain id must be absent")
 	}
-	if !hasField(t, encoded, 8) {
-		t.Fatal("authChainId must be on the wire as field 8")
+
+	representable, err := parseAuth(t, "11155111")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err = proto.Marshal(representable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasField(t, encoded, 1) {
+		t.Fatal("a representable chain id must be on the wire")
 	}
 }
 

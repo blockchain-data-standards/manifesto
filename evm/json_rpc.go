@@ -910,15 +910,18 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 				continue
 			}
 			authItem := map[string]interface{}{
-				// AuthChainId is a decimal/hex string now, so %x would hex the
-				// string's bytes ("1" -> "31") rather than the number. The JSON
-				// key stays "chainId": eth_getTransactionByHash fixes it.
-				"chainId": normalizeNumberishString(auth.AuthChainId),
+				// Null, never "0x0", when the block's value did not fit 64 bits:
+				// 0 means "valid on any chain", so emitting it would widen the
+				// authorization's scope instead of reporting it as unknown.
+				"chainId": nil,
 				"address": BytesToHex(auth.Address),
 				"nonce":   fmt.Sprintf("0x%x", auth.Nonce),
 				"r":       BytesToHexFixed(auth.R, 32),
 				"s":       BytesToHexFixed(auth.S, 32),
 				"yParity": fmt.Sprintf("0x%x", auth.YParity),
+			}
+			if auth.ChainId != nil {
+				authItem["chainId"] = fmt.Sprintf("0x%x", *auth.ChainId)
 			}
 			// Optional authority (bytes) – include when present
 			if len(auth.Authority) > 0 {
@@ -1487,19 +1490,21 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 						return ""
 					}
 
-					// 256-bit decimal/hex string, mirroring Transaction.Value:
-					// an authorization may name any chain id, and narrowing it
-					// to uint64 makes blocks containing an out-of-range one
-					// unrepresentable. Unlike Value it has no default: the
-					// tuple cannot be RLP-decoded without a chain_id, and 0
-					// means "any chain" rather than "unknown", so an absent or
-					// non-string one is an error (as it is in the Rust binding).
-					authChainId := getAuthString("chainId")
-					if authChainId == "" {
+					// EIP-7702 allows chain_id up to 2**256, so it does not
+					// always fit. The tuple cannot exist without one, and 0 is
+					// a real value ("any chain") rather than a null, so a
+					// missing or malformed one is an error while a valid but
+					// too-wide one is stored absent — see models.proto.
+					authChainIdStr := getAuthString("chainId")
+					if authChainIdStr == "" {
 						return nil, fmt.Errorf("authorization chainId is missing or not a string")
 					}
-					if err := ValidateUint256Quantity(authChainId); err != nil {
+					if err := ValidateUint256Quantity(authChainIdStr); err != nil {
 						return nil, fmt.Errorf("failed to parse authorization chainId: %w", err)
+					}
+					var authChainId *uint64
+					if v, err := NumberishToUint64(authChainIdStr); err == nil {
+						authChainId = &v
 					}
 
 					authAddress, err := HexToBytes(getAuthString("address"))
@@ -1538,13 +1543,13 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 					}
 
 					authorizationList = append(authorizationList, &AuthorizationListItem{
-						AuthChainId: authChainId,
-						Address:     authAddress,
-						Nonce:       authNonce,
-						R:           authR,
-						S:           authS,
-						YParity:     authYParity,
-						Authority:   authAuthority,
+						ChainId:   authChainId,
+						Address:   authAddress,
+						Nonce:     authNonce,
+						R:         authR,
+						S:         authS,
+						YParity:   authYParity,
+						Authority: authAuthority,
 					})
 				}
 			}

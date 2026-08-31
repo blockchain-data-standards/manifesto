@@ -1451,41 +1451,20 @@ type AuthorizationListItem struct {
 	// Optional authority field present in some EIP-7702 clients, representing the authority address relevant to this authorization item
 	Authority []byte `protobuf:"bytes,7,opt,name=authority,proto3" json:"authority,omitempty"`
 	// The chain this authorization is *scoped to* — not the chain it appears on.
-	// EIP-7702's tuple is `[chain_id, address, nonce, y_parity, r, s]`, and that
-	// chain_id selects where the delegation may be replayed:
+	// 0 means "valid on any chain", the current chain means "valid here", and
+	// any other value means the tuple is skipped at execution while remaining in
+	// the transaction. EIP-7702 bounds it at `auth.chain_id < 2**256`, so it does
+	// not always fit here: seen on Sepolia block 8542703, tx index 271, with
+	// chainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333, a 20-byte value.
 	//
-	//	0                  valid on any chain (universal deployment)
-	//	the current chain  valid here
-	//	anything else      encodable and committed, but skipped at execution
-	//
-	// Named `authChainId` rather than `chainId` because the third case is the
-	// whole reason this field is wide: the outer `Transaction.chainId` must equal
-	// the current chain or the transaction is invalid and cannot be included, so
-	// inclusion itself bounds it to 64 bits in practice. An authorization tuple
-	// has no such bound — it rides inside a valid transaction while being skipped
-	// itself, so it carries the full domain EIP-7702 allows:
-	//
-	//	assert auth.chain_id < 2**256
-	//
-	// Observed in the wild on Ethereum Sepolia, block 8542703, in the type-0x4
-	// transaction at index 271:
-	//
-	//	authChainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333
-	//
-	// a 20-byte value in a field modelled as 64-bit. An indexer that narrows it
-	// cannot store that block, and because the block is canonical and immutable,
-	// retrying never helps.
-	//
-	// `string` because protobuf has no uint256; the value is an integer, carried
-	// as a decimal or `0x`-hex quantity exactly like `Transaction.value` and the
-	// other 256-bit quantities in this schema. Stored verbatim and
-	// uncanonicalized, so consumers comparing chain ids MUST normalize first:
-	// `"1"` and `"0x1"` are the same value. Domain: 0 <= authChainId < 2^256,
-	// rejected outside it.
-	//
-	// Emitted as `chainId` over JSON-RPC — that key is fixed by
-	// eth_getTransactionByHash and is unaffected by this field's name.
-	AuthChainId   string `protobuf:"bytes,8,opt,name=authChainId,proto3" json:"authChainId,omitempty"`
+	// `optional` for exactly that case. Absent means "present in the block but
+	// not representable in 64 bits", which is the one thing a plain uint64 cannot
+	// say: 0 is not a null here, it is the most permissive value in the spec, so
+	// defaulting to it would turn an unreadable authorization into a universally
+	// valid one. Such an authorization is invalid on every chain anyway and is
+	// always skipped, so consumers lose nothing by treating absent as "skipped" —
+	// they just must not read it as 0.
+	ChainId       *uint64 `protobuf:"varint,1,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1562,11 +1541,11 @@ func (x *AuthorizationListItem) GetAuthority() []byte {
 	return nil
 }
 
-func (x *AuthorizationListItem) GetAuthChainId() string {
-	if x != nil {
-		return x.AuthChainId
+func (x *AuthorizationListItem) GetChainId() uint64 {
+	if x != nil && x.ChainId != nil {
+		return *x.ChainId
 	}
-	return ""
+	return 0
 }
 
 // Represents a validator withdrawal from the beacon chain to the execution layer. Part of Ethereum's proof-of-stake design allowing validators to withdraw staked ETH and rewards
@@ -2468,15 +2447,17 @@ const file_models_proto_rawDesc = "" +
 	"\x10transactionIndex\x18\a \x01(\rR\x10transactionIndex\x12\x1a\n" +
 	"\blogIndex\x18\b \x01(\rR\blogIndex\x12+\n" +
 	"\x0eblockTimestamp\x18\t \x01(\x04H\x00R\x0eblockTimestamp\x88\x01\x01B\x11\n" +
-	"\x0f_blockTimestamp\"\xcc\x01\n" +
+	"\x0f_blockTimestamp\"\xc6\x01\n" +
 	"\x15AuthorizationListItem\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\fR\aaddress\x12\x14\n" +
 	"\x05nonce\x18\x03 \x01(\x04R\x05nonce\x12\f\n" +
 	"\x01r\x18\x04 \x01(\fR\x01r\x12\f\n" +
 	"\x01s\x18\x05 \x01(\fR\x01s\x12\x18\n" +
 	"\ayParity\x18\x06 \x01(\rR\ayParity\x12\x1c\n" +
-	"\tauthority\x18\a \x01(\fR\tauthority\x12 \n" +
-	"\vauthChainId\x18\b \x01(\tR\vauthChainIdJ\x04\b\x01\x10\x02R\achainId\"|\n" +
+	"\tauthority\x18\a \x01(\fR\tauthority\x12\x1d\n" +
+	"\achainId\x18\x01 \x01(\x04H\x00R\achainId\x88\x01\x01B\n" +
+	"\n" +
+	"\b_chainId\"|\n" +
 	"\n" +
 	"Withdrawal\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\x04R\x05index\x12&\n" +
@@ -2653,6 +2634,7 @@ func file_models_proto_init() {
 	file_models_proto_msgTypes[1].OneofWrappers = []any{}
 	file_models_proto_msgTypes[4].OneofWrappers = []any{}
 	file_models_proto_msgTypes[6].OneofWrappers = []any{}
+	file_models_proto_msgTypes[7].OneofWrappers = []any{}
 	file_models_proto_msgTypes[9].OneofWrappers = []any{}
 	file_models_proto_msgTypes[10].OneofWrappers = []any{}
 	file_models_proto_msgTypes[11].OneofWrappers = []any{}
