@@ -383,6 +383,26 @@ message Log {
 
 // Represents an authorization item for EIP-7702 Set Code transactions. Allows an EOA to authorize setting specific contract code to their account, enabling smart contract functionality without deployment
 message AuthorizationListItem {
+  // The chain this authorization is *scoped to* — not the chain it appears on.
+  // 0 means "valid on any chain", the current chain means "valid here", and any
+  // other value means the tuple is skipped at execution while remaining in the
+  // transaction and committed to `transactionsRoot`.
+  //
+  // EIP-7702 bounds this at `auth.chain_id < 2**256`, so it does not always fit
+  // in 64 bits. Seen on Sepolia block 8542703, tx index 271:
+  // chainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333, a 20-byte value.
+  //
+  // Deliberate simplification: a value that does not fit is stored as 0, which
+  // reads back as "valid on any chain". Known ceiling — such a tuple is skipped
+  // by every chain, so no correct consumer acts on it, but a consumer that
+  // trusts this field alone would believe a delegation is valid here when the
+  // chain refused it. The low bits are sender-chosen, so it is constructible on
+  // purpose, not just an accident; the backstop is that acting on it fails
+  // against a real node. Upgrade path if that stops being acceptable: make this
+  // `optional` and leave it absent, which distinguishes "unrepresentable" from
+  // "any chain" without a wire change.
+  uint64 chainId = 1;
+
   // The 20-byte address of the contract code to set for the authorizing EOA. This contract's code will be used when calling the EOA. Enables account abstraction and smart wallet features
   bytes address = 2;
 
@@ -400,24 +420,7 @@ message AuthorizationListItem {
 
   // Optional authority field present in some EIP-7702 clients, representing the authority address relevant to this authorization item
   bytes authority = 7;
-
-  // The chain this authorization is *scoped to* — not the chain it appears on.
-  // 0 means "valid on any chain", the current chain means "valid here", and
-  // any other value means the tuple is skipped at execution while remaining in
-  // the transaction. EIP-7702 bounds it at `auth.chain_id < 2**256`, so it does
-  // not always fit here: seen on Sepolia block 8542703, tx index 271, with
-  // chainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333, a 20-byte value.
-  //
-  // `optional` for exactly that case. Absent means "present in the block but
-  // not representable in 64 bits", which is the one thing a plain uint64 cannot
-  // say: 0 is not a null here, it is the most permissive value in the spec, so
-  // defaulting to it would turn an unreadable authorization into a universally
-  // valid one. Such an authorization is invalid on every chain anyway and is
-  // always skipped, so consumers lose nothing by treating absent as "skipped" —
-  // they just must not read it as 0.
-  optional uint64 chainId = 1;
 }
-
 // Represents a validator withdrawal from the beacon chain to the execution layer. Part of Ethereum's proof-of-stake design allowing validators to withdraw staked ETH and rewards
 message Withdrawal {
   // Sequential index of this withdrawal in the global withdrawal queue. Unique across all withdrawals. Increments monotonically. Used to track withdrawal processing and prevent duplicates

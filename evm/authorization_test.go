@@ -3,9 +3,6 @@ package evm
 import (
 	"strings"
 	"testing"
-
-	"google.golang.org/protobuf/encoding/protowire"
-	"google.golang.org/protobuf/proto"
 )
 
 // The Sepolia value this widening exists for: block 8542703, type-0x4
@@ -48,18 +45,18 @@ func parseAuth(t *testing.T, chainId interface{}) (*AuthorizationListItem, error
 
 // A chain id wider than 64 bits must survive verbatim: the block is canonical
 // and immutable, so an indexer that narrows it cannot store the block at all.
-func TestAuthorizationChainIdBeyondUint64IsAbsentNotZero(t *testing.T) {
+func TestAuthorizationChainIdBeyondUint64FallsBackToZero(t *testing.T) {
 	auth, err := parseAuth(t, wideChainId)
 	if err != nil {
 		t.Fatalf("the block must still parse: %v", err)
 	}
-	if auth.ChainId != nil {
-		t.Fatalf("narrowed to %d, want absent", *auth.ChainId)
+	if auth.ChainId != 0 {
+		t.Fatalf("chainId = %d, want the documented 0 fallback", auth.ChainId)
 	}
 	tx := &Transaction{AuthorizationList: []*AuthorizationListItem{auth}}
 	out := TransactionToJsonRpc(tx)["authorizationList"].([]interface{})[0].(map[string]interface{})
-	if got, ok := out["chainId"]; !ok || got != nil {
-		t.Fatalf("chainId = %v, want null — 0x0 would claim it is valid on any chain", got)
+	if got := out["chainId"]; got != "0x0" {
+		t.Fatalf("chainId rendered %v, want 0x0", got)
 	}
 }
 
@@ -123,70 +120,4 @@ func TestDecimalStringToHexRejectsNegatives(t *testing.T) {
 			t.Fatalf("DecimalStringToHex(%q) = %q, want error", in, got)
 		}
 	}
-}
-
-// The wire format is unchanged: field 1 is still a uint64 varint, so a payload
-// written before this change decodes exactly as it did. `optional` adds
-// presence, not a new encoding.
-func TestAuthorizationOldWirePayloadStillDecodes(t *testing.T) {
-	old := protowire.AppendVarint(protowire.AppendTag(nil, 1, protowire.VarintType), 11155111)
-	old = protowire.AppendBytes(protowire.AppendTag(old, 2, protowire.BytesType), []byte{0xaa, 0xbb})
-
-	var item AuthorizationListItem
-	if err := proto.Unmarshal(old, &item); err != nil {
-		t.Fatalf("old payload must decode: %v", err)
-	}
-	if item.ChainId == nil || *item.ChainId != 11155111 {
-		t.Fatalf("chain id = %v, want 11155111", item.ChainId)
-	}
-}
-
-// An unrepresentable chain id must leave field 1 off the wire entirely. Writing
-// 0 would be indistinguishable from a genuine "valid on any chain".
-func TestAuthorizationUnrepresentableChainIdIsNotOnTheWire(t *testing.T) {
-	auth, err := parseAuth(t, wideChainId)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := proto.Marshal(auth)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if hasField(t, encoded, 1) {
-		t.Fatal("field 1 was written; an unrepresentable chain id must be absent")
-	}
-
-	representable, err := parseAuth(t, "11155111")
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err = proto.Marshal(representable)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !hasField(t, encoded, 1) {
-		t.Fatal("a representable chain id must be on the wire")
-	}
-}
-
-// hasField reports whether the encoded message carries the given field number,
-// scanning it the way a reader on the old schema would.
-func hasField(t *testing.T, buf []byte, want protowire.Number) bool {
-	t.Helper()
-	for len(buf) > 0 {
-		num, typ, n := protowire.ConsumeTag(buf)
-		if n < 0 {
-			t.Fatalf("malformed tag: %v", protowire.ParseError(n))
-		}
-		buf = buf[n:]
-		if num == want {
-			return true
-		}
-		n = protowire.ConsumeFieldValue(num, typ, buf)
-		if n < 0 {
-			t.Fatalf("malformed field: %v", protowire.ParseError(n))
-		}
-		buf = buf[n:]
-	}
-	return false
 }

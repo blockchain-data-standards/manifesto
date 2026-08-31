@@ -1045,15 +1045,7 @@ fn access_list_item_to_json(item: &AccessListItem) -> Value {
 
 fn authorization_list_item_to_json(item: &AuthorizationListItem) -> Value {
     let mut o = Map::new();
-    // Always emitted (EIP-7702 requires it), but null rather than "0x0" when
-    // the block's value did not fit 64 bits: 0 means "valid on any chain", so
-    // emitting it would widen the authorization's scope instead of reporting it
-    // as unknown.
-    o.insert(
-        "chainId".into(),
-        item.chain_id
-            .map_or(Value::Null, |v| Value::String(quantity_hex(v))),
-    );
+    o.insert("chainId".into(), Value::String(quantity_hex(item.chain_id)));
     o.insert("address".into(), Value::String(bytes_to_hex(&item.address)));
     o.insert("nonce".into(), Value::String(quantity_hex(item.nonce)));
     o.insert("r".into(), Value::String(bytes_to_hex_fixed(&item.r, 32)));
@@ -1823,10 +1815,9 @@ fn access_list_item_from_json(o: &Map<String, Value>) -> Result<AccessListItem, 
 fn authorization_list_item_from_json(
     o: &Map<String, Value>,
 ) -> Result<AuthorizationListItem, FromJsonError> {
-    // Required and bounded by EIP-7702's `auth.chain_id < 2**256`, but not
-    // always representable: a valid value wider than 64 bits is stored absent
-    // rather than as 0, which would mean "valid on any chain". Missing or
-    // malformed still errors — see models.proto.
+    // Required and bounded by EIP-7702's `auth.chain_id < 2**256`. Missing or
+    // malformed errors; a well-formed value too wide for 64 bits falls back to
+    // 0 — deliberate, with the ceiling written down in models.proto.
     let chain_id = {
         let s = required_str(o, "chainId")?;
         let invalid = || FromJsonError::InvalidNumber {
@@ -1837,7 +1828,7 @@ fn authorization_list_item_from_json(
         if hex.len() > 2 + 64 {
             return Err(invalid());
         }
-        u64::from_str_radix(hex.trim_start_matches("0x"), 16).ok()
+        u64::from_str_radix(hex.trim_start_matches("0x"), 16).unwrap_or(0)
     };
     Ok(AuthorizationListItem {
         chain_id,
@@ -2826,7 +2817,7 @@ mod tests {
         let mut tx = base_transaction();
         tx.blob_versioned_hashes = vec![Bytes::from_static(&[0x01; 32])];
         tx.authorization_list = vec![AuthorizationListItem {
-            chain_id: Some(1),
+            chain_id: 1,
             address: Bytes::from_static(&[0x02; 20]),
             nonce: 1,
             r: Bytes::from_static(&[0x03]),
@@ -2854,12 +2845,12 @@ mod tests {
     /// not be stored.
     ///
     /// Real occurrence: Ethereum Sepolia block 8542703, type-0x4 transaction at
-    /// index 271 — a 20-byte value in a 64-bit field. It cannot be stored, but
-    /// it must not be stored *wrong*: 0 means "valid on any chain", so falling
-    /// back to it would report a universally valid delegation where the chain
-    /// skipped the tuple entirely.
+    /// index 271 — a 20-byte value in a 64-bit field. The block must still
+    /// parse; the chain id falls back to 0 with the ceiling documented in
+    /// models.proto. Pinned because 0 is not a neutral default here: it reads
+    /// as "valid on any chain".
     #[test]
-    fn authorization_chain_id_beyond_u64_is_absent_not_zero() {
+    fn authorization_chain_id_beyond_u64_falls_back_to_zero() {
         let json = serde_json::json!({
             "chainId": "0xf6a0be9433ee09f5ba0d5784b102833333333333",
             "address": "0x1111111111111111111111111111111111111111",
@@ -2871,12 +2862,8 @@ mod tests {
         let obj = json.as_object().expect("object");
 
         let item = authorization_list_item_from_json(obj).expect("the block must still parse");
-        assert_eq!(item.chain_id, None, "not narrowed to its low 64 bits");
-        assert_eq!(
-            authorization_list_item_to_json(&item)["chainId"],
-            Value::Null,
-            "null, not 0x0 — 0 would claim the authorization is valid anywhere"
-        );
+        assert_eq!(item.chain_id, 0);
+        assert_eq!(authorization_list_item_to_json(&item)["chainId"], "0x0");
     }
 
     /// The field is 256 bits wide, not unbounded: EIP-7702 asserts
