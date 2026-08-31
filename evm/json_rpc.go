@@ -910,9 +910,10 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 				continue
 			}
 			authItem := map[string]interface{}{
-				// ChainId is a decimal/hex string now, so %x would hex the
-				// string's bytes ("1" -> "31") rather than the number.
-				"chainId": normalizeNumberishString(AuthorizationChainId(auth)),
+				// AuthChainId is a decimal/hex string now, so %x would hex the
+				// string's bytes ("1" -> "31") rather than the number. The JSON
+				// key stays "chainId": eth_getTransactionByHash fixes it.
+				"chainId": normalizeNumberishString(auth.AuthChainId),
 				"address": BytesToHex(auth.Address),
 				"nonce":   fmt.Sprintf("0x%x", auth.Nonce),
 				"r":       BytesToHexFixed(auth.R, 32),
@@ -1537,18 +1538,13 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 					}
 
 					authorizationList = append(authorizationList, &AuthorizationListItem{
-						ChainId: authChainId,
-						// Dual-write: readers still on the pre-widening schema
-						// see field 1 and keep working for every chain id that
-						// fits 64 bits, which is all of them but the anomalies
-						// this widening exists for.
-						LegacyChainId: legacyChainIdOf(authChainId),
-						Address:       authAddress,
-						Nonce:         authNonce,
-						R:             authR,
-						S:             authS,
-						YParity:       authYParity,
-						Authority:     authAuthority,
+						AuthChainId: authChainId,
+						Address:     authAddress,
+						Nonce:       authNonce,
+						R:           authR,
+						S:           authS,
+						YParity:     authYParity,
+						Authority:   authAuthority,
 					})
 				}
 			}
@@ -1977,34 +1973,6 @@ func hexBytesOrEmpty(v string) ([]byte, error) {
 		return nil, nil
 	}
 	return HexToBytes(v)
-}
-
-// AuthorizationChainId returns an authorization's chain id as a quantity
-// string, preferring the 256-bit field and falling back to the deprecated
-// 64-bit one so payloads written before the widening keep their value instead
-// of silently reading back as 0 ("valid on any chain").
-func AuthorizationChainId(auth *AuthorizationListItem) string {
-	if auth.ChainId != "" {
-		return auth.ChainId
-	}
-	if auth.LegacyChainId != 0 {
-		return strconv.FormatUint(auth.LegacyChainId, 10)
-	}
-	return ""
-}
-
-// legacyChainIdOf mirrors a chain id into the deprecated 64-bit field when it
-// fits; 0 when it does not, which an old reader already cannot represent.
-func legacyChainIdOf(chainId string) uint64 {
-	hex, err := DecimalStringToHex(chainId)
-	if err != nil {
-		return 0
-	}
-	v, err := HexToUint64(hex)
-	if err != nil {
-		return 0
-	}
-	return v
 }
 
 func normalizeNumberishString(v string) string {

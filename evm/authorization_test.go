@@ -53,11 +53,8 @@ func TestAuthorizationChainIdSurvivesBeyondUint64(t *testing.T) {
 	if err != nil {
 		t.Fatalf("wide chainId must parse: %v", err)
 	}
-	if auth.ChainId != wideChainId {
-		t.Fatalf("stored %q, want %q", auth.ChainId, wideChainId)
-	}
-	if auth.LegacyChainId != 0 {
-		t.Fatalf("legacy mirror = %d, want 0 — the value does not fit 64 bits", auth.LegacyChainId)
+	if auth.AuthChainId != wideChainId {
+		t.Fatalf("stored %q, want %q", auth.AuthChainId, wideChainId)
 	}
 }
 
@@ -114,31 +111,6 @@ func TestAuthorizationChainIdIsBoundedByUint256(t *testing.T) {
 	}
 }
 
-// A pre-widening payload carries only the deprecated 64-bit field; reading it
-// must yield that chain id rather than silently reading back as "any chain".
-func TestAuthorizationChainIdFallsBackToLegacyField(t *testing.T) {
-	auth := &AuthorizationListItem{LegacyChainId: 11155111}
-	if got := AuthorizationChainId(auth); got != "11155111" {
-		t.Fatalf("legacy fallback = %q, want \"11155111\"", got)
-	}
-	tx := &Transaction{AuthorizationList: []*AuthorizationListItem{auth}}
-	out := TransactionToJsonRpc(tx)["authorizationList"].([]interface{})[0].(map[string]interface{})
-	if got := out["chainId"]; got != "0xaa36a7" {
-		t.Fatalf("legacy payload rendered %v, want 0xaa36a7", got)
-	}
-}
-
-// Dual-write: an old reader keeps seeing a chain id for every value that fits.
-func TestAuthorizationChainIdMirrorsIntoLegacyField(t *testing.T) {
-	auth, err := parseAuth(t, "11155111")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if auth.LegacyChainId != 11155111 {
-		t.Fatalf("legacy mirror = %d, want 11155111", auth.LegacyChainId)
-	}
-}
-
 // Negative quantities are malformed everywhere, not just here: the shared
 // helper used to normalize "-1" into the invalid QUANTITY "0x-1".
 func TestDecimalStringToHexRejectsNegatives(t *testing.T) {
@@ -149,25 +121,30 @@ func TestDecimalStringToHexRejectsNegatives(t *testing.T) {
 	}
 }
 
-// Wire migration, old -> new: a payload written before the widening carries
-// only field 1. The new reader must recover that chain id; reading it as 0
-// would silently turn a chain-scoped authorization into an any-chain one.
-func TestAuthorizationWireCompatOldPayloadKeepsChainId(t *testing.T) {
+// The break is clean, not silent: field 1 held the old uint64 chainId and is
+// now reserved, so an old payload's chain id lands in unknown fields rather
+// than being read as a value. It must not surface as 0 — in EIP-7702 that
+// means "valid on any chain", so a misread would rewrite the authorization's
+// scope instead of dropping it.
+func TestAuthorizationOldWirePayloadDoesNotBecomeAnyChain(t *testing.T) {
 	old := protowire.AppendVarint(protowire.AppendTag(nil, 1, protowire.VarintType), 11155111)
 	old = protowire.AppendBytes(protowire.AppendTag(old, 2, protowire.BytesType), []byte{0xaa, 0xbb})
 
 	var item AuthorizationListItem
 	if err := proto.Unmarshal(old, &item); err != nil {
-		t.Fatalf("old payload must decode: %v", err)
+		t.Fatalf("old payload must still decode: %v", err)
 	}
-	if got := AuthorizationChainId(&item); got != "11155111" {
-		t.Fatalf("chain id read back as %q, want \"11155111\"", got)
+	if item.AuthChainId != "" {
+		t.Fatalf("reserved field 1 leaked into authChainId as %q", item.AuthChainId)
+	}
+	if len(item.Address) != 2 {
+		t.Fatal("the rest of the message must survive the reserved field")
 	}
 }
 
-// Wire migration, new -> old: a reader still on the pre-widening schema reads
-// field 1, so the writer must keep populating it whenever the value fits.
-func TestAuthorizationWireCompatNewPayloadCarriesLegacyField(t *testing.T) {
+// A new payload must not write field 1 at all: a reader still on the old
+// schema has to see the field as absent, never as a wrong varint.
+func TestAuthorizationNewWirePayloadLeavesFieldOneUnset(t *testing.T) {
 	auth, err := parseAuth(t, "11155111")
 	if err != nil {
 		t.Fatal(err)
@@ -176,14 +153,17 @@ func TestAuthorizationWireCompatNewPayloadCarriesLegacyField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := varintField(t, encoded, 1); got != 11155111 {
-		t.Fatalf("field 1 on the wire = %d, want 11155111", got)
+	if hasField(t, encoded, 1) {
+		t.Fatal("field 1 is reserved but was written")
+	}
+	if !hasField(t, encoded, 8) {
+		t.Fatal("authChainId must be on the wire as field 8")
 	}
 }
 
-// varintField returns the varint value of the given field number, scanning the
-// encoded message the way a reader on the old schema would.
-func varintField(t *testing.T, buf []byte, want protowire.Number) uint64 {
+// hasField reports whether the encoded message carries the given field number,
+// scanning it the way a reader on the old schema would.
+func hasField(t *testing.T, buf []byte, want protowire.Number) bool {
 	t.Helper()
 	for len(buf) > 0 {
 		num, typ, n := protowire.ConsumeTag(buf)
@@ -191,12 +171,8 @@ func varintField(t *testing.T, buf []byte, want protowire.Number) uint64 {
 			t.Fatalf("malformed tag: %v", protowire.ParseError(n))
 		}
 		buf = buf[n:]
-		if num == want && typ == protowire.VarintType {
-			v, n := protowire.ConsumeVarint(buf)
-			if n < 0 {
-				t.Fatalf("malformed varint: %v", protowire.ParseError(n))
-			}
-			return v
+		if num == want {
+			return true
 		}
 		n = protowire.ConsumeFieldValue(num, typ, buf)
 		if n < 0 {
@@ -204,6 +180,5 @@ func varintField(t *testing.T, buf []byte, want protowire.Number) uint64 {
 		}
 		buf = buf[n:]
 	}
-	t.Fatalf("field %d absent", want)
-	return 0
+	return false
 }

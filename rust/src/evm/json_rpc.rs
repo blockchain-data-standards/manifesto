@@ -1043,43 +1043,17 @@ fn access_list_item_to_json(item: &AccessListItem) -> Value {
     Value::Object(o)
 }
 
-/// An authorization's chain id as a quantity string: the 256-bit field when
-/// set, else the deprecated 64-bit one. Mirrors Go's `AuthorizationChainId`.
-#[allow(deprecated)] // reading the legacy field is the point of the fallback
-fn authorization_chain_id(item: &AuthorizationListItem) -> String {
-    if !item.chain_id.is_empty() {
-        return item.chain_id.clone();
-    }
-    if item.legacy_chain_id != 0 {
-        return item.legacy_chain_id.to_string();
-    }
-    String::new()
-}
-
-/// Mirrors Go's `legacyChainIdOf`: the value in the deprecated 64-bit field
-/// when it fits there, 0 when it does not (an old reader could not hold it).
-fn legacy_chain_id_of(chain_id: &str) -> u64 {
-    let hex = match decimal_string_to_hex(chain_id) {
-        Some(h) => h,
-        None => return 0,
-    };
-    u64::from_str_radix(hex.trim_start_matches("0x"), 16).unwrap_or(0)
-}
-
 fn authorization_list_item_to_json(item: &AuthorizationListItem) -> Value {
     let mut o = Map::new();
-    // `chainId` is a 256-bit decimal/hex string (like `value`), not a u64: an
-    // authorization can name any chain id, and only 0 / the current chain make
-    // it *valid* — an out-of-range one is still committed to the block.
-    // Unlike `value`, the key is always emitted: it is required by EIP-7702 and
-    // the previous u64 mapping always produced one. Falls back to the
-    // deprecated 64-bit field so a pre-widening payload keeps its chain id
-    // instead of reading back as 0, which means "any chain", not "unknown".
+    // `auth_chain_id` is a 256-bit decimal/hex string (like `value`), not a
+    // u64: an authorization names the chain it is *scoped to*, and only 0 / the
+    // current chain make it valid — an out-of-range one is still committed to
+    // the block. The JSON key stays `chainId`, fixed by eth_getTransactionByHash.
+    // Unlike `value` it is always emitted: EIP-7702 requires it and the previous
+    // u64 mapping always produced one.
     o.insert(
         "chainId".into(),
-        Value::String(
-            decimal_string_to_hex(&authorization_chain_id(item)).unwrap_or_else(|| "0x0".into()),
-        ),
+        Value::String(decimal_string_to_hex(&item.auth_chain_id).unwrap_or_else(|| "0x0".into())),
     );
     o.insert("address".into(), Value::String(bytes_to_hex(&item.address)));
     o.insert("nonce".into(), Value::String(quantity_hex(item.nonce)));
@@ -1869,10 +1843,7 @@ fn authorization_list_item_from_json(
         s.to_string()
     };
     Ok(AuthorizationListItem {
-        // Dual-write, so readers on the pre-widening schema keep seeing a
-        // chain id for every value that fits 64 bits.
-        legacy_chain_id: legacy_chain_id_of(&chain_id),
-        chain_id,
+        auth_chain_id: chain_id,
         address: req_bytes(o, "address")?,
         nonce: required_u64_field(o, "nonce")?,
         r: req_bytes(o, "r")?,
@@ -2854,13 +2825,11 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn transaction_to_json_optional_arrays_present_only_when_nonempty() {
         let mut tx = base_transaction();
         tx.blob_versioned_hashes = vec![Bytes::from_static(&[0x01; 32])];
         tx.authorization_list = vec![AuthorizationListItem {
-            chain_id: "1".to_string(),
-            legacy_chain_id: 1,
+            auth_chain_id: "1".to_string(),
             address: Bytes::from_static(&[0x02; 20]),
             nonce: 1,
             r: Bytes::from_static(&[0x03]),
@@ -2904,7 +2873,7 @@ mod tests {
 
         let item = authorization_list_item_from_json(obj).expect("wide chainId must parse");
         assert_eq!(
-            item.chain_id, wide_hex,
+            item.auth_chain_id, wide_hex,
             "stored verbatim, not truncated to its low 64 bits"
         );
 
@@ -2942,40 +2911,6 @@ mod tests {
             let got = authorization_list_item_from_json(json.as_object().expect("object"));
             assert_eq!(got.is_ok(), ok, "chainId {input}");
         }
-    }
-
-    /// A payload written before the widening carries only the deprecated
-    /// 64-bit field. Reading it must yield that chain id — not 0, which in
-    /// EIP-7702 means "valid on any chain" rather than "unknown".
-    #[test]
-    #[allow(deprecated)]
-    fn authorization_chain_id_falls_back_to_legacy_field() {
-        let item = AuthorizationListItem {
-            chain_id: String::new(),
-            legacy_chain_id: 11_155_111,
-            address: Bytes::from_static(&[0x02; 20]),
-            nonce: 1,
-            r: Bytes::from_static(&[0x03]),
-            s: Bytes::from_static(&[0x04]),
-            y_parity: 1,
-            authority: Bytes::new(),
-        };
-        assert_eq!(
-            authorization_list_item_to_json(&item)["chainId"],
-            "0xaa36a7"
-        );
-    }
-
-    /// Dual-write keeps pre-widening readers working: the 64-bit mirror is
-    /// populated when the value fits and left 0 when it cannot be represented.
-    #[test]
-    fn authorization_chain_id_mirrors_into_legacy_field_when_it_fits() {
-        assert_eq!(legacy_chain_id_of("11155111"), 11_155_111);
-        assert_eq!(legacy_chain_id_of("0xaa36a7"), 11_155_111);
-        assert_eq!(
-            legacy_chain_id_of("0xf6a0be9433ee09f5ba0d5784b102833333333333"),
-            0
-        );
     }
 
     #[test]

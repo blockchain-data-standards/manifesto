@@ -383,13 +383,10 @@ message Log {
 
 // Represents an authorization item for EIP-7702 Set Code transactions. Allows an EOA to authorize setting specific contract code to their account, enabling smart contract functionality without deployment
 message AuthorizationListItem {
-  // Deprecated 64-bit chain id: the original `chainId`, kept so payloads
-  // written before the widening keep carrying their value and so readers
-  // built against the old schema keep seeing one. Writers MUST set `chainId`
-  // (field 8) and SHOULD also set this field whenever the value fits in 64
-  // bits; readers MUST prefer field 8 and fall back to this one only when
-  // field 8 is absent. Removed once no pre-widening writer or reader remains.
-  uint64 legacyChainId = 1 [deprecated = true];
+  // Field 1 held `uint64 chainId`, and the name is reserved with it: this
+  // value is not the id of the chain the transaction is on. See authChainId.
+  reserved 1;
+  reserved "chainId";
 
   // The 20-byte address of the contract code to set for the authorizing EOA. This contract's code will be used when calling the EOA. Enables account abstraction and smart wallet features
   bytes address = 2;
@@ -409,42 +406,42 @@ message AuthorizationListItem {
   // Optional authority field present in some EIP-7702 clients, representing the authority address relevant to this authorization item
   bytes authority = 7;
 
-  // Chain ID this authorization is scoped to, as a decimal or hex quantity
-  // string. Uses 256-bit precision, matching `Transaction.value`.
+  // The chain this authorization is *scoped to* — not the chain it appears on.
+  // EIP-7702's tuple is `[chain_id, address, nonce, y_parity, r, s]`, and that
+  // chain_id selects where the delegation may be replayed:
   //
-  // EIP-7702 defines the authorization tuple as
-  // `[chain_id, address, nonce, y_parity, r, s]` where `chain_id` is a 256-bit
-  // integer. Only 0 (any chain) or the current chain's ID make an authorization
-  // *valid*, which is why this began life as a `uint64` — but validity and
-  // encodability are different domains. An authorization naming any other chain
-  // is skipped during execution, yet it remains in the transaction and is
-  // committed to `transactionsRoot`, so a conforming indexer must be able to
-  // represent the full 256-bit range to reconstruct the block at all.
+  //   0                  valid on any chain (universal deployment)
+  //   the current chain  valid here
+  //   anything else      encodable and committed, but skipped at execution
+  //
+  // Named `authChainId` rather than `chainId` because the third case is the
+  // whole reason this field is wide: the outer `Transaction.chainId` must equal
+  // the current chain or the transaction is invalid and cannot be included, so
+  // inclusion itself bounds it to 64 bits in practice. An authorization tuple
+  // has no such bound — it rides inside a valid transaction while being skipped
+  // itself, so it carries the full domain EIP-7702 allows:
+  //
+  //   assert auth.chain_id < 2**256
   //
   // Observed in the wild on Ethereum Sepolia, block 8542703, in the type-0x4
   // transaction at index 271:
   //
-  //   chainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333
+  //   authChainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333
   //
   // a 20-byte value in a field modelled as 64-bit. An indexer that narrows it
   // cannot store that block, and because the block is canonical and immutable,
   // retrying never helps.
   //
-  // A new field number rather than a retype of field 1: a wire-type mismatch
-  // on a reused number is routed to unknown fields by conforming decoders, so
-  // neither layout misreads the other — but the source-level `uint64` ->
-  // `string` flip is caught loudly by compilers and by `buf breaking`'s
-  // FIELD_SAME_TYPE only when the number moves. Field 1 stays live as
-  // `legacyChainId` above so the migration is lossless in both directions;
-  // dropping it would make every pre-widening authorization read back as 0,
-  // which in EIP-7702 does not mean "unknown" but "valid on any chain".
+  // `string` because protobuf has no uint256; the value is an integer, carried
+  // as a decimal or `0x`-hex quantity exactly like `Transaction.value` and the
+  // other 256-bit quantities in this schema. Stored verbatim and
+  // uncanonicalized, so consumers comparing chain ids MUST normalize first:
+  // `"1"` and `"0x1"` are the same value. Domain: 0 <= authChainId < 2^256,
+  // rejected outside it.
   //
-  // Value domain: 0 <= chainId < 2^256, rejected outside that range. Accepted
-  // and stored as a decimal or `0x`-prefixed hex quantity, verbatim and
-  // uncanonicalized — the same contract as `Transaction.value` and the other
-  // quantity strings in this schema. Consumers comparing chain ids MUST
-  // normalize first; `"1"` and `"0x1"` are the same value.
-  string chainId = 8;
+  // Emitted as `chainId` over JSON-RPC — that key is fixed by
+  // eth_getTransactionByHash and is unaffected by this field's name.
+  string authChainId = 8;
 }
 
 // Represents a validator withdrawal from the beacon chain to the execution layer. Part of Ethereum's proof-of-stake design allowing validators to withdraw staked ETH and rewards

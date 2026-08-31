@@ -1438,15 +1438,6 @@ func (x *Log) GetBlockTimestamp() uint64 {
 // Represents an authorization item for EIP-7702 Set Code transactions. Allows an EOA to authorize setting specific contract code to their account, enabling smart contract functionality without deployment
 type AuthorizationListItem struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Deprecated 64-bit chain id: the original `chainId`, kept so payloads
-	// written before the widening keep carrying their value and so readers
-	// built against the old schema keep seeing one. Writers MUST set `chainId`
-	// (field 8) and SHOULD also set this field whenever the value fits in 64
-	// bits; readers MUST prefer field 8 and fall back to this one only when
-	// field 8 is absent. Removed once no pre-widening writer or reader remains.
-	//
-	// Deprecated: Marked as deprecated in models.proto.
-	LegacyChainId uint64 `protobuf:"varint,1,opt,name=legacyChainId,proto3" json:"legacyChainId,omitempty"`
 	// The 20-byte address of the contract code to set for the authorizing EOA. This contract's code will be used when calling the EOA. Enables account abstraction and smart wallet features
 	Address []byte `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
 	// Nonce of the authorization to prevent replay attacks. Must match the current nonce of the authorizing EOA. Ensures each authorization can only be used once
@@ -1459,42 +1450,42 @@ type AuthorizationListItem struct {
 	YParity uint32 `protobuf:"varint,6,opt,name=yParity,proto3" json:"yParity,omitempty"`
 	// Optional authority field present in some EIP-7702 clients, representing the authority address relevant to this authorization item
 	Authority []byte `protobuf:"bytes,7,opt,name=authority,proto3" json:"authority,omitempty"`
-	// Chain ID this authorization is scoped to, as a decimal or hex quantity
-	// string. Uses 256-bit precision, matching `Transaction.value`.
+	// The chain this authorization is *scoped to* — not the chain it appears on.
+	// EIP-7702's tuple is `[chain_id, address, nonce, y_parity, r, s]`, and that
+	// chain_id selects where the delegation may be replayed:
 	//
-	// EIP-7702 defines the authorization tuple as
-	// `[chain_id, address, nonce, y_parity, r, s]` where `chain_id` is a 256-bit
-	// integer. Only 0 (any chain) or the current chain's ID make an authorization
-	// *valid*, which is why this began life as a `uint64` — but validity and
-	// encodability are different domains. An authorization naming any other chain
-	// is skipped during execution, yet it remains in the transaction and is
-	// committed to `transactionsRoot`, so a conforming indexer must be able to
-	// represent the full 256-bit range to reconstruct the block at all.
+	//	0                  valid on any chain (universal deployment)
+	//	the current chain  valid here
+	//	anything else      encodable and committed, but skipped at execution
+	//
+	// Named `authChainId` rather than `chainId` because the third case is the
+	// whole reason this field is wide: the outer `Transaction.chainId` must equal
+	// the current chain or the transaction is invalid and cannot be included, so
+	// inclusion itself bounds it to 64 bits in practice. An authorization tuple
+	// has no such bound — it rides inside a valid transaction while being skipped
+	// itself, so it carries the full domain EIP-7702 allows:
+	//
+	//	assert auth.chain_id < 2**256
 	//
 	// Observed in the wild on Ethereum Sepolia, block 8542703, in the type-0x4
 	// transaction at index 271:
 	//
-	//	chainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333
+	//	authChainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333
 	//
 	// a 20-byte value in a field modelled as 64-bit. An indexer that narrows it
 	// cannot store that block, and because the block is canonical and immutable,
 	// retrying never helps.
 	//
-	// A new field number rather than a retype of field 1: a wire-type mismatch
-	// on a reused number is routed to unknown fields by conforming decoders, so
-	// neither layout misreads the other — but the source-level `uint64` ->
-	// `string` flip is caught loudly by compilers and by `buf breaking`'s
-	// FIELD_SAME_TYPE only when the number moves. Field 1 stays live as
-	// `legacyChainId` above so the migration is lossless in both directions;
-	// dropping it would make every pre-widening authorization read back as 0,
-	// which in EIP-7702 does not mean "unknown" but "valid on any chain".
+	// `string` because protobuf has no uint256; the value is an integer, carried
+	// as a decimal or `0x`-hex quantity exactly like `Transaction.value` and the
+	// other 256-bit quantities in this schema. Stored verbatim and
+	// uncanonicalized, so consumers comparing chain ids MUST normalize first:
+	// `"1"` and `"0x1"` are the same value. Domain: 0 <= authChainId < 2^256,
+	// rejected outside it.
 	//
-	// Value domain: 0 <= chainId < 2^256, rejected outside that range. Accepted
-	// and stored as a decimal or `0x`-prefixed hex quantity, verbatim and
-	// uncanonicalized — the same contract as `Transaction.value` and the other
-	// quantity strings in this schema. Consumers comparing chain ids MUST
-	// normalize first; `"1"` and `"0x1"` are the same value.
-	ChainId       string `protobuf:"bytes,8,opt,name=chainId,proto3" json:"chainId,omitempty"`
+	// Emitted as `chainId` over JSON-RPC — that key is fixed by
+	// eth_getTransactionByHash and is unaffected by this field's name.
+	AuthChainId   string `protobuf:"bytes,8,opt,name=authChainId,proto3" json:"authChainId,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1527,14 +1518,6 @@ func (x *AuthorizationListItem) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AuthorizationListItem.ProtoReflect.Descriptor instead.
 func (*AuthorizationListItem) Descriptor() ([]byte, []int) {
 	return file_models_proto_rawDescGZIP(), []int{7}
-}
-
-// Deprecated: Marked as deprecated in models.proto.
-func (x *AuthorizationListItem) GetLegacyChainId() uint64 {
-	if x != nil {
-		return x.LegacyChainId
-	}
-	return 0
 }
 
 func (x *AuthorizationListItem) GetAddress() []byte {
@@ -1579,9 +1562,9 @@ func (x *AuthorizationListItem) GetAuthority() []byte {
 	return nil
 }
 
-func (x *AuthorizationListItem) GetChainId() string {
+func (x *AuthorizationListItem) GetAuthChainId() string {
 	if x != nil {
-		return x.ChainId
+		return x.AuthChainId
 	}
 	return ""
 }
@@ -2485,16 +2468,15 @@ const file_models_proto_rawDesc = "" +
 	"\x10transactionIndex\x18\a \x01(\rR\x10transactionIndex\x12\x1a\n" +
 	"\blogIndex\x18\b \x01(\rR\blogIndex\x12+\n" +
 	"\x0eblockTimestamp\x18\t \x01(\x04H\x00R\x0eblockTimestamp\x88\x01\x01B\x11\n" +
-	"\x0f_blockTimestamp\"\xdf\x01\n" +
-	"\x15AuthorizationListItem\x12(\n" +
-	"\rlegacyChainId\x18\x01 \x01(\x04B\x02\x18\x01R\rlegacyChainId\x12\x18\n" +
+	"\x0f_blockTimestamp\"\xcc\x01\n" +
+	"\x15AuthorizationListItem\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\fR\aaddress\x12\x14\n" +
 	"\x05nonce\x18\x03 \x01(\x04R\x05nonce\x12\f\n" +
 	"\x01r\x18\x04 \x01(\fR\x01r\x12\f\n" +
 	"\x01s\x18\x05 \x01(\fR\x01s\x12\x18\n" +
 	"\ayParity\x18\x06 \x01(\rR\ayParity\x12\x1c\n" +
-	"\tauthority\x18\a \x01(\fR\tauthority\x12\x18\n" +
-	"\achainId\x18\b \x01(\tR\achainId\"|\n" +
+	"\tauthority\x18\a \x01(\fR\tauthority\x12 \n" +
+	"\vauthChainId\x18\b \x01(\tR\vauthChainIdJ\x04\b\x01\x10\x02R\achainId\"|\n" +
 	"\n" +
 	"Withdrawal\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\x04R\x05index\x12&\n" +
