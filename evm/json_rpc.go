@@ -401,8 +401,8 @@ type JsonRpcReceipt struct {
 	L1FeeScalar           string          `json:"l1FeeScalar"`
 	L1BaseFeeScalar       string          `json:"l1BaseFeeScalar"`
 	L1BlobBaseFee         string          `json:"l1BlobBaseFee"`
-	L1BlobBaseFeeScalar   string          `json:"l1BlobBaseFeeScalar"`
-	DaFootprintGasScalar  string          `json:"daFootprintGasScalar"`
+	L1BlobBaseFeeScalar    string          `json:"l1BlobBaseFeeScalar"`
+	DaFootprintGasScalar   string          `json:"daFootprintGasScalar"`
 	GasUsedForL1          string          `json:"gasUsedForL1"`
 	L1BlockNumber         string          `json:"l1BlockNumber"`
 	GatewayFee            string          `json:"gatewayFee"`
@@ -631,8 +631,8 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 		L1FeeScalar:           l1FeeScalar,
 		L1BaseFeeScalar:       l1BaseFeeScalar,
 		L1BlobBaseFee:         l1BlobBaseFee,
-		L1BlobBaseFeeScalar:   l1BlobBaseFeeScalar,
-		DaFootprintGasScalar:  daFootprintGasScalar,
+		L1BlobBaseFeeScalar:  l1BlobBaseFeeScalar,
+		DaFootprintGasScalar: daFootprintGasScalar,
 		GasUsedForL1:          gasUsedForL1,
 		L1BlockNumber:         l1BlockNumber,
 		GatewayFee:            gatewayFee,
