@@ -910,7 +910,9 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 				continue
 			}
 			authItem := map[string]interface{}{
-				"chainId": fmt.Sprintf("0x%x", auth.ChainId),
+				// ChainId is a decimal/hex string now, so %x would hex the
+				// string's bytes ("1" -> "31") rather than the number.
+				"chainId": normalizeNumberishString(auth.ChainId),
 				"address": BytesToHex(auth.Address),
 				"nonce":   fmt.Sprintf("0x%x", auth.Nonce),
 				"r":       BytesToHexFixed(auth.R, 32),
@@ -1484,8 +1486,14 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 						return ""
 					}
 
-					authChainId, err := NumberishToUint64(getAuthString("chainId"))
-					if err != nil {
+					// 256-bit decimal/hex string, mirroring Transaction.Value:
+					// an authorization may name any chain id, and narrowing it
+					// to uint64 makes blocks containing an out-of-range one
+					// unrepresentable. Empty defaults to "0" as Value does.
+					authChainId := getAuthString("chainId")
+					if authChainId == "" {
+						authChainId = "0"
+					} else if _, err := DecimalStringToHex(authChainId); err != nil {
 						return nil, fmt.Errorf("failed to parse authorization chainId: %w", err)
 					}
 

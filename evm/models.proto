@@ -383,8 +383,7 @@ message Log {
 
 // Represents an authorization item for EIP-7702 Set Code transactions. Allows an EOA to authorize setting specific contract code to their account, enabling smart contract functionality without deployment
 message AuthorizationListItem {
-  // Chain ID where this authorization is valid. Prevents cross-chain replay of authorizations. Must match the transaction's chain ID. Ensures authorizations are network-specific
-  uint64 chainId = 1;
+  reserved 1;  // was `uint64 chainId`, too narrow — see `chainId = 8` below
 
   // The 20-byte address of the contract code to set for the authorizing EOA. This contract's code will be used when calling the EOA. Enables account abstraction and smart wallet features
   bytes address = 2;
@@ -403,6 +402,35 @@ message AuthorizationListItem {
 
   // Optional authority field present in some EIP-7702 clients, representing the authority address relevant to this authorization item
   bytes authority = 7;
+
+  // Chain ID this authorization is scoped to, as a decimal string. Uses 256-bit
+  // precision, matching `Transaction.value`.
+  //
+  // EIP-7702 defines the authorization tuple as
+  // `[chain_id, address, nonce, y_parity, r, s]` where `chain_id` is a 256-bit
+  // integer. Only 0 (any chain) or the current chain's ID make an authorization
+  // *valid*, which is why this began life as a `uint64` — but validity and
+  // encodability are different domains. An authorization naming any other chain
+  // is skipped during execution, yet it remains in the transaction and is
+  // committed to `transactionsRoot`, so a conforming indexer must be able to
+  // represent the full 256-bit range to reconstruct the block at all.
+  //
+  // Observed in the wild on Ethereum Sepolia, block 8542703, in the type-0x4
+  // transaction at index 271:
+  //
+  //   chainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333
+  //
+  // a 20-byte value in a field modelled as 64-bit. An indexer that narrows it
+  // cannot store that block, and because the block is canonical and immutable,
+  // retrying never helps.
+  //
+  // Field 1 is reserved rather than retyped in place: `uint64` is a varint and
+  // `string` is length-delimited, so reusing the number would let old payloads
+  // decode into a new reader as a *wrong* value instead of an absent one.
+  // Moving to a fresh number fails safe in both directions — each side sees the
+  // field as missing rather than misreading it. The JSON name is unchanged, so
+  // JSON consumers are unaffected.
+  string chainId = 8;
 }
 
 // Represents a validator withdrawal from the beacon chain to the execution layer. Part of Ethereum's proof-of-stake design allowing validators to withdraw staked ETH and rewards

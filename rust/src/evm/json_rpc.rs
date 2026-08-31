@@ -1045,7 +1045,16 @@ fn access_list_item_to_json(item: &AccessListItem) -> Value {
 
 fn authorization_list_item_to_json(item: &AuthorizationListItem) -> Value {
     let mut o = Map::new();
-    o.insert("chainId".into(), Value::String(quantity_hex(item.chain_id)));
+    // `chainId` is a 256-bit decimal string (like `value`), not a u64: an
+    // authorization can name any chain id, and only 0 / the current chain make
+    // it *valid* — an out-of-range one is still committed to the block.
+    // Unlike `value`, the key is always emitted: it is required by EIP-7702 and
+    // the previous u64 mapping always produced one. `decimal_string_to_hex`
+    // already maps "" to "0x0", so the fallback only covers malformed input.
+    o.insert(
+        "chainId".into(),
+        Value::String(decimal_string_to_hex(&item.chain_id).unwrap_or_else(|| "0x0".to_string())),
+    );
     o.insert("address".into(), Value::String(bytes_to_hex(&item.address)));
     o.insert("nonce".into(), Value::String(quantity_hex(item.nonce)));
     o.insert("r".into(), Value::String(bytes_to_hex_fixed(&item.r, 32)));
@@ -1816,7 +1825,19 @@ fn authorization_list_item_from_json(
     o: &Map<String, Value>,
 ) -> Result<AuthorizationListItem, FromJsonError> {
     Ok(AuthorizationListItem {
-        chain_id: required_u64_field(o, "chainId")?,
+        // Still required, as before — a missing `chainId` errors. What changed
+        // is the width: stored verbatim as a 256-bit decimal/hex string rather
+        // than narrowed to u64, mirroring how `value` is handled.
+        chain_id: {
+            let s = required_str(o, "chainId")?;
+            if decimal_string_to_hex(s).is_none() {
+                return Err(FromJsonError::InvalidNumber {
+                    field: "chainId",
+                    value: s.to_string(),
+                });
+            }
+            s.to_string()
+        },
         address: req_bytes(o, "address")?,
         nonce: required_u64_field(o, "nonce")?,
         r: req_bytes(o, "r")?,
@@ -2802,7 +2823,7 @@ mod tests {
         let mut tx = base_transaction();
         tx.blob_versioned_hashes = vec![Bytes::from_static(&[0x01; 32])];
         tx.authorization_list = vec![AuthorizationListItem {
-            chain_id: 1,
+            chain_id: "1".to_string(),
             address: Bytes::from_static(&[0x02; 20]),
             nonce: 1,
             r: Bytes::from_static(&[0x03]),
@@ -2818,6 +2839,63 @@ mod tests {
             auth.get("authority").is_none(),
             "empty authority is omitted"
         );
+    }
+
+    /// An authorization `chainId` beyond `u64` has to survive a JSON round trip.
+    ///
+    /// EIP-7702's `chain_id` is a 256-bit integer. Only 0 or the current chain
+    /// make an authorization *valid*, but an out-of-range one is still encodable
+    /// and still committed to `transactionsRoot` — so a conforming indexer must
+    /// represent it to reconstruct the block at all. While `chainId` was a
+    /// `uint64` this value could not be held, and a block containing it could
+    /// not be stored.
+    ///
+    /// Real occurrence: Ethereum Sepolia block 8542703, type-0x4 transaction at
+    /// index 271 — a 20-byte value in what was a 64-bit field.
+    #[test]
+    fn authorization_chain_id_survives_beyond_u64() {
+        let wide_hex = "0xf6a0be9433ee09f5ba0d5784b102833333333333";
+        let json = serde_json::json!({
+            "chainId": wide_hex,
+            "address": "0x1111111111111111111111111111111111111111",
+            "nonce": "0x1",
+            "yParity": "0x1",
+            "r": "0x9913bfae03d1a071190d025f6af8ffe4597d77668a89170a8a4a866c92d19644",
+            "s": "0x40c47e2a25e4a25c725172969f680d3eca1f36aa21bccdbc6e9237315e07e0c7",
+        });
+        let obj = json.as_object().expect("object");
+
+        let item = authorization_list_item_from_json(obj).expect("wide chainId must parse");
+        assert_eq!(
+            item.chain_id, wide_hex,
+            "stored verbatim, not truncated to its low 64 bits"
+        );
+
+        let back = authorization_list_item_to_json(&item);
+        assert_eq!(
+            back["chainId"], wide_hex,
+            "round-trips unchanged; it is already a normalized hex quantity"
+        );
+    }
+
+    #[test]
+    fn authorization_chain_id_still_round_trips_ordinary_values() {
+        // The common path must be untouched: a plain chain id still renders as a
+        // minimal hex quantity, exactly as the u64 mapping did.
+        for (input, want) in [("0x1", "0x1"), ("11155111", "0xaa36a7"), ("0x0", "0x0")] {
+            let json = serde_json::json!({
+                "chainId": input,
+                "address": "0x1111111111111111111111111111111111111111",
+                "nonce": "0x1",
+                "yParity": "0x1",
+                "r": "0x9913bfae03d1a071190d025f6af8ffe4597d77668a89170a8a4a866c92d19644",
+                "s": "0x40c47e2a25e4a25c725172969f680d3eca1f36aa21bccdbc6e9237315e07e0c7",
+            });
+            let item = authorization_list_item_from_json(json.as_object().expect("object"))
+                .expect("ordinary chainId must parse");
+            let back = authorization_list_item_to_json(&item);
+            assert_eq!(back["chainId"], want, "chainId {input}");
+        }
     }
 
     // --- response mapping: receipt -----------------------------------
