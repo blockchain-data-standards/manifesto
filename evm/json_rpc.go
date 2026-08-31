@@ -1484,9 +1484,20 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 						return ""
 					}
 
-					authChainId, err := NumberishToUint64(getAuthString("chainId"))
-					if err != nil {
+					// Missing or malformed is an error (0 here means "valid on
+					// any chain", so it must not stand in for "unknown"), but a
+					// well-formed value too wide for 64 bits falls back to 0 —
+					// deliberate, with the ceiling written down in models.proto.
+					authChainIdStr := getAuthString("chainId")
+					if authChainIdStr == "" {
+						return nil, fmt.Errorf("authorization chainId is missing or not a string")
+					}
+					if err := ValidateUint256Quantity(authChainIdStr); err != nil {
 						return nil, fmt.Errorf("failed to parse authorization chainId: %w", err)
+					}
+					authChainId, err := NumberishToUint64(authChainIdStr)
+					if err != nil {
+						authChainId = 0
 					}
 
 					authAddress, err := HexToBytes(getAuthString("address"))

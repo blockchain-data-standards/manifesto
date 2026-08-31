@@ -1815,8 +1815,23 @@ fn access_list_item_from_json(o: &Map<String, Value>) -> Result<AccessListItem, 
 fn authorization_list_item_from_json(
     o: &Map<String, Value>,
 ) -> Result<AuthorizationListItem, FromJsonError> {
+    // Required and bounded by EIP-7702's `auth.chain_id < 2**256`. Missing or
+    // malformed errors; a well-formed value too wide for 64 bits falls back to
+    // 0 — deliberate, with the ceiling written down in models.proto.
+    let chain_id = {
+        let s = required_str(o, "chainId")?;
+        let invalid = || FromJsonError::InvalidNumber {
+            field: "chainId",
+            value: s.to_string(),
+        };
+        let hex = decimal_string_to_hex(s).ok_or_else(invalid)?;
+        if hex.len() > 2 + 64 {
+            return Err(invalid());
+        }
+        u64::from_str_radix(hex.trim_start_matches("0x"), 16).unwrap_or(0)
+    };
     Ok(AuthorizationListItem {
-        chain_id: required_u64_field(o, "chainId")?,
+        chain_id,
         address: req_bytes(o, "address")?,
         nonce: required_u64_field(o, "nonce")?,
         r: req_bytes(o, "r")?,
@@ -2818,6 +2833,86 @@ mod tests {
             auth.get("authority").is_none(),
             "empty authority is omitted"
         );
+    }
+
+    /// An authorization `chainId` beyond `u64` has to survive a JSON round trip.
+    ///
+    /// EIP-7702's `chain_id` is a 256-bit integer. Only 0 or the current chain
+    /// make an authorization *valid*, but an out-of-range one is still encodable
+    /// and still committed to `transactionsRoot` — so a conforming indexer must
+    /// represent it to reconstruct the block at all. While `chainId` was a
+    /// `uint64` this value could not be held, and a block containing it could
+    /// not be stored.
+    ///
+    /// Real occurrence: Ethereum Sepolia block 8542703, type-0x4 transaction at
+    /// index 271 — a 20-byte value in a 64-bit field. The block must still
+    /// parse; the chain id falls back to 0 with the ceiling documented in
+    /// models.proto. Pinned because 0 is not a neutral default here: it reads
+    /// as "valid on any chain".
+    #[test]
+    fn authorization_chain_id_beyond_u64_falls_back_to_zero() {
+        let json = serde_json::json!({
+            "chainId": "0xf6a0be9433ee09f5ba0d5784b102833333333333",
+            "address": "0x1111111111111111111111111111111111111111",
+            "nonce": "0x1",
+            "yParity": "0x1",
+            "r": "0x9913bfae03d1a071190d025f6af8ffe4597d77668a89170a8a4a866c92d19644",
+            "s": "0x40c47e2a25e4a25c725172969f680d3eca1f36aa21bccdbc6e9237315e07e0c7",
+        });
+        let obj = json.as_object().expect("object");
+
+        let item = authorization_list_item_from_json(obj).expect("the block must still parse");
+        assert_eq!(item.chain_id, 0);
+        assert_eq!(authorization_list_item_to_json(&item)["chainId"], "0x0");
+    }
+
+    /// The field is 256 bits wide, not unbounded: EIP-7702 asserts
+    /// `auth.chain_id < 2**256`, and a transaction violating it is
+    /// structurally invalid, so it can never appear in a canonical block.
+    #[test]
+    fn authorization_chain_id_rejects_out_of_domain_values() {
+        let max = format!("0x{}", "f".repeat(64));
+        let over = format!("0x1{}", "0".repeat(64));
+        for (input, ok) in [
+            (max.as_str(), true),
+            (over.as_str(), false),
+            ("-1", false),
+            (
+                "115792089237316195423570985008687907853269984665640564039457584007913129639936",
+                false,
+            ), // 2^256
+        ] {
+            let json = serde_json::json!({
+                "chainId": input,
+                "address": "0x1111111111111111111111111111111111111111",
+                "nonce": "0x1",
+                "yParity": "0x1",
+                "r": "0x9913bfae03d1a071190d025f6af8ffe4597d77668a89170a8a4a866c92d19644",
+                "s": "0x40c47e2a25e4a25c725172969f680d3eca1f36aa21bccdbc6e9237315e07e0c7",
+            });
+            let got = authorization_list_item_from_json(json.as_object().expect("object"));
+            assert_eq!(got.is_ok(), ok, "chainId {input}");
+        }
+    }
+
+    #[test]
+    fn authorization_chain_id_still_round_trips_ordinary_values() {
+        // The common path must be untouched: a plain chain id still renders as a
+        // minimal hex quantity, exactly as the u64 mapping did.
+        for (input, want) in [("0x1", "0x1"), ("11155111", "0xaa36a7"), ("0x0", "0x0")] {
+            let json = serde_json::json!({
+                "chainId": input,
+                "address": "0x1111111111111111111111111111111111111111",
+                "nonce": "0x1",
+                "yParity": "0x1",
+                "r": "0x9913bfae03d1a071190d025f6af8ffe4597d77668a89170a8a4a866c92d19644",
+                "s": "0x40c47e2a25e4a25c725172969f680d3eca1f36aa21bccdbc6e9237315e07e0c7",
+            });
+            let item = authorization_list_item_from_json(json.as_object().expect("object"))
+                .expect("ordinary chainId must parse");
+            let back = authorization_list_item_to_json(&item);
+            assert_eq!(back["chainId"], want, "chainId {input}");
+        }
     }
 
     // --- response mapping: receipt -----------------------------------

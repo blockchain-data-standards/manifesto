@@ -1438,7 +1438,24 @@ func (x *Log) GetBlockTimestamp() uint64 {
 // Represents an authorization item for EIP-7702 Set Code transactions. Allows an EOA to authorize setting specific contract code to their account, enabling smart contract functionality without deployment
 type AuthorizationListItem struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Chain ID where this authorization is valid. Prevents cross-chain replay of authorizations. Must match the transaction's chain ID. Ensures authorizations are network-specific
+	// The chain this authorization is *scoped to* — not the chain it appears on.
+	// 0 means "valid on any chain", the current chain means "valid here", and any
+	// other value means the tuple is skipped at execution while remaining in the
+	// transaction and committed to `transactionsRoot`.
+	//
+	// EIP-7702 bounds this at `auth.chain_id < 2**256`, so it does not always fit
+	// in 64 bits. Seen on Sepolia block 8542703, tx index 271:
+	// chainId = 0xf6a0be9433ee09f5ba0d5784b102833333333333, a 20-byte value.
+	//
+	// Deliberate simplification: a value that does not fit is stored as 0, which
+	// reads back as "valid on any chain". Known ceiling — such a tuple is skipped
+	// by every chain, so no correct consumer acts on it, but a consumer that
+	// trusts this field alone would believe a delegation is valid here when the
+	// chain refused it. The low bits are sender-chosen, so it is constructible on
+	// purpose, not just an accident; the backstop is that acting on it fails
+	// against a real node. Upgrade path if that stops being acceptable: make this
+	// `optional` and leave it absent, which distinguishes "unrepresentable" from
+	// "any chain" without a wire change.
 	ChainId uint64 `protobuf:"varint,1,opt,name=chainId,proto3" json:"chainId,omitempty"`
 	// The 20-byte address of the contract code to set for the authorizing EOA. This contract's code will be used when calling the EOA. Enables account abstraction and smart wallet features
 	Address []byte `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
