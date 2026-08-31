@@ -401,8 +401,8 @@ type JsonRpcReceipt struct {
 	L1FeeScalar           string          `json:"l1FeeScalar"`
 	L1BaseFeeScalar       string          `json:"l1BaseFeeScalar"`
 	L1BlobBaseFee         string          `json:"l1BlobBaseFee"`
-	L1BlobBaseFeeScalar    string          `json:"l1BlobBaseFeeScalar"`
-	DaFootprintGasScalar   string          `json:"daFootprintGasScalar"`
+	L1BlobBaseFeeScalar   string          `json:"l1BlobBaseFeeScalar"`
+	DaFootprintGasScalar  string          `json:"daFootprintGasScalar"`
 	GasUsedForL1          string          `json:"gasUsedForL1"`
 	L1BlockNumber         string          `json:"l1BlockNumber"`
 	GatewayFee            string          `json:"gatewayFee"`
@@ -631,8 +631,8 @@ func (r *JsonRpcReceipt) ToProto() (*Receipt, error) {
 		L1FeeScalar:           l1FeeScalar,
 		L1BaseFeeScalar:       l1BaseFeeScalar,
 		L1BlobBaseFee:         l1BlobBaseFee,
-		L1BlobBaseFeeScalar:  l1BlobBaseFeeScalar,
-		DaFootprintGasScalar: daFootprintGasScalar,
+		L1BlobBaseFeeScalar:   l1BlobBaseFeeScalar,
+		DaFootprintGasScalar:  daFootprintGasScalar,
 		GasUsedForL1:          gasUsedForL1,
 		L1BlockNumber:         l1BlockNumber,
 		GatewayFee:            gatewayFee,
@@ -912,7 +912,7 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 			authItem := map[string]interface{}{
 				// ChainId is a decimal/hex string now, so %x would hex the
 				// string's bytes ("1" -> "31") rather than the number.
-				"chainId": normalizeNumberishString(auth.ChainId),
+				"chainId": normalizeNumberishString(AuthorizationChainId(auth)),
 				"address": BytesToHex(auth.Address),
 				"nonce":   fmt.Sprintf("0x%x", auth.Nonce),
 				"r":       BytesToHexFixed(auth.R, 32),
@@ -1489,11 +1489,15 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 					// 256-bit decimal/hex string, mirroring Transaction.Value:
 					// an authorization may name any chain id, and narrowing it
 					// to uint64 makes blocks containing an out-of-range one
-					// unrepresentable. Empty defaults to "0" as Value does.
+					// unrepresentable. Unlike Value it has no default: the
+					// tuple cannot be RLP-decoded without a chain_id, and 0
+					// means "any chain" rather than "unknown", so an absent or
+					// non-string one is an error (as it is in the Rust binding).
 					authChainId := getAuthString("chainId")
 					if authChainId == "" {
-						authChainId = "0"
-					} else if _, err := DecimalStringToHex(authChainId); err != nil {
+						return nil, fmt.Errorf("authorization chainId is missing or not a string")
+					}
+					if err := ValidateUint256Quantity(authChainId); err != nil {
 						return nil, fmt.Errorf("failed to parse authorization chainId: %w", err)
 					}
 
@@ -1533,13 +1537,18 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 					}
 
 					authorizationList = append(authorizationList, &AuthorizationListItem{
-						ChainId:   authChainId,
-						Address:   authAddress,
-						Nonce:     authNonce,
-						R:         authR,
-						S:         authS,
-						YParity:   authYParity,
-						Authority: authAuthority,
+						ChainId: authChainId,
+						// Dual-write: readers still on the pre-widening schema
+						// see field 1 and keep working for every chain id that
+						// fits 64 bits, which is all of them but the anomalies
+						// this widening exists for.
+						LegacyChainId: legacyChainIdOf(authChainId),
+						Address:       authAddress,
+						Nonce:         authNonce,
+						R:             authR,
+						S:             authS,
+						YParity:       authYParity,
+						Authority:     authAuthority,
 					})
 				}
 			}
@@ -1968,6 +1977,34 @@ func hexBytesOrEmpty(v string) ([]byte, error) {
 		return nil, nil
 	}
 	return HexToBytes(v)
+}
+
+// AuthorizationChainId returns an authorization's chain id as a quantity
+// string, preferring the 256-bit field and falling back to the deprecated
+// 64-bit one so payloads written before the widening keep their value instead
+// of silently reading back as 0 ("valid on any chain").
+func AuthorizationChainId(auth *AuthorizationListItem) string {
+	if auth.ChainId != "" {
+		return auth.ChainId
+	}
+	if auth.LegacyChainId != 0 {
+		return strconv.FormatUint(auth.LegacyChainId, 10)
+	}
+	return ""
+}
+
+// legacyChainIdOf mirrors a chain id into the deprecated 64-bit field when it
+// fits; 0 when it does not, which an old reader already cannot represent.
+func legacyChainIdOf(chainId string) uint64 {
+	hex, err := DecimalStringToHex(chainId)
+	if err != nil {
+		return 0
+	}
+	v, err := HexToUint64(hex)
+	if err != nil {
+		return 0
+	}
+	return v
 }
 
 func normalizeNumberishString(v string) string {

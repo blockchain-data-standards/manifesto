@@ -249,10 +249,32 @@ func DecimalStringToHex(s string) (string, error) {
 			return "", fmt.Errorf("invalid decimal string: %s", s)
 		}
 	}
+	// big.Int accepts a leading sign at any base, so "-1" would otherwise
+	// normalize to the malformed QUANTITY "0x-1". No JSON-RPC quantity is
+	// signed; reject here so every caller is covered at once.
+	if z.Sign() < 0 {
+		return "", fmt.Errorf("negative quantity: %s", s)
+	}
 	if z.Sign() == 0 {
 		return "0x0", nil
 	}
 	return AddHexPrefix(z.Text(16)), nil
+}
+
+// ValidateUint256Quantity checks that s is a well-formed, non-negative numeric
+// string (decimal or 0x-hex) that fits in 256 bits — the EVM word width, and
+// the bound EIP-7702 places on an authorization's chainId. Values outside it
+// cannot appear in a canonical block, so accepting them would only let
+// malformed input into the schema.
+func ValidateUint256Quantity(s string) error {
+	hex, err := DecimalStringToHex(s)
+	if err != nil {
+		return err
+	}
+	if len(RemoveHexPrefix(hex)) > 64 {
+		return fmt.Errorf("quantity exceeds 256 bits: %s", s)
+	}
+	return nil
 }
 
 // BytesToQuantityHex encodes bytes as a JSON-RPC QUANTITY (no leading zeros; 0x0 for zero).

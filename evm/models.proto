@@ -383,7 +383,13 @@ message Log {
 
 // Represents an authorization item for EIP-7702 Set Code transactions. Allows an EOA to authorize setting specific contract code to their account, enabling smart contract functionality without deployment
 message AuthorizationListItem {
-  reserved 1;  // was `uint64 chainId`, too narrow — see `chainId = 8` below
+  // Deprecated 64-bit chain id: the original `chainId`, kept so payloads
+  // written before the widening keep carrying their value and so readers
+  // built against the old schema keep seeing one. Writers MUST set `chainId`
+  // (field 8) and SHOULD also set this field whenever the value fits in 64
+  // bits; readers MUST prefer field 8 and fall back to this one only when
+  // field 8 is absent. Removed once no pre-widening writer or reader remains.
+  uint64 legacyChainId = 1 [deprecated = true];
 
   // The 20-byte address of the contract code to set for the authorizing EOA. This contract's code will be used when calling the EOA. Enables account abstraction and smart wallet features
   bytes address = 2;
@@ -403,8 +409,8 @@ message AuthorizationListItem {
   // Optional authority field present in some EIP-7702 clients, representing the authority address relevant to this authorization item
   bytes authority = 7;
 
-  // Chain ID this authorization is scoped to, as a decimal string. Uses 256-bit
-  // precision, matching `Transaction.value`.
+  // Chain ID this authorization is scoped to, as a decimal or hex quantity
+  // string. Uses 256-bit precision, matching `Transaction.value`.
   //
   // EIP-7702 defines the authorization tuple as
   // `[chain_id, address, nonce, y_parity, r, s]` where `chain_id` is a 256-bit
@@ -424,12 +430,20 @@ message AuthorizationListItem {
   // cannot store that block, and because the block is canonical and immutable,
   // retrying never helps.
   //
-  // Field 1 is reserved rather than retyped in place: `uint64` is a varint and
-  // `string` is length-delimited, so reusing the number would let old payloads
-  // decode into a new reader as a *wrong* value instead of an absent one.
-  // Moving to a fresh number fails safe in both directions — each side sees the
-  // field as missing rather than misreading it. The JSON name is unchanged, so
-  // JSON consumers are unaffected.
+  // A new field number rather than a retype of field 1: a wire-type mismatch
+  // on a reused number is routed to unknown fields by conforming decoders, so
+  // neither layout misreads the other — but the source-level `uint64` ->
+  // `string` flip is caught loudly by compilers and by `buf breaking`'s
+  // FIELD_SAME_TYPE only when the number moves. Field 1 stays live as
+  // `legacyChainId` above so the migration is lossless in both directions;
+  // dropping it would make every pre-widening authorization read back as 0,
+  // which in EIP-7702 does not mean "unknown" but "valid on any chain".
+  //
+  // Value domain: 0 <= chainId < 2^256, rejected outside that range. Accepted
+  // and stored as a decimal or `0x`-prefixed hex quantity, verbatim and
+  // uncanonicalized — the same contract as `Transaction.value` and the other
+  // quantity strings in this schema. Consumers comparing chain ids MUST
+  // normalize first; `"1"` and `"0x1"` are the same value.
   string chainId = 8;
 }
 
