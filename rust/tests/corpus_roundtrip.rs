@@ -116,10 +116,13 @@ fn round_trip(name: &str, original: &Value) -> Option<Value> {
             &r.transactions,
             &r.full_transactions,
             &r.withdrawals,
+            j::SignatureEncoding::Quantity,
         ))
     } else if name.contains("-tx") {
         let r = j::get_transaction_by_hash_response_from_json(original).ok()?;
-        r.transaction.as_ref().map(j::transaction_to_json)
+        r.transaction
+            .as_ref()
+            .map(|tx| j::transaction_to_json(tx, j::SignatureEncoding::Quantity))
     } else if name.contains("-receipt") {
         let r = j::get_transaction_receipt_response_from_json(original).ok()?;
         r.receipt.as_ref().map(j::receipt_to_json)

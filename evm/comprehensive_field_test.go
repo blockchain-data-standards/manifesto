@@ -51,7 +51,7 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 		}
 
 		// Test conversion back to JSON-RPC
-		jsonRpc := TransactionToJsonRpc(tx)
+		jsonRpc := TransactionToJsonRpc(tx, SignatureQuantity)
 
 		// Verify execution result fields in output
 		if gasUsed, ok := jsonRpc["gasUsed"]; !ok || gasUsed != "0x5000" {

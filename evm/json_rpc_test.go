@@ -123,7 +123,7 @@ func TestSignatureRAndSRenderAsQuantities(t *testing.T) {
 					S:       s,
 				}},
 			}
-			out := TransactionToJsonRpc(tx)
+			out := TransactionToJsonRpc(tx, SignatureQuantity)
 			auth := out["authorizationList"].([]interface{})[0].(map[string]interface{})
 			for _, c := range []struct {
 				field string
@@ -134,6 +134,71 @@ func TestSignatureRAndSRenderAsQuantities(t *testing.T) {
 				{"s", out["s"], tc.wantS},
 				{"authorizationList[0].r", auth["r"], tc.wantR},
 				{"authorizationList[0].s", auth["s"], tc.wantS},
+			} {
+				if c.got != c.want {
+					t.Errorf("%s = %v, want %s", c.field, c.got, c.want)
+				}
+			}
+		})
+	}
+}
+
+func TestSignatureEncodingForChain(t *testing.T) {
+	for _, tc := range []struct {
+		chainId uint64
+		want    SignatureEncoding
+	}{
+		{728126428, SignatureFixedData32},
+		{2494104990, SignatureFixedData32},
+		{3448148188, SignatureFixedData32},
+		{1, SignatureQuantity},
+		{8453, SignatureQuantity},
+		{999, SignatureQuantity},
+		{0, SignatureQuantity},
+	} {
+		if got := SignatureEncodingForChain(tc.chainId); got != tc.want {
+			t.Errorf("SignatureEncodingForChain(%d) = %v, want %v", tc.chainId, got, tc.want)
+		}
+	}
+}
+
+func TestSignatureRAndSFollowEncoding(t *testing.T) {
+	addr := "c20699185c15d0a2fd65779bb5d69f5b0b113c00"
+	r, s := mustHex(t, "01"), mustHex(t, addr)
+	tx := &Transaction{
+		R: r,
+		S: s,
+		AuthorizationList: []*AuthorizationListItem{{
+			ChainId: 1,
+			Address: mustHex(t, addr),
+			R:       r,
+			S:       s,
+		}},
+	}
+	for _, tc := range []struct {
+		name         string
+		sig          SignatureEncoding
+		wantR, wantS string
+	}{
+		{"quantity", SignatureQuantity, "0x1", "0x" + addr},
+		{"fixed 32-byte data", SignatureFixedData32, "0x" + strings.Repeat("0", 63) + "1", "0x" + strings.Repeat("0", 24) + addr},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := TransactionToJsonRpc(tx, tc.sig)
+			auth := out["authorizationList"].([]interface{})[0].(map[string]interface{})
+			block := BlockToJsonRpc(&BlockHeader{}, nil, []*Transaction{tx}, nil, tc.sig)
+			inBlock := block["transactions"].([]interface{})[0].(map[string]interface{})
+			for _, c := range []struct {
+				field string
+				got   interface{}
+				want  string
+			}{
+				{"r", out["r"], tc.wantR},
+				{"s", out["s"], tc.wantS},
+				{"authorizationList[0].r", auth["r"], tc.wantR},
+				{"authorizationList[0].s", auth["s"], tc.wantS},
+				{"block.transactions[0].r", inBlock["r"], tc.wantR},
+				{"block.transactions[0].s", inBlock["s"], tc.wantS},
 			} {
 				if c.got != c.want {
 					t.Errorf("%s = %v, want %s", c.field, c.got, c.want)

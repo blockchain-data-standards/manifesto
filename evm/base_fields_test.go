@@ -37,7 +37,7 @@ func TestBaseChainFields(t *testing.T) {
 		}
 
 		// Test conversion back to JSON-RPC
-		jsonRpc := TransactionToJsonRpc(tx)
+		jsonRpc := TransactionToJsonRpc(tx, SignatureQuantity)
 		if isSystemTx, ok := jsonRpc["isSystemTx"].(bool); !ok || !isSystemTx {
 			t.Error("Expected isSystemTx in JSON-RPC output to be true")
 		}
@@ -122,7 +122,7 @@ func TestBaseChainFields(t *testing.T) {
 		}
 
 		// Test conversion back to JSON-RPC
-		jsonRpcMap := BlockToJsonRpc(protoBlock.Header, nil, nil, nil)
+		jsonRpcMap := BlockToJsonRpc(protoBlock.Header, nil, nil, nil, SignatureQuantity)
 		if requestsHash, ok := jsonRpcMap["requestsHash"]; !ok || requestsHash != "0x7685abcdef1234567890abcdef1234567890abcdef1234567890abcdef123456" {
 			t.Errorf("Expected requestsHash in JSON-RPC output, got '%v'", requestsHash)
 		}

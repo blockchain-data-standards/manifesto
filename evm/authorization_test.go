@@ -54,7 +54,7 @@ func TestAuthorizationChainIdBeyondUint64FallsBackToZero(t *testing.T) {
 		t.Fatalf("chainId = %d, want the documented 0 fallback", auth.ChainId)
 	}
 	tx := &Transaction{AuthorizationList: []*AuthorizationListItem{auth}}
-	out := TransactionToJsonRpc(tx)["authorizationList"].([]interface{})[0].(map[string]interface{})
+	out := TransactionToJsonRpc(tx, SignatureQuantity)["authorizationList"].([]interface{})[0].(map[string]interface{})
 	if got := out["chainId"]; got != "0x0" {
 		t.Fatalf("chainId rendered %v, want 0x0", got)
 	}
@@ -73,7 +73,7 @@ func TestAuthorizationChainIdRendersAsNumberNotBytes(t *testing.T) {
 			t.Fatalf("chainId %q: %v", tc.in, err)
 		}
 		tx := &Transaction{AuthorizationList: []*AuthorizationListItem{auth}}
-		out := TransactionToJsonRpc(tx)["authorizationList"].([]interface{})[0].(map[string]interface{})
+		out := TransactionToJsonRpc(tx, SignatureQuantity)["authorizationList"].([]interface{})[0].(map[string]interface{})
 		if got := out["chainId"]; got != tc.want {
 			t.Fatalf("chainId %q rendered as %v, want %v", tc.in, got, tc.want)
 		}

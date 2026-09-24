@@ -2209,7 +2209,7 @@ mod tests {
             >,
         >,
     ) {
-        drop(call.execute(client, None));
+        drop(call.execute(client, None, SignatureEncoding::Quantity));
     }
 
     // --- request mapping ---------------------------------------------
@@ -2700,7 +2700,7 @@ mod tests {
 
     #[test]
     fn transaction_to_json_minimal_shape() {
-        let v = transaction_to_json(&base_transaction());
+        let v = transaction_to_json(&base_transaction(), SignatureEncoding::Quantity);
         assert_eq!(v["to"], Value::Null);
         assert_eq!(
             v["chainId"],
@@ -2740,14 +2740,14 @@ mod tests {
         let mut tx = base_transaction();
         tx.to = Some(Bytes::new());
         assert_eq!(
-            transaction_to_json(&tx)["to"],
+            transaction_to_json(&tx, SignatureEncoding::Quantity)["to"],
             Value::Null,
             "present-but-empty `to` is null"
         );
 
         tx.to = Some(Bytes::from_static(&[0xaa; 20]));
         assert_eq!(
-            transaction_to_json(&tx)["to"],
+            transaction_to_json(&tx, SignatureEncoding::Quantity)["to"],
             format!("0x{}", "aa".repeat(20))
         );
     }
@@ -2756,7 +2756,7 @@ mod tests {
     fn transaction_to_json_value_hex_when_nonempty() {
         let mut tx = base_transaction();
         tx.value = "1000000000000000000".to_string();
-        let v = transaction_to_json(&tx);
+        let v = transaction_to_json(&tx, SignatureEncoding::Quantity);
         assert_eq!(v["value"], "0xde0b6b3a7640000");
     }
 
@@ -2803,7 +2803,7 @@ mod tests {
                 y_parity: 1,
                 authority: Bytes::new(),
             }];
-            let v = transaction_to_json(&tx);
+            let v = transaction_to_json(&tx, SignatureEncoding::Quantity);
             let auth = &v["authorizationList"][0];
             assert_eq!(v["r"], want_r, "tx r");
             assert_eq!(v["s"], want_s, "tx s");
@@ -2813,10 +2813,71 @@ mod tests {
     }
 
     #[test]
+    fn signature_encoding_for_chain_is_fixed_only_on_tron() {
+        for id in [728_126_428, 2_494_104_990, 3_448_148_188] {
+            assert_eq!(
+                SignatureEncoding::for_chain(id),
+                SignatureEncoding::FixedData32,
+                "chain {id}"
+            );
+        }
+        for id in [1, 8453, 999, 0] {
+            assert_eq!(
+                SignatureEncoding::for_chain(id),
+                SignatureEncoding::Quantity,
+                "chain {id}"
+            );
+        }
+    }
+
+    #[test]
+    fn transaction_to_json_r_and_s_follow_signature_encoding() {
+        let addr = "c20699185c15d0a2fd65779bb5d69f5b0b113c00";
+        let r = Bytes::from_static(&[0x01]);
+        let s = Bytes::from(hex_digit_pairs_to_bytes(addr).unwrap());
+        let mut tx = base_transaction();
+        tx.r = r.clone();
+        tx.s = s.clone();
+        tx.authorization_list = vec![AuthorizationListItem {
+            chain_id: 1,
+            address: s.clone(),
+            nonce: 1,
+            r,
+            s,
+            y_parity: 1,
+            authority: Bytes::new(),
+        }];
+        let cases = [
+            (
+                SignatureEncoding::Quantity,
+                "0x1".to_string(),
+                format!("0x{addr}"),
+            ),
+            (
+                SignatureEncoding::FixedData32,
+                format!("0x{}1", "0".repeat(63)),
+                format!("0x{}{addr}", "0".repeat(24)),
+            ),
+        ];
+        for (sig, want_r, want_s) in cases {
+            let v = transaction_to_json(&tx, sig);
+            let auth = &v["authorizationList"][0];
+            let block = block_to_json(&base_header(), &[], std::slice::from_ref(&tx), &[], sig);
+            let in_block = &block["transactions"][0];
+            assert_eq!(v["r"], want_r, "{sig:?} tx r");
+            assert_eq!(v["s"], want_s, "{sig:?} tx s");
+            assert_eq!(auth["r"], want_r, "{sig:?} authorizationList r");
+            assert_eq!(auth["s"], want_s, "{sig:?} authorizationList s");
+            assert_eq!(in_block["r"], want_r, "{sig:?} block transactions[0] r");
+            assert_eq!(in_block["s"], want_s, "{sig:?} block transactions[0] s");
+        }
+    }
+
+    #[test]
     fn transaction_to_json_l1_fee_omitted_on_parse_error() {
         let mut tx = base_transaction();
         tx.l1_fee = Some("not-a-number".to_string());
-        let v = transaction_to_json(&tx);
+        let v = transaction_to_json(&tx, SignatureEncoding::Quantity);
         assert!(
             v.get("l1Fee").is_none(),
             "Some(unparseable) => omitted, not null"
@@ -2826,11 +2887,17 @@ mod tests {
     #[test]
     fn transaction_to_json_l1_fee_null_vs_hex() {
         let tx = base_transaction();
-        assert_eq!(transaction_to_json(&tx)["l1Fee"], Value::Null);
+        assert_eq!(
+            transaction_to_json(&tx, SignatureEncoding::Quantity)["l1Fee"],
+            Value::Null
+        );
 
         let mut tx = base_transaction();
         tx.l1_fee = Some("100".to_string());
-        assert_eq!(transaction_to_json(&tx)["l1Fee"], "0x64");
+        assert_eq!(
+            transaction_to_json(&tx, SignatureEncoding::Quantity)["l1Fee"],
+            "0x64"
+        );
     }
 
     #[test]
@@ -2846,7 +2913,7 @@ mod tests {
             y_parity: 1,
             authority: Bytes::new(),
         }];
-        let v = transaction_to_json(&tx);
+        let v = transaction_to_json(&tx, SignatureEncoding::Quantity);
         assert_eq!(v["blobVersionedHashes"].as_array().unwrap().len(), 1);
         let auth = &v["authorizationList"][0];
         assert_eq!(auth["chainId"], "0x1");
@@ -2884,7 +2951,10 @@ mod tests {
 
         let item = authorization_list_item_from_json(obj).expect("the block must still parse");
         assert_eq!(item.chain_id, 0);
-        assert_eq!(authorization_list_item_to_json(&item)["chainId"], "0x0");
+        assert_eq!(
+            authorization_list_item_to_json(&item, SignatureEncoding::Quantity)["chainId"],
+            "0x0"
+        );
     }
 
     /// The field is 256 bits wide, not unbounded: EIP-7702 asserts
@@ -2931,7 +3001,7 @@ mod tests {
             });
             let item = authorization_list_item_from_json(json.as_object().expect("object"))
                 .expect("ordinary chainId must parse");
-            let back = authorization_list_item_to_json(&item);
+            let back = authorization_list_item_to_json(&item, SignatureEncoding::Quantity);
             assert_eq!(back["chainId"], want, "chainId {input}");
         }
     }
@@ -3071,19 +3141,19 @@ mod tests {
     fn block_to_json_nonce_is_fixed_16_digits() {
         let mut h = base_header();
         h.nonce = Some(0x42);
-        let v = block_to_json(&h, &[], &[], &[]);
+        let v = block_to_json(&h, &[], &[], &[], SignatureEncoding::Quantity);
         assert_eq!(v["nonce"], "0x0000000000000042");
     }
 
     #[test]
     fn block_to_json_uncles_always_present() {
-        let v = block_to_json(&base_header(), &[], &[], &[]);
+        let v = block_to_json(&base_header(), &[], &[], &[], SignatureEncoding::Quantity);
         assert_eq!(v["uncles"], json!([]));
     }
 
     #[test]
     fn block_to_json_withdrawals_omitted_when_empty() {
-        let v = block_to_json(&base_header(), &[], &[], &[]);
+        let v = block_to_json(&base_header(), &[], &[], &[], SignatureEncoding::Quantity);
         assert!(v.get("withdrawals").is_none());
 
         let withdrawals = vec![Withdrawal {
@@ -3092,18 +3162,36 @@ mod tests {
             address: Bytes::from_static(&[0xcc; 20]),
             amount: 1,
         }];
-        let v = block_to_json(&base_header(), &[], &[], &withdrawals);
+        let v = block_to_json(
+            &base_header(),
+            &[],
+            &[],
+            &withdrawals,
+            SignatureEncoding::Quantity,
+        );
         assert_eq!(v["withdrawals"].as_array().unwrap().len(), 1);
     }
 
     #[test]
     fn block_to_json_transactions_prefers_full_over_hashes() {
         let hashes = vec![Bytes::from_static(&[0xaa; 32])];
-        let v = block_to_json(&base_header(), &hashes, &[], &[]);
+        let v = block_to_json(
+            &base_header(),
+            &hashes,
+            &[],
+            &[],
+            SignatureEncoding::Quantity,
+        );
         assert_eq!(v["transactions"], json!([format!("0x{}", "aa".repeat(32))]));
 
         let full = vec![base_transaction()];
-        let v = block_to_json(&base_header(), &hashes, &full, &[]);
+        let v = block_to_json(
+            &base_header(),
+            &hashes,
+            &full,
+            &[],
+            SignatureEncoding::Quantity,
+        );
         // full transactions win when both are populated.
         assert_eq!(v["transactions"].as_array().unwrap().len(), 1);
         assert!(v["transactions"][0].is_object());
@@ -3111,7 +3199,7 @@ mod tests {
 
     #[test]
     fn block_to_json_transactions_empty_when_neither_present() {
-        let v = block_to_json(&base_header(), &[], &[], &[]);
+        let v = block_to_json(&base_header(), &[], &[], &[], SignatureEncoding::Quantity);
         assert_eq!(v["transactions"], json!([]));
     }
 
@@ -3119,7 +3207,7 @@ mod tests {
     fn block_to_json_base_fee_per_gas_decimal_to_hex() {
         let mut h = base_header();
         h.base_fee_per_gas = Some("1000000000".to_string());
-        let v = block_to_json(&h, &[], &[], &[]);
+        let v = block_to_json(&h, &[], &[], &[], SignatureEncoding::Quantity);
         assert_eq!(v["baseFeePerGas"], "0x3b9aca00");
     }
 
@@ -3599,7 +3687,7 @@ mod tests {
         let h = block_header_from_json(&v).unwrap();
         assert_eq!(h.nonce, Some(0x42));
         assert_eq!(
-            block_to_json(&h, &[], &[], &[])["nonce"],
+            block_to_json(&h, &[], &[], &[], SignatureEncoding::Quantity)["nonce"],
             "0x0000000000000042"
         );
     }
@@ -3759,6 +3847,7 @@ mod tests {
             &resp.transactions,
             &resp.full_transactions,
             &resp.withdrawals,
+            SignatureEncoding::Quantity,
         );
 
         assert_eq!(out["number"], "0x2a");
