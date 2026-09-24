@@ -25,10 +25,11 @@ bds = { git = "https://github.com/blockchain-data-standards/manifesto" }
 Bridge a JSON-RPC request to a BDS server:
 
 ```rust,ignore
-use bds::evm::json_rpc;
+use bds::evm::json_rpc::{self, SignatureEncoding};
 
 let call = json_rpc::map_request("eth_getBlockByNumber", &params)?;
-let result: Option<serde_json::Value> = call.execute(&mut client, Some(timeout)).await?;
+let sig = SignatureEncoding::for_chain(chain_id); // Tron nodes pad r/s to 32 bytes
+let result: Option<serde_json::Value> = call.execute(&mut client, Some(timeout), sig).await?;
 // Some(value) => the JSON-RPC `result`; None => the server had no such data.
 ```
 

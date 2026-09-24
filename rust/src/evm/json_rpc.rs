@@ -546,6 +546,9 @@ impl RpcQueryCall {
     ///   pure CPU in the caller's process, and the only other place a
     ///   multi-MB block response spends time on this path.
     ///
+    /// `sig` selects how transaction signature `r`/`s` render; pass
+    /// [`SignatureEncoding::for_chain`] with the connection's chain id.
+    ///
     /// `Ok(Some(_))` carries the JSON-RPC-shaped result. `Ok(None)` means the
     /// server answered but the block/transaction/receipt was absent — the
     /// JSON-RPC `null` "not found" case. `eth_getLogs` and
@@ -561,6 +564,7 @@ impl RpcQueryCall {
         self,
         client: &mut RpcQueryServiceClient<T>,
         timeout: Option<Duration>,
+        sig: SignatureEncoding,
     ) -> Result<Option<Value>, tonic::Status>
     where
         T: tonic::client::GrpcService<tonic::body::Body>,
@@ -584,7 +588,7 @@ impl RpcQueryCall {
                     .instrument(rpc_span())
                     .await?
                     .into_inner();
-                Ok(to_json_span().in_scope(|| get_block_response_to_json(&resp)))
+                Ok(to_json_span().in_scope(|| get_block_response_to_json(&resp, sig)))
             }
             Self::GetBlockByHash(req) => {
                 let resp = client
@@ -592,7 +596,7 @@ impl RpcQueryCall {
                     .instrument(rpc_span())
                     .await?
                     .into_inner();
-                Ok(to_json_span().in_scope(|| get_block_response_to_json(&resp)))
+                Ok(to_json_span().in_scope(|| get_block_response_to_json(&resp, sig)))
             }
             Self::GetTransactionByHash(req) => {
                 let resp = client
@@ -600,7 +604,11 @@ impl RpcQueryCall {
                     .instrument(rpc_span())
                     .await?
                     .into_inner();
-                Ok(to_json_span().in_scope(|| resp.transaction.as_ref().map(transaction_to_json)))
+                Ok(to_json_span().in_scope(|| {
+                    resp.transaction
+                        .as_ref()
+                        .map(|tx| transaction_to_json(tx, sig))
+                }))
             }
             Self::GetTransactionReceipt(req) => {
                 let resp = client
@@ -655,14 +663,46 @@ fn with_timeout<T>(msg: T, timeout: Option<Duration>) -> tonic::Request<T> {
     req
 }
 
-fn get_block_response_to_json(resp: &GetBlockResponse) -> Option<Value> {
+fn get_block_response_to_json(resp: &GetBlockResponse, sig: SignatureEncoding) -> Option<Value> {
     let header = resp.block.as_ref()?;
     Some(block_to_json(
         header,
         &resp.transactions,
         &resp.full_transactions,
         &resp.withdrawals,
+        sig,
     ))
+}
+
+/// How a transaction's signature `r` and `s` render in JSON-RPC output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum SignatureEncoding {
+    /// QUANTITY (no leading zeros), as the execution-apis schema specifies
+    /// and most nodes emit.
+    #[default]
+    Quantity,
+    /// 32-byte DATA, left-padded with zeros, as Tron nodes (java-tron) emit.
+    FixedData32,
+}
+
+impl SignatureEncoding {
+    /// The encoding the nodes of `chain_id` emit. Unknown chains, including
+    /// 0, get [`Self::Quantity`].
+    #[must_use]
+    pub fn for_chain(chain_id: u64) -> Self {
+        match chain_id {
+            // Tron mainnet, Shasta, Nile
+            728_126_428 | 2_494_104_990 | 3_448_148_188 => Self::FixedData32,
+            _ => Self::Quantity,
+        }
+    }
+
+    fn hex(self, b: &[u8]) -> String {
+        match self {
+            Self::Quantity => bytes_to_quantity_hex(b),
+            Self::FixedData32 => bytes_to_hex_fixed(b, 32),
+        }
+    }
 }
 
 // --- response mapping ----------------------------------------------------
@@ -670,13 +710,14 @@ fn get_block_response_to_json(resp: &GetBlockResponse) -> Option<Value> {
 /// Converts a BDS `BlockHeader` — plus its transactions (either hashes or
 /// full objects, whichever the server populated) and withdrawals — into the
 /// exact JSON-RPC block object shape. Mirrors `evm.BlockToJsonRpc` in
-/// `evm/json_rpc.go`.
+/// `evm/json_rpc.go`. `sig` selects the `r`/`s` encoding of full transactions.
 #[must_use]
 pub fn block_to_json(
     header: &BlockHeader,
     transaction_hashes: &[Bytes],
     full_transactions: &[Transaction],
     withdrawals: &[Withdrawal],
+    sig: SignatureEncoding,
 ) -> Value {
     let mut o = Map::new();
     o.insert("number".into(), Value::String(quantity_hex(header.number)));
@@ -812,7 +853,12 @@ pub fn block_to_json(
     );
 
     let transactions = if !full_transactions.is_empty() {
-        Value::Array(full_transactions.iter().map(transaction_to_json).collect())
+        Value::Array(
+            full_transactions
+                .iter()
+                .map(|tx| transaction_to_json(tx, sig))
+                .collect(),
+        )
     } else if !transaction_hashes.is_empty() {
         Value::Array(
             transaction_hashes
@@ -829,9 +875,10 @@ pub fn block_to_json(
 }
 
 /// Converts a BDS `Transaction` into the exact JSON-RPC transaction object
-/// shape. Mirrors `evm.TransactionToJsonRpc` in `evm/json_rpc.go`.
+/// shape. Mirrors `evm.TransactionToJsonRpc` in `evm/json_rpc.go`. `sig`
+/// selects the `r`/`s` encoding; pass [`SignatureEncoding::for_chain`].
 #[must_use]
-pub fn transaction_to_json(tx: &Transaction) -> Value {
+pub fn transaction_to_json(tx: &Transaction, sig: SignatureEncoding) -> Value {
     let mut o = Map::new();
     o.insert("hash".into(), Value::String(bytes_to_hex(&tx.hash)));
     o.insert("nonce".into(), Value::String(quantity_hex(tx.nonce)));
@@ -894,10 +941,10 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
     // `!= nil` check (on a []byte, itself only ever non-nil when non-empty
     // after a protobuf round-trip) as "non-empty" here.
     if !tx.r.is_empty() {
-        o.insert("r".into(), Value::String(bytes_to_quantity_hex(&tx.r)));
+        o.insert("r".into(), Value::String(sig.hex(&tx.r)));
     }
     if !tx.s.is_empty() {
-        o.insert("s".into(), Value::String(bytes_to_quantity_hex(&tx.s)));
+        o.insert("s".into(), Value::String(sig.hex(&tx.s)));
     }
     if let Some(v) = &tx.v {
         o.insert("v".into(), Value::String(bytes_to_quantity_hex(v)));
@@ -959,7 +1006,7 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
             Value::Array(
                 tx.authorization_list
                     .iter()
-                    .map(authorization_list_item_to_json)
+                    .map(|item| authorization_list_item_to_json(item, sig))
                     .collect(),
             ),
         );
@@ -1043,13 +1090,13 @@ fn access_list_item_to_json(item: &AccessListItem) -> Value {
     Value::Object(o)
 }
 
-fn authorization_list_item_to_json(item: &AuthorizationListItem) -> Value {
+fn authorization_list_item_to_json(item: &AuthorizationListItem, sig: SignatureEncoding) -> Value {
     let mut o = Map::new();
     o.insert("chainId".into(), Value::String(quantity_hex(item.chain_id)));
     o.insert("address".into(), Value::String(bytes_to_hex(&item.address)));
     o.insert("nonce".into(), Value::String(quantity_hex(item.nonce)));
-    o.insert("r".into(), Value::String(bytes_to_quantity_hex(&item.r)));
-    o.insert("s".into(), Value::String(bytes_to_quantity_hex(&item.s)));
+    o.insert("r".into(), Value::String(sig.hex(&item.r)));
+    o.insert("s".into(), Value::String(sig.hex(&item.s)));
     o.insert(
         "yParity".into(),
         Value::String(quantity_hex(u64::from(item.y_parity))),
@@ -1286,6 +1333,17 @@ fn bytes_to_hex(b: &[u8]) -> String {
         out.push(HEX[(byte & 0xf) as usize]);
     }
     String::from_utf8(out).expect("hex digits are ascii")
+}
+
+/// Left-pads `b` with zero bytes to `size` bytes before hex-encoding.
+/// Longer-than-`size` input is passed through as-is.
+fn bytes_to_hex_fixed(b: &[u8], size: usize) -> String {
+    if b.len() >= size {
+        return bytes_to_hex(b);
+    }
+    let mut padded = vec![0u8; size];
+    padded[size - b.len()..].copy_from_slice(b);
+    bytes_to_hex(&padded)
 }
 
 /// Encodes raw bytes as a JSON-RPC QUANTITY (big-endian integer, no leading

@@ -751,8 +751,39 @@ func LogsToJsonRpc(logs []*Log) []interface{} {
 	return out
 }
 
+// SignatureEncoding selects how a transaction's signature r and s render in
+// JSON-RPC output.
+type SignatureEncoding uint8
+
+const (
+	// SignatureQuantity renders r and s as QUANTITY (no leading zeros), as the
+	// execution-apis schema specifies and most nodes emit.
+	SignatureQuantity SignatureEncoding = iota
+	// SignatureFixedData32 renders r and s as 32-byte DATA, left-padded with
+	// zeros, as Tron nodes (java-tron) emit.
+	SignatureFixedData32
+)
+
+// SignatureEncodingForChain returns the encoding the nodes of chainId emit.
+// Unknown chains, including 0, get SignatureQuantity.
+func SignatureEncodingForChain(chainId uint64) SignatureEncoding {
+	switch chainId {
+	case 728126428, 2494104990, 3448148188: // Tron mainnet, Shasta, Nile
+		return SignatureFixedData32
+	}
+	return SignatureQuantity
+}
+
+func (e SignatureEncoding) hex(b []byte) string {
+	if e == SignatureFixedData32 {
+		return BytesToHexFixed(b, 32)
+	}
+	return BytesToQuantityHex(b)
+}
+
 // TransactionToJsonRpc converts a *Transaction into JSON-RPC representation.
-func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
+// sig selects the r/s encoding; pass SignatureEncodingForChain(chainId).
+func TransactionToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]interface{} {
 	if tx == nil {
 		return nil
 	}
@@ -827,10 +858,10 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 	}
 
 	if tx.R != nil {
-		o["r"] = BytesToQuantityHex(tx.R)
+		o["r"] = sig.hex(tx.R)
 	}
 	if tx.S != nil {
-		o["s"] = BytesToQuantityHex(tx.S)
+		o["s"] = sig.hex(tx.S)
 	}
 	if tx.V != nil {
 		// v is QUANTITY
@@ -911,8 +942,8 @@ func TransactionToJsonRpc(tx *Transaction) map[string]interface{} {
 				"chainId": fmt.Sprintf("0x%x", auth.ChainId),
 				"address": BytesToHex(auth.Address),
 				"nonce":   fmt.Sprintf("0x%x", auth.Nonce),
-				"r":       BytesToQuantityHex(auth.R),
-				"s":       BytesToQuantityHex(auth.S),
+				"r":       sig.hex(auth.R),
+				"s":       sig.hex(auth.S),
 				"yParity": fmt.Sprintf("0x%x", auth.YParity),
 			}
 			// Optional authority (bytes) – include when present
@@ -1193,7 +1224,8 @@ func WithdrawalsToJsonRpc(withdrawals []*Withdrawal) []interface{} {
 // BlockToJsonRpc converts an EVM BlockHeader plus optional transactions to JSON-RPC format.
 // If fullTxs is supplied it will be used; otherwise transaction hashes are used.
 // If withdrawals are supplied, they will be included in the response.
-func BlockToJsonRpc(header *BlockHeader, txHashes [][]byte, fullTxs []*Transaction, withdrawals []*Withdrawal) map[string]interface{} {
+// sig selects the r/s encoding of full transactions; pass SignatureEncodingForChain(chainId).
+func BlockToJsonRpc(header *BlockHeader, txHashes [][]byte, fullTxs []*Transaction, withdrawals []*Withdrawal, sig SignatureEncoding) map[string]interface{} {
 	if header == nil {
 		return nil
 	}
@@ -1299,7 +1331,7 @@ func BlockToJsonRpc(header *BlockHeader, txHashes [][]byte, fullTxs []*Transacti
 	case len(fullTxs) > 0:
 		txs := make([]interface{}, len(fullTxs))
 		for i, t := range fullTxs {
-			txs[i] = TransactionToJsonRpc(t)
+			txs[i] = TransactionToJsonRpc(t, sig)
 		}
 		res["transactions"] = txs
 	case len(txHashes) > 0:
