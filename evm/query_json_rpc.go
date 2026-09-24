@@ -89,7 +89,7 @@ func QueryTransfersRequestFromJsonRpc(params json.RawMessage) (*QueryTransfersRe
 func QueryBlocksResponseToJsonRpc(resp *QueryBlocksResponse) map[string]interface{} {
 	blocks := make([]interface{}, 0, len(resp.GetBlocks()))
 	for _, block := range resp.GetBlocks() {
-		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil))
+		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil, SignatureQuantity))
 	}
 	return map[string]interface{}{
 		"data":        map[string]interface{}{"blocks": blocks},
@@ -99,14 +99,14 @@ func QueryBlocksResponseToJsonRpc(resp *QueryBlocksResponse) map[string]interfac
 	}
 }
 
-func QueryTransactionsResponseToJsonRpc(resp *QueryTransactionsResponse) map[string]interface{} {
+func QueryTransactionsResponseToJsonRpc(resp *QueryTransactionsResponse, sig SignatureEncoding) map[string]interface{} {
 	txs := make([]interface{}, 0, len(resp.GetTransactions()))
 	for _, tx := range resp.GetTransactions() {
-		txs = append(txs, TransactionToJsonRpc(tx))
+		txs = append(txs, TransactionToJsonRpc(tx, sig))
 	}
 	blocks := make([]interface{}, 0, len(resp.GetBlocks()))
 	for _, block := range resp.GetBlocks() {
-		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil))
+		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil, sig))
 	}
 	return map[string]interface{}{
 		"data": map[string]interface{}{
@@ -119,18 +119,18 @@ func QueryTransactionsResponseToJsonRpc(resp *QueryTransactionsResponse) map[str
 	}
 }
 
-func QueryLogsResponseToJsonRpc(resp *QueryLogsResponse) map[string]interface{} {
+func QueryLogsResponseToJsonRpc(resp *QueryLogsResponse, sig SignatureEncoding) map[string]interface{} {
 	logs := make([]interface{}, 0, len(resp.GetLogs()))
 	for _, log := range resp.GetLogs() {
 		logs = append(logs, LogToJsonRpc(log))
 	}
 	txs := make([]interface{}, 0, len(resp.GetTransactions()))
 	for _, tx := range resp.GetTransactions() {
-		txs = append(txs, TransactionToJsonRpc(tx))
+		txs = append(txs, TransactionToJsonRpc(tx, sig))
 	}
 	blocks := make([]interface{}, 0, len(resp.GetBlocks()))
 	for _, block := range resp.GetBlocks() {
-		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil))
+		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil, sig))
 	}
 	return map[string]interface{}{
 		"data": map[string]interface{}{
@@ -144,18 +144,18 @@ func QueryLogsResponseToJsonRpc(resp *QueryLogsResponse) map[string]interface{} 
 	}
 }
 
-func QueryTracesResponseToJsonRpc(resp *QueryTracesResponse) map[string]interface{} {
+func QueryTracesResponseToJsonRpc(resp *QueryTracesResponse, sig SignatureEncoding) map[string]interface{} {
 	traces := make([]interface{}, 0, len(resp.GetTraces()))
 	for _, trace := range resp.GetTraces() {
 		traces = append(traces, traceToJsonRpc(trace))
 	}
 	txs := make([]interface{}, 0, len(resp.GetTransactions()))
 	for _, tx := range resp.GetTransactions() {
-		txs = append(txs, TransactionToJsonRpc(tx))
+		txs = append(txs, TransactionToJsonRpc(tx, sig))
 	}
 	blocks := make([]interface{}, 0, len(resp.GetBlocks()))
 	for _, block := range resp.GetBlocks() {
-		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil))
+		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil, sig))
 	}
 	return map[string]interface{}{
 		"data": map[string]interface{}{
@@ -169,18 +169,18 @@ func QueryTracesResponseToJsonRpc(resp *QueryTracesResponse) map[string]interfac
 	}
 }
 
-func QueryTransfersResponseToJsonRpc(resp *QueryTransfersResponse) map[string]interface{} {
+func QueryTransfersResponseToJsonRpc(resp *QueryTransfersResponse, sig SignatureEncoding) map[string]interface{} {
 	transfers := make([]interface{}, 0, len(resp.GetTransfers()))
 	for _, transfer := range resp.GetTransfers() {
 		transfers = append(transfers, transferToJsonRpc(transfer))
 	}
 	txs := make([]interface{}, 0, len(resp.GetTransactions()))
 	for _, tx := range resp.GetTransactions() {
-		txs = append(txs, TransactionToJsonRpc(tx))
+		txs = append(txs, TransactionToJsonRpc(tx, sig))
 	}
 	blocks := make([]interface{}, 0, len(resp.GetBlocks()))
 	for _, block := range resp.GetBlocks() {
-		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil))
+		blocks = append(blocks, BlockToJsonRpc(block, nil, nil, nil, sig))
 	}
 	return map[string]interface{}{
 		"data": map[string]interface{}{

@@ -40,17 +40,18 @@ fn big_block() -> (
 fn bench(c: &mut Criterion) {
     let (header, txs, withdrawals) = big_block();
     let hashes: Vec<bytes::Bytes> = Vec::new();
+    let sig = j::SignatureEncoding::Quantity;
 
     let mut group = c.benchmark_group("block_to_json");
     group.sample_size(40);
     group.bench_function("300 full transactions", |b| {
         b.iter(|| {
-            let v = j::block_to_json(&header, &hashes, &txs, &withdrawals);
+            let v = j::block_to_json(&header, &hashes, &txs, &withdrawals, sig);
             std::hint::black_box(&v);
         });
     });
     // The second half of the real cost: handing those bytes to the caller.
-    let value = j::block_to_json(&header, &hashes, &txs, &withdrawals);
+    let value = j::block_to_json(&header, &hashes, &txs, &withdrawals, sig);
     group.bench_function("serialize the mapped Value", |b| {
         b.iter_batched(
             || (),

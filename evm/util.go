@@ -195,9 +195,8 @@ func BytesToHex(b []byte) string {
 	return "0x" + hex.EncodeToString(b)
 }
 
-// BytesToHexFixed left-pads the input with zero bytes to the desired size (in bytes)
-// and returns a 0x-prefixed hex string. If b is longer than size, it is returned as-is.
-// Use for DATA fields that have canonical fixed widths (e.g. r/s = 32 bytes, addresses = 20 bytes).
+// BytesToHexFixed left-pads b with zero bytes to size bytes and returns a
+// 0x-prefixed hex string. Longer input is returned as-is.
 func BytesToHexFixed(b []byte, size int) string {
 	if b == nil {
 		return "0x"
