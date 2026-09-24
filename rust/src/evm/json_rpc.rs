@@ -2792,6 +2792,58 @@ mod tests {
     }
 
     #[test]
+    fn transaction_to_json_r_and_s_are_quantities() {
+        let cases = [
+            (
+                "01",
+                "c20699185c15d0a2fd65779bb5d69f5b0b113c00",
+                "0x1",
+                "0xc20699185c15d0a2fd65779bb5d69f5b0b113c00",
+            ),
+            (
+                "0000000000000000000000000000000000000000000000000000000000000001",
+                "000000000000000000000000c20699185c15d0a2fd65779bb5d69f5b0b113c00",
+                "0x1",
+                "0xc20699185c15d0a2fd65779bb5d69f5b0b113c00",
+            ),
+            (
+                "0a1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b",
+                "0a1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b",
+                "0xa1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b",
+                "0xa1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b",
+            ),
+            (
+                "0000000000000000000000000000000000000000000000000000000000000000",
+                "00",
+                "0x0",
+                "0x0",
+            ),
+        ];
+        for (r, s, want_r, want_s) in cases {
+            let r = Bytes::from(hex_digit_pairs_to_bytes(r).unwrap());
+            let s = Bytes::from(hex_digit_pairs_to_bytes(s).unwrap());
+            let mut tx = base_transaction();
+            tx.r = r.clone();
+            tx.s = s.clone();
+            tx.authorization_list = vec![AuthorizationListItem {
+                chain_id: 1,
+                address: Bytes::from_static(&[0x02; 20]),
+                nonce: 1,
+                r,
+                s,
+                y_parity: 1,
+                authority: Bytes::new(),
+            }];
+            let v = transaction_to_json(&tx);
+            let auth = &v["authorizationList"][0];
+            assert_eq!(v["r"], want_r, "tx r");
+            assert_eq!(v["s"], want_s, "tx s");
+            assert_eq!(auth["r"], want_r, "authorizationList r");
+            assert_eq!(auth["s"], want_s, "authorizationList s");
+        }
+    }
+
+    #[test]
     fn transaction_to_json_l1_fee_omitted_on_parse_error() {
         let mut tx = base_transaction();
         tx.l1_fee = Some("not-a-number".to_string());
