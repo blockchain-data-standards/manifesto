@@ -894,10 +894,10 @@ pub fn transaction_to_json(tx: &Transaction) -> Value {
     // `!= nil` check (on a []byte, itself only ever non-nil when non-empty
     // after a protobuf round-trip) as "non-empty" here.
     if !tx.r.is_empty() {
-        o.insert("r".into(), Value::String(bytes_to_hex_fixed(&tx.r, 32)));
+        o.insert("r".into(), Value::String(bytes_to_quantity_hex(&tx.r)));
     }
     if !tx.s.is_empty() {
-        o.insert("s".into(), Value::String(bytes_to_hex_fixed(&tx.s, 32)));
+        o.insert("s".into(), Value::String(bytes_to_quantity_hex(&tx.s)));
     }
     if let Some(v) = &tx.v {
         o.insert("v".into(), Value::String(bytes_to_quantity_hex(v)));
@@ -1048,8 +1048,8 @@ fn authorization_list_item_to_json(item: &AuthorizationListItem) -> Value {
     o.insert("chainId".into(), Value::String(quantity_hex(item.chain_id)));
     o.insert("address".into(), Value::String(bytes_to_hex(&item.address)));
     o.insert("nonce".into(), Value::String(quantity_hex(item.nonce)));
-    o.insert("r".into(), Value::String(bytes_to_hex_fixed(&item.r, 32)));
-    o.insert("s".into(), Value::String(bytes_to_hex_fixed(&item.s, 32)));
+    o.insert("r".into(), Value::String(bytes_to_quantity_hex(&item.r)));
+    o.insert("s".into(), Value::String(bytes_to_quantity_hex(&item.s)));
     o.insert(
         "yParity".into(),
         Value::String(quantity_hex(u64::from(item.y_parity))),
@@ -1288,21 +1288,9 @@ fn bytes_to_hex(b: &[u8]) -> String {
     String::from_utf8(out).expect("hex digits are ascii")
 }
 
-/// Left-pads `b` with zero bytes to `size` bytes before hex-encoding —
-/// for fixed-width DATA fields (e.g. signature r/s = 32 bytes) that must
-/// keep leading zeros. Longer-than-`size` input is passed through as-is.
-fn bytes_to_hex_fixed(b: &[u8], size: usize) -> String {
-    if b.len() >= size {
-        return bytes_to_hex(b);
-    }
-    let mut buf = vec![0u8; size];
-    buf[size - b.len()..].copy_from_slice(b);
-    bytes_to_hex(&buf)
-}
-
 /// Encodes raw bytes as a JSON-RPC QUANTITY (big-endian integer, no leading
-/// zeros, `0x0` for empty/zero) — used for the transaction `v` field, which
-/// is a signature byte string interpreted as a number, not fixed-width DATA.
+/// zeros, `0x0` for empty/zero) — used for the signature `v`, `r` and `s`
+/// fields, which are integers on the wire, not fixed-width DATA.
 fn bytes_to_quantity_hex(b: &[u8]) -> String {
     let trimmed = {
         let mut i = 0;
@@ -2581,13 +2569,6 @@ mod tests {
     }
 
     #[test]
-    fn bytes_to_hex_fixed_pads() {
-        assert_eq!(bytes_to_hex_fixed(&[0x01], 4), "0x00000001");
-        assert_eq!(bytes_to_hex_fixed(&[0xff; 4], 4), "0xffffffff");
-        assert_eq!(bytes_to_hex_fixed(&[0xff; 5], 4), "0xffffffffff");
-    }
-
-    #[test]
     fn bytes_to_quantity_hex_strips_leading_zeros() {
         assert_eq!(bytes_to_quantity_hex(&[]), "0x0");
         assert_eq!(bytes_to_quantity_hex(&[0x00, 0x00]), "0x0");
@@ -2777,18 +2758,6 @@ mod tests {
         tx.value = "1000000000000000000".to_string();
         let v = transaction_to_json(&tx);
         assert_eq!(v["value"], "0xde0b6b3a7640000");
-    }
-
-    #[test]
-    fn transaction_to_json_r_s_v_fixed_width_and_quantity() {
-        let mut tx = base_transaction();
-        tx.r = Bytes::from_static(&[0x01]);
-        tx.s = Bytes::from_static(&[0x02]);
-        tx.v = Some(Bytes::from_static(&[0x1b]));
-        let v = transaction_to_json(&tx);
-        assert_eq!(v["r"], format!("0x{}{}", "0".repeat(62), "01"));
-        assert_eq!(v["s"], format!("0x{}{}", "0".repeat(62), "02"));
-        assert_eq!(v["v"], "0x1b");
     }
 
     #[test]
@@ -3750,8 +3719,8 @@ mod tests {
             "gas": "0x5208",
             "gasPrice": "0x3b9aca00",
             "type": "0x0",
-            "r": format!("0x{}", "01".repeat(32)),
-            "s": format!("0x{}", "02".repeat(32)),
+            "r": format!("0x{}", "10".repeat(32)),
+            "s": format!("0x{}", "20".repeat(32)),
             "v": "0x1b",
             "gasUsed": "0x5208",
             "effectiveGasPrice": "0x3b9aca00",
@@ -3810,8 +3779,8 @@ mod tests {
         assert_eq!(out_tx["value"], "0xde0b6b3a7640000");
         assert_eq!(out_tx["to"], format!("0x{}", "cc".repeat(20)));
         assert_eq!(out_tx["gasPrice"], "0x3b9aca00");
-        assert_eq!(out_tx["r"], format!("0x{}", "01".repeat(32)));
-        assert_eq!(out_tx["s"], format!("0x{}", "02".repeat(32)));
+        assert_eq!(out_tx["r"], format!("0x{}", "10".repeat(32)));
+        assert_eq!(out_tx["s"], format!("0x{}", "20".repeat(32)));
         assert_eq!(out_tx["v"], "0x1b");
         assert_eq!(out_tx["l1Fee"], "0x64");
         assert_eq!(out_tx["type"], "0x0");
