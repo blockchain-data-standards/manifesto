@@ -18,7 +18,6 @@ This manifest is in draft mode, meaning the inital idea is being put in place an
 * Aram ([github/aramalipoor](https://github.com/aramalipoor)) - eRPC
 * Kasra ([github/kasrakhosravi](https://github.com/kasrakhosravi)) - eRPC
 * Parithosh Jayanthi ([github/parithosh](https://github.com/parithosh)) - Ethereum Foundation
-* Matt Stam ([github/mattstam](https://github.com/mattstam)) - Succinct Labs
 * Yule Andrade ([github/yulesa](https://github.com/yulesa))
 * Shoham ([github/shohamc1](https://github.com/shohamc1)) - Erigon
 * fucory.eth ([x/roninjin10](https://x.com/roninjin10)) - Tevm
