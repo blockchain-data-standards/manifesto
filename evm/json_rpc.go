@@ -1811,6 +1811,32 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 
 	tx.EffectiveGasPrice = getOptionalString("effectiveGasPrice")
 
+	// Receipt fields of a merged transaction+receipt object (MIP-16 shape).
+	if statusStr := getString("status"); statusStr != "" {
+		status, err := NumberishToUint32(statusStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse status: %w", err)
+		}
+		tx.Status = &status
+	}
+	if cumulativeStr := getString("cumulativeGasUsed"); cumulativeStr != "" {
+		cumulative, err := NumberishToUint64(cumulativeStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse cumulativeGasUsed: %w", err)
+		}
+		tx.CumulativeGasUsed = &cumulative
+	}
+	if addrStr := getString("contractAddress"); addrStr != "" && addrStr != "0x" {
+		if tx.ContractAddress, err = HexToBytes(addrStr); err != nil {
+			return nil, fmt.Errorf("failed to parse contractAddress: %w", err)
+		}
+	}
+	if bloomStr := getString("logsBloom"); bloomStr != "" {
+		if tx.LogsBloom, err = HexToBytes(bloomStr); err != nil {
+			return nil, fmt.Errorf("failed to parse logsBloom: %w", err)
+		}
+	}
+
 	// Parse blob fields
 	if blobGasUsedStr := getString("blobGasUsed"); blobGasUsedStr != "" {
 		blobGasUsed, err := NumberishToUint64(blobGasUsedStr)
@@ -1842,6 +1868,37 @@ func ParseJsonRpcTransaction(txMap map[string]interface{}, header *BlockHeader) 
 	return tx, nil
 }
 
+// MergeReceipt copies the execution results of r, the receipt of tx, onto tx:
+// status, gasUsed, cumulativeGasUsed, effectiveGasPrice, contractAddress,
+// logsBloom and the blob gas figures. MIP-16 transaction objects carry these
+// receipt fields, so a server merges the receipt before it renders a query
+// response. r's optional values that are absent leave tx unchanged.
+func MergeReceipt(tx *Transaction, r *Receipt) {
+	if tx == nil || r == nil {
+		return
+	}
+	if r.Status != nil {
+		status := *r.Status
+		tx.Status = &status
+	}
+	gasUsed, cumulative := r.GasUsed, r.CumulativeGasUsed
+	tx.GasUsed, tx.CumulativeGasUsed = &gasUsed, &cumulative
+	if r.EffectiveGasPrice != "" {
+		price := r.EffectiveGasPrice
+		tx.EffectiveGasPrice = &price
+	}
+	tx.ContractAddress = r.ContractAddress
+	tx.LogsBloom = r.LogsBloom
+	if r.BlobGasUsed != nil {
+		blobGasUsed := *r.BlobGasUsed
+		tx.BlobGasUsed = &blobGasUsed
+	}
+	if r.BlobGasPrice != nil {
+		blobGasPrice := *r.BlobGasPrice
+		tx.BlobGasPrice = &blobGasPrice
+	}
+}
+
 // ParseJsonRpcWithdrawals parses a list of JSON-RPC withdrawals into a list of proto withdrawals.
 // This is useful when constructing a evm.Block with withdrawals.
 func ParseJsonRpcWithdrawals(withdrawals []*JsonRpcWithdrawal) ([]*Withdrawal, error) {
@@ -1856,16 +1913,25 @@ func ParseJsonRpcWithdrawals(withdrawals []*JsonRpcWithdrawal) ([]*Withdrawal, e
 	return protoWithdrawals, nil
 }
 
-// TraceFromParity converts one trace_block / trace_transaction frame. It sets
-// Reverted from the frame's own error only: a flat Parity frame does not say
-// whether a parent failed.
+// TraceFromParity converts one trace_block / trace_transaction frame. A
+// suicide frame takes from, value and to from the action's address, balance
+// and refundAddress.
+//
+// A flat Parity frame does not say whether a parent failed, so Reverted here
+// reflects only the frame's own error. After converting the frames of a
+// block or transaction, call PropagateParityReverted on all of them.
 func TraceFromParity(raw map[string]interface{}, blockNumber uint64, blockHash []byte, blockTimestamp *uint64) (*Trace, error) {
 	action, _ := raw["action"].(map[string]interface{})
 	result, _ := raw["result"].(map[string]interface{})
 
-	traceType := traceTypeFromString(stringValue(raw["type"]))
+	rawType := stringValue(raw["type"])
+	traceType := traceTypeFromString(rawType)
 	callType := traceCallTypeFromString(stringValue(action["callType"]))
-	from, err := hexBytesOrEmpty(stringValue(action["from"]))
+	fromKey, valueKey := "from", "value"
+	if traceType == TraceType_TRACE_SELFDESTRUCT {
+		fromKey, valueKey = "address", "balance"
+	}
+	from, err := hexBytesOrEmpty(stringValue(action[fromKey]))
 	if err != nil {
 		return nil, err
 	}
@@ -1887,7 +1953,7 @@ func TraceFromParity(raw map[string]interface{}, blockNumber uint64, blockHash [
 		break
 	}
 
-	value := normalizeNumberishString(stringValue(action["value"]))
+	value := normalizeNumberishString(stringValue(action[valueKey]))
 	input, err := hexBytesOrEmpty(stringValue(action["input"]))
 	if err != nil {
 		return nil, err
@@ -1910,7 +1976,7 @@ func TraceFromParity(raw map[string]interface{}, blockNumber uint64, blockHash [
 	}
 
 	trace := &Trace{
-		Type:             parityFrameType(stringValue(raw["type"]), action),
+		Type:             parityFrameType(rawType, action),
 		TraceType:        traceType,
 		CallType:         callType,
 		From:             from,
@@ -1936,15 +2002,81 @@ func TraceFromParity(raw map[string]interface{}, blockNumber uint64, blockHash [
 	return trace, nil
 }
 
-// TraceFromGethDebug flattens a callTracer result into frames in traceAddress
-// order. A frame is Reverted when it or one of its parents has an error.
-func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHash []byte, blockTimestamp *uint64) ([]*Trace, error) {
-	flattened := make([]*Trace, 0, 8)
-	if _, ok := raw["type"]; !ok {
-		if result, ok := raw["result"].(map[string]interface{}); ok {
-			raw = result
+// PropagateParityReverted sets Reverted on every frame whose transaction has
+// an errored frame at the same or a parent traceAddress: MIP-16 defines a
+// frame as reverted when it or one of its parents failed. traces may hold the
+// frames of several transactions and blocks, in any order. Frames from
+// TraceFromGethDebug already carry this, and a second pass changes nothing.
+func PropagateParityReverted(traces []*Trace) {
+	for i, reverted := range revertedFrames(traces) {
+		if reverted {
+			traces[i].Reverted = true
 		}
 	}
+}
+
+// revertedFrames reports, for each frame, whether it or a parent frame of the
+// same transaction has an error.
+func revertedFrames(traces []*Trace) []bool {
+	type txKey struct {
+		blockNumber uint64
+		hash        string
+		index       uint32
+	}
+	keyOf := func(t *Trace) txKey {
+		return txKey{t.BlockNumber, string(t.TransactionHash), t.TransactionIndex}
+	}
+	errored := make(map[txKey][][]uint32)
+	for _, t := range traces {
+		if t != nil && t.Error != nil {
+			k := keyOf(t)
+			errored[k] = append(errored[k], t.TraceAddress)
+		}
+	}
+	out := make([]bool, len(traces))
+	for i, t := range traces {
+		if t == nil {
+			continue
+		}
+		out[i] = t.Reverted
+		for _, parent := range errored[keyOf(t)] {
+			if out[i] {
+				break
+			}
+			out[i] = isTraceAddressPrefix(parent, t.TraceAddress)
+		}
+	}
+	return out
+}
+
+func isTraceAddressPrefix(prefix, address []uint32) bool {
+	if len(prefix) > len(address) {
+		return false
+	}
+	for i, v := range prefix {
+		if address[i] != v {
+			return false
+		}
+	}
+	return true
+}
+
+// TraceFromGethDebug flattens one callTracer trace into frames in traceAddress
+// order. raw is a debug_traceBlockByNumber / debug_traceBlockByHash item,
+// {"txHash": ..., "result": {callTracer frame}}; its txHash and the
+// transactionIndex the caller passes are set on every frame. To convert a
+// debug_traceTransaction result, wrap it as {"txHash": hash, "result": result}.
+// A frame is Reverted when it or one of its parents has an error.
+func TraceFromGethDebug(raw map[string]interface{}, transactionIndex uint32, blockNumber uint64, blockHash []byte, blockTimestamp *uint64) ([]*Trace, error) {
+	txHash, err := HexToBytes(stringValue(raw["txHash"]))
+	if err != nil || len(txHash) != HashLength {
+		return nil, fmt.Errorf("callTracer item needs a 32-byte txHash, got %q", stringValue(raw["txHash"]))
+	}
+	result, ok := raw["result"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("callTracer item for %s has no result frame", BytesToHex(txHash))
+	}
+	flattened := make([]*Trace, 0, 8)
 	var walk func(map[string]interface{}, []uint32, bool) error
 	walk = func(node map[string]interface{}, traceAddress []uint32, parentReverted bool) error {
 		traceType := traceTypeFromString(stringValue(node["type"]))
@@ -1968,11 +2100,6 @@ func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHas
 		gas, _ := numberishUint64(stringValue(node["gas"]))
 		gasUsed, _ := numberishUint64(stringValue(node["gasUsed"]))
 		value := normalizeNumberishString(stringValue(node["value"]))
-		txHash, err := hexBytesOrEmpty(stringValue(node["transactionHash"]))
-		if err != nil {
-			return err
-		}
-		txIndex, _ := numberishUint32FromAny(node["transactionIndex"])
 		calls, _ := node["calls"].([]interface{})
 		trace := &Trace{
 			Type:             strings.ToUpper(stringValue(node["type"])),
@@ -1988,7 +2115,7 @@ func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHas
 			Subtraces:        uint32(len(calls)),
 			TraceAddress:     append([]uint32(nil), traceAddress...),
 			TransactionHash:  txHash,
-			TransactionIndex: txIndex,
+			TransactionIndex: transactionIndex,
 			BlockNumber:      blockNumber,
 			BlockHash:        blockHash,
 			BlockTimestamp:   blockTimestamp,
@@ -2009,7 +2136,7 @@ func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHas
 		}
 		return nil
 	}
-	if err := walk(raw, nil, false); err != nil {
+	if err := walk(result, nil, false); err != nil {
 		return nil, err
 	}
 	return flattened, nil
@@ -2018,11 +2145,14 @@ func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHas
 // NativeTransfersFromTraces returns the MIP-16 transfers of traces: every call
 // frame whose value is above zero and whose type is not DELEGATECALL or
 // CALLCODE, which move no value. Each transfer carries the full trace context.
-// Reverted frames are included; the server applies includeReverted.
+// A transfer is reverted when its frame or a parent frame of the same
+// transaction in traces failed, so Parity frames need no separate pass here.
+// Reverted transfers are included; the server applies includeReverted.
 func NativeTransfersFromTraces(traces []*Trace) []*NativeTransfer {
 	transfers := make([]*NativeTransfer, 0, len(traces))
+	reverted := revertedFrames(traces)
 	value := new(big.Int)
-	for _, trace := range traces {
+	for i, trace := range traces {
 		if trace == nil || trace.TraceType == TraceType_TRACE_REWARD {
 			continue
 		}
@@ -2050,7 +2180,7 @@ func NativeTransfersFromTraces(traces []*Trace) []*NativeTransfer {
 			Input:            trace.Input,
 			Output:           trace.Output,
 			Error:            trace.Error,
-			Reverted:         trace.Reverted,
+			Reverted:         reverted[i],
 			TransactionHash:  trace.TransactionHash,
 			TransactionIndex: trace.TransactionIndex,
 			BlockNumber:      trace.BlockNumber,

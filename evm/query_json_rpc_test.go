@@ -133,6 +133,7 @@ func TestQueryJsonRpcMip16(t *testing.T) {
 				expectValues(t, r, "transactions", "to", b, nil, b)
 				expectValues(t, r, "transactions", "contractAddress", nil, hexOf(0xcc, 20), nil)
 				expectValues(t, r, "transactions", "status", "0x1", "0x1", "0x0")
+				expectValues(t, r, "transactions", "cumulativeGasUsed", "0x5208", "0xa410", "0xf618")
 				auth := objects(t, r, "transactions")[0]["authorizationList"].([]interface{})
 				expectKeys(t, auth[0].(map[string]interface{}), "chainId", "address", "nonce", "yParity", "r", "s")
 				expectValues(t, r, "blocks", "number", "0x11")
@@ -150,13 +151,16 @@ func TestQueryJsonRpcMip16(t *testing.T) {
 		},
 		{
 			name: "transactions: budget ends the page at the previous block", method: "eth_queryTransactions", chainID: monad, budget: 4,
-			params: `[{"fromBlock":"0x10","toBlock":"0x11","fields":{"transactions":["hash","type","chainId","yParity"]}}]`,
+			params: `[{"fromBlock":"0x10","toBlock":"0x11","fields":{"transactions":["hash","type","chainId","yParity","status","cumulativeGasUsed","logsBloom"]}}]`,
 			check: func(t *testing.T, r map[string]interface{}) {
 				expectRef(t, r, "cursorBlock", "0x10")
 				expectValues(t, r, "transactions", "type", "0x0", "0x2")
-				// An unprotected legacy transaction has neither chainId nor yParity.
-				expectKeys(t, objects(t, r, "transactions")[0], "hash", "type")
+				// An unprotected legacy transaction has neither chainId nor yParity;
+				// its receipt fields come from MergeReceipt.
+				expectKeys(t, objects(t, r, "transactions")[0], "hash", "type", "status", "cumulativeGasUsed", "logsBloom")
 				expectValues(t, r, "transactions", "chainId", nil, "0x8f")
+				expectValues(t, r, "transactions", "status", "0x1", "0x1")
+				expectValues(t, r, "transactions", "logsBloom", hexOf(0, 256), hexOf(0, 256))
 			},
 		},
 
@@ -183,23 +187,31 @@ func TestQueryJsonRpcMip16(t *testing.T) {
 		// eth_queryTraces
 		{
 			name: "traces: explicit fields, reverted frames excluded by default", method: "eth_queryTraces", chainID: monad,
-			params: `[{"fromBlock":"0x10","toBlock":"0x11","fields":{"traces":["type","to","value","error","reverted","traceAddress"]}}]`,
+			params: `[{"fromBlock":"0x10","toBlock":"0x11","fields":{"traces":["type","from","to","value","error","reverted","traceAddress"]}}]`,
 			check: func(t *testing.T, r map[string]interface{}) {
-				expectValues(t, r, "traces", "type", "CALL", "DELEGATECALL", "CALL", "STATICCALL")
-				expectValues(t, r, "traces", "traceAddress", []interface{}{}, []interface{}{float64(0)}, []interface{}{}, []interface{}{float64(0)})
-				expectValues(t, r, "traces", "error", nil, nil, nil, nil)
-				expectValues(t, r, "traces", "reverted", false, false, false, false)
-				expectValues(t, r, "traces", "value", "0x5", "0x5", "0x0", "0x0")
+				// The Parity child [1,0] of the failed call [1] is reverted too, so it is excluded.
+				expectValues(t, r, "traces", "type", "CALL", "DELEGATECALL", "SELFDESTRUCT", "CALL", "STATICCALL")
+				expectValues(t, r, "traces", "traceAddress", []interface{}{}, []interface{}{float64(0)}, []interface{}{float64(2)}, []interface{}{}, []interface{}{float64(0)})
+				expectValues(t, r, "traces", "error", nil, nil, nil, nil, nil)
+				expectValues(t, r, "traces", "reverted", false, false, false, false, false)
+				expectValues(t, r, "traces", "value", "0x5", "0x5", "0x7", "0x0", "0x0")
+				// A Parity suicide frame: from is the destroyed contract, to the refund address.
+				expectValues(t, r, "traces", "from", hexOf(0x01, 20), a, a, hexOf(0x01, 20), b)
+				expectValues(t, r, "traces", "to", a, b, hexOf(0xdd, 20), b, a)
 			},
 		},
 		{
 			name: "traces: includeReverted, all fields, blocks join", method: "eth_queryTraces", chainID: monad,
 			params: `[{"fromBlock":"0x10","toBlock":"0x11","filter":{"includeReverted":true,"to":null},"fields":{"traces":"all","blocks":["number"]}}]`,
 			check: func(t *testing.T, r map[string]interface{}) {
-				expectValues(t, r, "traces", "type", "CALL", "DELEGATECALL", "CALL", "CALL", "STATICCALL", "CREATE")
-				expectValues(t, r, "traces", "error", nil, nil, "execution reverted", nil, nil, "out of gas")
-				expectValues(t, r, "traces", "reverted", false, false, true, false, false, true)
-				expectValues(t, r, "traces", "to", a, b, b, b, a, nil)
+				expectValues(t, r, "traces", "type", "CALL", "DELEGATECALL", "CALL", "CALL", "SELFDESTRUCT", "CALL", "STATICCALL", "CREATE")
+				expectValues(t, r, "traces", "error", nil, nil, "execution reverted", nil, nil, nil, nil, "out of gas")
+				expectValues(t, r, "traces", "reverted", false, false, true, true, false, false, false, true)
+				expectValues(t, r, "traces", "to", a, b, b, a, hexOf(0xdd, 20), b, a, nil)
+				// callTracer frames carry the txHash of their debug_traceBlockByNumber item and the given index.
+				expectValues(t, r, "traces", "transactionHash", txHashHex(0x10, 1), txHashHex(0x10, 1), txHashHex(0x10, 1),
+					txHashHex(0x10, 1), txHashHex(0x10, 1), txHashHex(0x11, 0), txHashHex(0x11, 0), txHashHex(0x11, 1))
+				expectValues(t, r, "traces", "transactionIndex", "0x1", "0x1", "0x1", "0x1", "0x1", "0x0", "0x0", "0x1")
 				expectValues(t, r, "blocks", "number", "0x10", "0x11")
 			},
 		},
@@ -209,19 +221,23 @@ func TestQueryJsonRpcMip16(t *testing.T) {
 			name: "transfers: no DELEGATECALL or zero value, transactions join", method: "eth_queryTransfers", chainID: monad,
 			params: `[{"fromBlock":"0x10","toBlock":"0x11","filter":{"includeReverted":true},"fields":{"transfers":"all","transactions":["hash"]}}]`,
 			check: func(t *testing.T, r map[string]interface{}) {
-				expectValues(t, r, "transfers", "type", "CALL", "CALL", "CREATE")
-				expectValues(t, r, "transfers", "value", "0x5", "0x1", "0x2")
-				expectValues(t, r, "transfers", "traceAddress", []interface{}{}, []interface{}{float64(1)}, []interface{}{})
-				expectValues(t, r, "transfers", "gasUsed", "0x5208", "0x5208", "0x5208")
+				expectValues(t, r, "transfers", "type", "CALL", "CALL", "CALL", "SELFDESTRUCT", "CREATE")
+				expectValues(t, r, "transfers", "value", "0x5", "0x1", "0x3", "0x7", "0x2")
+				expectValues(t, r, "transfers", "traceAddress", []interface{}{}, []interface{}{float64(1)},
+					[]interface{}{float64(1), float64(0)}, []interface{}{float64(2)}, []interface{}{})
+				// NativeTransfersFromTraces saw the Parity frames before PropagateParityReverted ran.
+				expectValues(t, r, "transfers", "reverted", false, true, true, false, true)
+				expectValues(t, r, "transfers", "gasUsed", "0x5208", "0x0", "0x5208", "0x0", "0x5208")
 				expectValues(t, r, "transactions", "hash", txHashHex(0x10, 1), txHashHex(0x11, 1))
 			},
 		},
 		{
 			name: "transfers: reverted frames excluded by default", method: "eth_queryTransfers", chainID: monad,
-			params: `[{"fromBlock":"0x10","toBlock":"0x11","fields":{"transfers":["value","reverted"]}}]`,
+			params: `[{"fromBlock":"0x10","toBlock":"0x11","fields":{"transfers":["value","to","reverted"]}}]`,
 			check: func(t *testing.T, r map[string]interface{}) {
-				expectValues(t, r, "transfers", "value", "0x5")
-				expectValues(t, r, "transfers", "reverted", false)
+				expectValues(t, r, "transfers", "value", "0x5", "0x7")
+				expectValues(t, r, "transfers", "to", a, hexOf(0xdd, 20))
+				expectValues(t, r, "transfers", "reverted", false, false)
 			},
 		},
 	}
@@ -380,15 +396,26 @@ func txHash(block uint64, index uint32) []byte {
 
 func txHashHex(block uint64, index uint32) string { return BytesToHex(txHash(block, index)) }
 
-// fakeQueryServer stands in for erpc and prism: it resolves the range, checks
-// it with ValidateQueryRange, applies its availability window (blocks 0x10 and
-// 0x11), filters, pages block by block, joins relations, and returns BDS
-// errors that QueryErrorCode maps to JSON-RPC codes.
+// fakeQueryServer stands in for erpc and prism: it builds its records with the
+// public conversion helpers (ParseJsonRpcTransaction, MergeReceipt,
+// TraceFromParity, PropagateParityReverted, TraceFromGethDebug,
+// NativeTransfersFromTraces), resolves the range, checks it with
+// ValidateQueryRange, applies its availability window (blocks 0x10 and 0x11),
+// filters, pages block by block, joins relations, and returns BDS errors that
+// QueryErrorCode maps to JSON-RPC codes.
 type fakeQueryServer struct {
-	blocks []*BlockHeader // ascending, from block 0x10
-	txs    []*Transaction
-	logs   []*Log
-	traces []*Trace
+	blocks    []*BlockHeader // ascending, from block 0x10
+	txs       []*Transaction
+	logs      []*Log
+	traces    []*Trace
+	transfers []*NativeTransfer
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }
 
 func newFakeQueryServer() *fakeQueryServer {
@@ -422,14 +449,32 @@ func newFakeQueryServer() *fakeQueryServer {
 		t.MaxFeePerGas, t.MaxPriorityFeePerGas = StringPtr("100"), StringPtr("1")
 		return t
 	}
-	legacy := tx(b16, 0, 0, addr(0xaa))
-	legacy.V = []byte{0x1b}
+	// A pre-EIP-155 legacy transaction as a node sends it, merged with its
+	// receipt as a server does before it renders MIP-16 transaction objects.
+	legacy := must(ParseJsonRpcTransaction(map[string]interface{}{
+		"hash": txHashHex(0x10, 0), "nonce": "0x0", "from": BytesToHex(addr(0x01)), "to": BytesToHex(addr(0xaa)),
+		"value": "0x3e8", "input": "0x12345678", "type": "0x0", "gas": "0xc350", "gasPrice": "0x64",
+		"r": BytesToHex(hash(0x0a)), "s": BytesToHex(hash(0x0b)), "v": "0x1b",
+		"blockNumber": "0x10", "blockHash": BytesToHex(b16.Hash), "transactionIndex": "0x0",
+	}, b16))
+	MergeReceipt(legacy, must((&JsonRpcReceipt{
+		BlockHash: BytesToHex(b16.Hash), BlockNumber: "0x10", TransactionHash: txHashHex(0x10, 0), TransactionIndex: "0x0",
+		From: BytesToHex(addr(0x01)), To: BytesToHex(addr(0xaa)), Type: "0x0", Status: "0x1", GasUsed: "0x5208",
+		CumulativeGasUsed: "0x5208", EffectiveGasPrice: "0x64", LogsBloom: BytesToHex(make([]byte, 256)),
+	}).ToProto()))
 	dynamic := typed(tx(b16, 1, 2, addr(0xaa)), 1)
 	dynamic.AccessList = []*AccessListItem{{Address: addr(0xaa), StorageKeys: [][]byte{hash(0x01)}}}
 	setCode := typed(tx(b17, 0, 4, addr(0xbb)), 0)
 	setCode.AuthorizationList = []*AuthorizationListItem{{ChainId: 143, Address: addr(0xdd), Nonce: 7, R: hash(0x0c), S: hash(0x0d), YParity: 1, Authority: addr(0xee)}}
-	creation := tx(b17, 1, 0, nil)
-	creation.V, creation.ChainId, creation.ContractAddress = []byte{0x01, 0x41}, Uint64Ptr(143), addr(0xcc)
+	// A contract creation as one merged transaction+receipt object.
+	creation := must(ParseJsonRpcTransaction(map[string]interface{}{
+		"hash": txHashHex(0x11, 1), "nonce": "0x1", "from": BytesToHex(addr(0x01)), "to": nil,
+		"value": "0x3e8", "input": "0x12345678", "type": "0x0", "gas": "0xc350", "gasPrice": "0x64",
+		"r": BytesToHex(hash(0x0a)), "s": BytesToHex(hash(0x0b)), "v": "0x141", "chainId": "0x8f",
+		"blockNumber": "0x11", "blockHash": BytesToHex(b17.Hash), "transactionIndex": "0x1",
+		"status": "0x1", "gasUsed": "0x5208", "cumulativeGasUsed": "0xa410", "effectiveGasPrice": "0x64",
+		"contractAddress": BytesToHex(addr(0xcc)), "logsBloom": BytesToHex(make([]byte, 256)),
+	}, b17))
 	blob := typed(tx(b17, 2, 3, addr(0xbb)), 1)
 	blob.Status = Uint32Ptr(0)
 	blob.MaxFeePerBlobGas, blob.BlobVersionedHashes = StringPtr("1"), [][]byte{hash(0x01)}
@@ -441,20 +486,62 @@ func newFakeQueryServer() *fakeQueryServer {
 			BlockTimestamp: Uint64Ptr(blk.Timestamp),
 		}
 	}
-	frame := func(blk *BlockHeader, txIndex uint32, typ string, from, to []byte, value string, traceAddress ...uint32) *Trace {
-		return &Trace{
-			Type: typ, From: from, To: to, Value: value, Input: []byte{}, Output: []byte{}, Gas: 30_000, GasUsed: 21_000,
-			TraceAddress: traceAddress, TransactionHash: txHash(blk.Number, txIndex), TransactionIndex: txIndex,
-			BlockNumber: blk.Number, BlockHash: blk.Hash,
+	// Block 0x10 comes from trace_block (Parity): transaction 1 calls aa,
+	// which delegates, makes a call that fails, and selfdestructs. The failed
+	// call's child succeeds on its own but is reverted with its parent.
+	parityFrame := func(typ string, traceAddress []interface{}, action map[string]interface{}, result interface{}, errText string) map[string]interface{} {
+		raw := map[string]interface{}{
+			"type": typ, "action": action, "result": result, "traceAddress": traceAddress,
+			"subtraces": float64(0), "transactionHash": txHashHex(0x10, 1), "transactionPosition": float64(1),
+		}
+		if errText != "" {
+			raw["error"] = errText
+		}
+		return raw
+	}
+	call := func(callType string, from, to byte, value string) map[string]interface{} {
+		return map[string]interface{}{
+			"callType": callType, "from": BytesToHex(addr(from)), "to": BytesToHex(addr(to)), "value": value,
+			"gas": "0x7530", "input": "0x",
 		}
 	}
-	// A frame that only carries the parity trace kind: its type is derived.
-	delegate := frame(b16, 1, "", addr(0xaa), addr(0xbb), "0x5", 0)
-	delegate.CallType = TraceCallType_TRACE_CALL_DELEGATECALL
-	reverted := frame(b16, 1, "CALL", addr(0xaa), addr(0xbb), "0x1", 1)
-	reverted.Error, reverted.Reverted = StringPtr("execution reverted"), true
-	failedCreate := frame(b17, 1, "CREATE", addr(0x01), nil, "0x2")
-	failedCreate.Error, failedCreate.Reverted = StringPtr("out of gas"), true
+	ok := map[string]interface{}{"gasUsed": "0x5208", "output": "0x"}
+	var traces []*Trace
+	for _, raw := range []map[string]interface{}{
+		parityFrame("call", []interface{}{}, call("call", 0x01, 0xaa, "0x5"), ok, ""),
+		parityFrame("call", []interface{}{float64(0)}, call("delegatecall", 0xaa, 0xbb, "0x5"), ok, ""),
+		parityFrame("call", []interface{}{float64(1)}, call("call", 0xaa, 0xbb, "0x1"), nil, "execution reverted"),
+		parityFrame("call", []interface{}{float64(1), float64(0)}, call("call", 0xbb, 0xaa, "0x3"), ok, ""),
+		parityFrame("suicide", []interface{}{float64(2)}, map[string]interface{}{
+			"address": BytesToHex(addr(0xaa)), "refundAddress": BytesToHex(addr(0xdd)), "balance": "0x7",
+		}, nil, ""),
+	} {
+		traces = append(traces, must(TraceFromParity(raw, b16.Number, b16.Hash, &b16.Timestamp)))
+	}
+	// Block 0x11 comes from debug_traceBlockByNumber with the callTracer.
+	for i, item := range []map[string]interface{}{
+		{"txHash": txHashHex(0x11, 0), "result": map[string]interface{}{
+			"type": "CALL", "from": BytesToHex(addr(0x01)), "to": BytesToHex(addr(0xbb)), "value": "0x0",
+			"gas": "0x7530", "gasUsed": "0x5208", "input": "0x", "output": "0x",
+			"calls": []interface{}{map[string]interface{}{
+				"type": "STATICCALL", "from": BytesToHex(addr(0xbb)), "to": BytesToHex(addr(0xaa)),
+				"gas": "0x7530", "gasUsed": "0x5208", "input": "0x", "output": "0x",
+			}},
+		}},
+		{"txHash": txHashHex(0x11, 1), "result": map[string]interface{}{
+			"type": "CREATE", "from": BytesToHex(addr(0x01)), "value": "0x2", "gas": "0x7530", "gasUsed": "0x5208",
+			"input": "0x6080", "error": "out of gas",
+		}},
+	} {
+		traces = append(traces, must(TraceFromGethDebug(item, uint32(i), b17.Number, b17.Hash, &b17.Timestamp))...)
+	}
+	if _, err := TraceFromGethDebug(map[string]interface{}{"result": map[string]interface{}{"type": "CALL"}}, 0, b17.Number, b17.Hash, nil); err == nil {
+		panic("TraceFromGethDebug accepted an item without txHash")
+	}
+	// Transfers come from the frames before the Parity pass: the helper must
+	// find the reverted child of the failed call on its own.
+	transfers := NativeTransfersFromTraces(traces)
+	PropagateParityReverted(traces)
 
 	return &fakeQueryServer{
 		blocks: []*BlockHeader{b16, b17},
@@ -464,14 +551,8 @@ func newFakeQueryServer() *fakeQueryServer {
 			log(b17, 0, 0, 0xbb, hash(0x72)),
 			log(b17, 0, 1, 0xaa, hash(0x71), hash(0x99)),
 		},
-		traces: []*Trace{
-			frame(b16, 1, "CALL", addr(0x01), addr(0xaa), "0x5"),
-			delegate,
-			reverted,
-			frame(b17, 0, "CALL", addr(0x01), addr(0xbb), "0x0"),
-			frame(b17, 0, "STATICCALL", addr(0xbb), addr(0xaa), "0x0", 0),
-			failedCreate,
-		},
+		traces:    traces,
+		transfers: transfers,
 	}
 }
 
@@ -594,7 +675,7 @@ func (s *fakeQueryServer) run(method string, chainID uint64, budget int, params 
 			return nil, err
 		}
 		f := req.GetFilter()
-		transfers := NativeTransfersFromTraces(s.traces)
+		transfers := s.transfers
 		resp := &QueryTransfersResponse{}
 		page, err := s.page(req.FromBlock, req.ToBlock, req.Order, req.Target, budget, func(n uint64) []interface{} {
 			var out []interface{}
