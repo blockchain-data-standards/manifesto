@@ -2099,6 +2099,11 @@ fn transaction_from_json_object(
         deposit_receipt_version: quantity_string_field(o, "depositReceiptVersion")?,
         source_hash: opt_bytes(o, "sourceHash")?,
         mint: quantity_string_field(o, "mint")?,
+        // Receipt fields: a transaction object carries none of them.
+        status: None,
+        cumulative_gas_used: None,
+        contract_address: None,
+        logs_bloom: Bytes::new(),
     })
 }
 
@@ -2823,6 +2828,10 @@ mod tests {
             deposit_receipt_version: None,
             source_hash: None,
             mint: None,
+            status: None,
+            cumulative_gas_used: None,
+            contract_address: None,
+            logs_bloom: Bytes::new(),
         }
     }
 

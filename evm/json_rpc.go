@@ -843,8 +843,8 @@ var receiptFiguresOnTransaction = []string{
 }
 
 // TransactionRecordToJsonRpc renders every field a BDS Transaction holds,
-// including its receipt's execution figures, as the eth_query* methods serve
-// it (their field selection can ask for gasUsed and effectiveGasPrice).
+// including its receipt's execution figures. The eth_query* methods do not use
+// it: they render a MIP-16 field selection (queryTransactionToJsonRpc).
 // sig selects the r/s encoding; pass SignatureEncodingForChain(chainId).
 func TransactionRecordToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]interface{} {
 	if tx == nil {
@@ -1856,6 +1856,9 @@ func ParseJsonRpcWithdrawals(withdrawals []*JsonRpcWithdrawal) ([]*Withdrawal, e
 	return protoWithdrawals, nil
 }
 
+// TraceFromParity converts one trace_block / trace_transaction frame. It sets
+// Reverted from the frame's own error only: a flat Parity frame does not say
+// whether a parent failed.
 func TraceFromParity(raw map[string]interface{}, blockNumber uint64, blockHash []byte, blockTimestamp *uint64) (*Trace, error) {
 	action, _ := raw["action"].(map[string]interface{})
 	result, _ := raw["result"].(map[string]interface{})
@@ -1907,6 +1910,7 @@ func TraceFromParity(raw map[string]interface{}, blockNumber uint64, blockHash [
 	}
 
 	trace := &Trace{
+		Type:             parityFrameType(stringValue(raw["type"]), action),
 		TraceType:        traceType,
 		CallType:         callType,
 		From:             from,
@@ -1926,11 +1930,14 @@ func TraceFromParity(raw map[string]interface{}, blockNumber uint64, blockHash [
 	}
 	if errText := stringValue(raw["error"]); errText != "" {
 		trace.Error = &errText
+		trace.Reverted = true
 	}
 
 	return trace, nil
 }
 
+// TraceFromGethDebug flattens a callTracer result into frames in traceAddress
+// order. A frame is Reverted when it or one of its parents has an error.
 func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHash []byte, blockTimestamp *uint64) ([]*Trace, error) {
 	flattened := make([]*Trace, 0, 8)
 	if _, ok := raw["type"]; !ok {
@@ -1938,8 +1945,8 @@ func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHas
 			raw = result
 		}
 	}
-	var walk func(map[string]interface{}, []uint32) error
-	walk = func(node map[string]interface{}, traceAddress []uint32) error {
+	var walk func(map[string]interface{}, []uint32, bool) error
+	walk = func(node map[string]interface{}, traceAddress []uint32, parentReverted bool) error {
 		traceType := traceTypeFromString(stringValue(node["type"]))
 		callType := traceCallTypeFromString(stringValue(node["type"]))
 		from, err := hexBytesOrEmpty(stringValue(node["from"]))
@@ -1968,6 +1975,7 @@ func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHas
 		txIndex, _ := numberishUint32FromAny(node["transactionIndex"])
 		calls, _ := node["calls"].([]interface{})
 		trace := &Trace{
+			Type:             strings.ToUpper(stringValue(node["type"])),
 			TraceType:        traceType,
 			CallType:         callType,
 			From:             from,
@@ -1988,38 +1996,38 @@ func TraceFromGethDebug(raw map[string]interface{}, blockNumber uint64, blockHas
 		if errText := stringValue(node["error"]); errText != "" {
 			trace.Error = &errText
 		}
+		trace.Reverted = parentReverted || trace.Error != nil
 		flattened = append(flattened, trace)
 		for i, rawChild := range calls {
 			child, ok := rawChild.(map[string]interface{})
 			if !ok {
 				continue
 			}
-			if err := walk(child, append(append([]uint32(nil), traceAddress...), uint32(i))); err != nil {
+			if err := walk(child, append(append([]uint32(nil), traceAddress...), uint32(i)), trace.Reverted); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	if err := walk(raw, nil); err != nil {
+	if err := walk(raw, nil, false); err != nil {
 		return nil, err
 	}
 	return flattened, nil
 }
 
+// NativeTransfersFromTraces returns the MIP-16 transfers of traces: every call
+// frame whose value is above zero and whose type is not DELEGATECALL or
+// CALLCODE, which move no value. Each transfer carries the full trace context.
+// Reverted frames are included; the server applies includeReverted.
 func NativeTransfersFromTraces(traces []*Trace) []*NativeTransfer {
 	transfers := make([]*NativeTransfer, 0, len(traces))
+	value := new(big.Int)
 	for _, trace := range traces {
-		if trace == nil {
+		if trace == nil || trace.TraceType == TraceType_TRACE_REWARD {
 			continue
 		}
-		if trace.TraceType != TraceType_TRACE_CALL && trace.TraceType != TraceType_TRACE_CREATE {
-			continue
-		}
-		if len(trace.To) == 0 {
-			continue
-		}
-		value := new(big.Int)
-		if trace.Value == "" {
+		typ := traceFrameType(trace)
+		if typ == "DELEGATECALL" || typ == "CALLCODE" || trace.Value == "" {
 			continue
 		}
 		if strings.HasPrefix(trace.Value, "0x") || strings.HasPrefix(trace.Value, "0X") {
@@ -2033,9 +2041,16 @@ func NativeTransfersFromTraces(traces []*Trace) []*NativeTransfer {
 			continue
 		}
 		transfers = append(transfers, &NativeTransfer{
+			Type:             typ,
 			From:             trace.From,
 			To:               trace.To,
 			Value:            trace.Value,
+			Gas:              trace.Gas,
+			GasUsed:          trace.GasUsed,
+			Input:            trace.Input,
+			Output:           trace.Output,
+			Error:            trace.Error,
+			Reverted:         trace.Reverted,
 			TransactionHash:  trace.TransactionHash,
 			TransactionIndex: trace.TransactionIndex,
 			BlockNumber:      trace.BlockNumber,
@@ -2045,6 +2060,51 @@ func NativeTransfersFromTraces(traces []*Trace) []*NativeTransfer {
 		})
 	}
 	return transfers
+}
+
+// traceFrameType returns the callTracer type of a frame (CALL, CALLCODE,
+// DELEGATECALL, STATICCALL, CREATE, CREATE2 or SELFDESTRUCT). It is Type
+// when set, else derived from TraceType and CallType; a reward is "".
+func traceFrameType(t *Trace) string {
+	if t.Type != "" {
+		return t.Type
+	}
+	switch t.TraceType {
+	case TraceType_TRACE_CREATE:
+		return "CREATE"
+	case TraceType_TRACE_SELFDESTRUCT:
+		return "SELFDESTRUCT"
+	case TraceType_TRACE_REWARD:
+		return ""
+	}
+	switch t.CallType {
+	case TraceCallType_TRACE_CALL_STATICCALL:
+		return "STATICCALL"
+	case TraceCallType_TRACE_CALL_DELEGATECALL:
+		return "DELEGATECALL"
+	case TraceCallType_TRACE_CALL_CALLCODE:
+		return "CALLCODE"
+	}
+	return "CALL"
+}
+
+// parityFrameType maps a Parity trace type and action to the callTracer type.
+func parityFrameType(traceType string, action map[string]interface{}) string {
+	switch strings.ToLower(traceType) {
+	case "call":
+		if callType := stringValue(action["callType"]); callType != "" {
+			return strings.ToUpper(callType)
+		}
+		return "CALL"
+	case "create":
+		if method := stringValue(action["creationMethod"]); method != "" {
+			return strings.ToUpper(method)
+		}
+		return "CREATE"
+	case "suicide", "selfdestruct":
+		return "SELFDESTRUCT"
+	}
+	return ""
 }
 
 func stringValue(v interface{}) string {

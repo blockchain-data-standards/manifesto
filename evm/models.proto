@@ -340,6 +340,20 @@ message Transaction {
   // Amount of native currency minted alongside the transaction execution on some L2 systems (e.g., deposit value bridged from L1), in wei.
   // Hex-encoded decimal string, similar to value and other fee fields. Absent or 0x0 when not applicable.
   optional string mint = 53;
+
+  // === Receipt Fields (MIP-16 merges them into transaction objects) ===
+
+  // Execution status from the receipt: 1 if the transaction succeeded, 0 if it reverted.
+  optional uint32 status = 54;
+
+  // Total gas used in the block by this transaction and all earlier transactions, from the receipt.
+  optional uint64 cumulativeGasUsed = 55;
+
+  // Address of the contract this transaction created, from the receipt. Absent if the transaction is not a contract creation.
+  optional bytes contractAddress = 56;
+
+  // 256-byte bloom filter of the logs of this transaction, from the receipt.
+  bytes logsBloom = 57;
 }
 
 // Represents an entry in an EIP-2930 access list. Pre-declares addresses and storage slots that will be accessed during transaction execution, enabling gas savings through reduced cold access costs
@@ -579,11 +593,18 @@ message Trace {
   uint64 blockNumber = 15;
   bytes blockHash = 16;
   optional uint64 blockTimestamp = 17;
+
+  // The callTracer frame type: CALL, CALLCODE, DELEGATECALL, STATICCALL, CREATE, CREATE2 or SELFDESTRUCT.
+  string type = 18;
+
+  // True if the state changes of this frame were discarded, because the frame itself or one of its parents failed.
+  bool reverted = 19;
 }
 
-// A native token transfer extracted from traces
+// A native token transfer extracted from traces: a call frame with value > 0 whose type is not DELEGATECALL or CALLCODE. It carries the full trace context (MIP-16: the transfers schema is the traces schema).
 message NativeTransfer {
   bytes from = 1;
+  // Empty if a CREATE or CREATE2 frame failed, because no contract was created.
   bytes to = 2;
   string value = 3;
 
@@ -593,4 +614,13 @@ message NativeTransfer {
   bytes blockHash = 7;
   repeated uint32 traceAddress = 8;
   optional uint64 blockTimestamp = 9;
+
+  // The callTracer frame type: CALL, STATICCALL, CREATE, CREATE2 or SELFDESTRUCT.
+  string type = 10;
+  uint64 gas = 11;
+  uint64 gasUsed = 12;
+  bytes input = 13;
+  bytes output = 14;
+  optional string error = 15;
+  bool reverted = 16;
 }
