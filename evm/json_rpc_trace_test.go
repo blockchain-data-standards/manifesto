@@ -41,23 +41,26 @@ func TestTraceFromParityAndNativeTransfers(t *testing.T) {
 
 func TestTraceFromGethDebugFlattensNestedCalls(t *testing.T) {
 	traces, err := TraceFromGethDebug(map[string]interface{}{
-		"type":  "CALL",
-		"from":  "0x0000000000000000000000000000000000000001",
-		"to":    "0x0000000000000000000000000000000000000002",
-		"value": "0x0",
-		"gas":   "0x1",
-		"gasUsed": "0x1",
-		"calls": []interface{}{
-			map[string]interface{}{
-				"type":  "STATICCALL",
-				"from":  "0x0000000000000000000000000000000000000002",
-				"to":    "0x0000000000000000000000000000000000000003",
-				"value": "0x0",
-				"gas":   "0x1",
-				"gasUsed": "0x1",
+		"txHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"result": map[string]interface{}{
+			"type":    "CALL",
+			"from":    "0x0000000000000000000000000000000000000001",
+			"to":      "0x0000000000000000000000000000000000000002",
+			"value":   "0x0",
+			"gas":     "0x1",
+			"gasUsed": "0x1",
+			"calls": []interface{}{
+				map[string]interface{}{
+					"type":    "STATICCALL",
+					"from":    "0x0000000000000000000000000000000000000002",
+					"to":      "0x0000000000000000000000000000000000000003",
+					"value":   "0x0",
+					"gas":     "0x1",
+					"gasUsed": "0x1",
+				},
 			},
 		},
-	}, 1, MustHexToBytes("0xaa"), nil)
+	}, 3, 1, MustHexToBytes("0xaa"), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -5,7 +5,7 @@
 //	import "github.com/blockchain-data-standards/manifesto/evm/golang"
 //
 // See individual blockchain directories (e.g., evm/, solana/, cosmos/) for available data structures.
-package main
+package manifesto
 
 // This file exists only to mark the root as a Go module.
 // All useful code is in the subdirectories organized by blockchain type.

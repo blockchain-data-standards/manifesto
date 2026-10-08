@@ -2099,6 +2099,12 @@ fn transaction_from_json_object(
         deposit_receipt_version: quantity_string_field(o, "depositReceiptVersion")?,
         source_hash: opt_bytes(o, "sourceHash")?,
         mint: quantity_string_field(o, "mint")?,
+        // Receipt fields: present only on a merged transaction+receipt object
+        // (the MIP-16 shape); mirrors ParseJsonRpcTransaction.
+        status: optional_u32_field(o, "status")?,
+        cumulative_gas_used: optional_u64_field(o, "cumulativeGasUsed")?,
+        contract_address: opt_address(o, "contractAddress")?,
+        logs_bloom: opt_bytes(o, "logsBloom")?.unwrap_or_default(),
     })
 }
 
@@ -2823,6 +2829,10 @@ mod tests {
             deposit_receipt_version: None,
             source_hash: None,
             mint: None,
+            status: None,
+            cumulative_gas_used: None,
+            contract_address: None,
+            logs_bloom: Bytes::new(),
         }
     }
 

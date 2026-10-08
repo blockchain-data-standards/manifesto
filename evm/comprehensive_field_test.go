@@ -50,7 +50,7 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 			t.Error("Expected blobGasPrice to be '0x1000'")
 		}
 
-		// The record rendering (eth_query*) carries the execution results.
+		// The record rendering carries the execution results.
 		jsonRpc := TransactionRecordToJsonRpc(tx, SignatureQuantity)
 
 		// Verify execution result fields in output
