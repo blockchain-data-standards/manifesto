@@ -120,14 +120,12 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 			t.Errorf("Expected BlockTimestamp to be 0x65000000, got 0x%x", *protoReceipt.BlockTimestamp)
 		}
 
-		// Test conversion back to JSON-RPC
+		// The record keeps it, but no provider sends blockTimestamp on a
+		// receipt (2026-10-08 survey: 22 chains, 0 of 158 provider samples),
+		// so the node-shaped receipt leaves it out.
 		jsonRpcMap := ReceiptToJsonRpc(protoReceipt)
-
-		// Check blockTimestamp is in output
-		if blockTimestamp, ok := jsonRpcMap["blockTimestamp"]; !ok {
-			t.Error("Expected blockTimestamp in JSON-RPC output")
-		} else if blockTimestamp != "0x65000000" {
-			t.Errorf("Expected blockTimestamp to be '0x65000000', got '%v'", blockTimestamp)
+		if v, ok := jsonRpcMap["blockTimestamp"]; ok {
+			t.Errorf("Expected no blockTimestamp on a receipt, got %v", v)
 		}
 	})
 

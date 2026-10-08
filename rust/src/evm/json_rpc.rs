@@ -881,10 +881,14 @@ pub fn block_to_json(
 ///
 /// A BDS `Transaction` also carries its receipt's execution figures
 /// (`gasUsed`, `effectiveGasPrice`, blob gas, L2 fees) and optional fields a
-/// chain may not have. A node sends those figures on the receipt only, and
-/// omits a field its chain does not have rather than sending `null`, so this
+/// chain may not have. Nodes send those figures on the receipt only, and omit
+/// a field the transaction does not have rather than sending `null`, so this
 /// leaves them out. [`transaction_record_to_json`] renders every field the
 /// record holds.
+///
+/// The shape follows what providers send (2026-10-08 survey: 22 chains, 2-8
+/// providers each): an empty `accessList` only on the types that define one,
+/// no `chainId` on an OP deposit (`0x7e`) or a pre-EIP-155 legacy transaction.
 #[must_use]
 pub fn transaction_to_json(tx: &Transaction, sig: SignatureEncoding) -> Value {
     let mut v = transaction_record_to_json(tx, sig);
@@ -896,22 +900,37 @@ pub fn transaction_to_json(tx: &Transaction, sig: SignatureEncoding) -> Value {
     for k in RECEIPT_FIGURES_ON_TRANSACTION {
         o.remove(*k);
     }
-    if tx.r#type == 0 {
-        // A legacy transaction has no access list, and names a chainId only
-        // when its signature does (EIP-155: v = chainId*2 + 35 or 36, else
-        // 27 or 28).
+    if tx.access_list.is_empty() && !ACCESS_LIST_TYPES.contains(&tx.r#type) {
+        // Legacy, deposit (0x7e), Arbitrum (0x6a), zkSync (0x71) and other
+        // types without one: nodes send no accessList key at all.
         o.remove("accessList");
-        // v below 35 is 27 or 28: one significant byte after leading zeros.
-        let pre_eip155 = tx.v.as_deref().is_some_and(|v| {
-            let digits: Vec<u8> = v.iter().copied().skip_while(|b| *b == 0).collect();
-            digits.len() <= 1 && digits.first().copied().unwrap_or(0) < 35
-        });
-        if pre_eip155 {
+    }
+    match tx.r#type {
+        0 => {
+            // A legacy transaction names a chainId only when its signature
+            // does (EIP-155: v = chainId*2 + 35 or 36, else 27 or 28): one
+            // significant byte below 35.
+            let pre_eip155 = tx.v.as_deref().is_some_and(|v| {
+                let digits: Vec<u8> = v.iter().copied().skip_while(|b| *b == 0).collect();
+                digits.len() <= 1 && digits.first().copied().unwrap_or(0) < 35
+            });
+            if pre_eip155 {
+                o.remove("chainId");
+            }
+        }
+        // An OP deposit is not signed by its sender and names no chainId.
+        0x7e => {
             o.remove("chainId");
         }
+        _ => {}
     }
     v
 }
+
+/// The transaction types that define an access list, so nodes send one even
+/// when it is empty: EIP-2930 (1), EIP-1559 (2), EIP-4844 (3), EIP-7702 (4)
+/// and Celo's CIP-64 (`0x7b`).
+const ACCESS_LIST_TYPES: &[u32] = &[1, 2, 3, 4, 0x7b];
 
 /// The execution results a BDS `Transaction` copies from its receipt. Nodes
 /// send them on the receipt only.
@@ -1228,9 +1247,8 @@ pub fn receipt_to_json(r: &Receipt) -> Value {
     if let Some(v) = nonempty(&r.root) {
         o.insert("root".into(), Value::String(bytes_to_hex(v)));
     }
-    if let Some(v) = r.block_timestamp {
-        o.insert("blockTimestamp".into(), Value::String(quantity_hex(v)));
-    }
+    // No blockTimestamp: no provider sends one on a receipt (it is on the
+    // receipt's logs instead).
     if let Some(v) = r.gas_used_for_l1 {
         o.insert("gasUsedForL1".into(), Value::String(quantity_hex(v)));
     }

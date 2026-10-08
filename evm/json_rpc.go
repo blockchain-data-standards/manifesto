@@ -787,11 +787,14 @@ func (e SignatureEncoding) hex(b []byte) string {
 //
 // A BDS Transaction also carries its receipt's execution figures (gasUsed,
 // effectiveGasPrice, blob gas, L2 fees) and optional fields a chain may not
-// have. A node sends those figures on the receipt only, and omits a field its
-// chain does not have rather than sending null, so this leaves them out:
-// a value the record carries is never invented or nulled, and a field absent
-// on a chain is absent here too. TransactionRecordToJsonRpc renders every
-// field the record holds.
+// have. Nodes send those figures on the receipt only, and omit a field the
+// transaction does not have rather than sending null, so this leaves them
+// out: a value the record carries is never invented or nulled.
+// TransactionRecordToJsonRpc renders every field the record holds.
+//
+// The shape follows what providers send (2026-10-08 survey: 22 chains, 2-8
+// providers each): an empty accessList only on the types that define one, no
+// chainId on an OP deposit (0x7e) or a pre-EIP-155 legacy transaction.
 func TransactionToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]interface{} {
 	o := TransactionRecordToJsonRpc(tx, sig)
 	if o == nil {
@@ -806,19 +809,31 @@ func TransactionToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]int
 	for _, k := range receiptFiguresOnTransaction {
 		delete(o, k)
 	}
-	if tx.Type == 0 {
-		// A legacy transaction has no access list, and names a chainId only
-		// when its signature does (EIP-155: v = chainId*2 + 35 or 36, else 27
-		// or 28).
+	if len(tx.AccessList) == 0 && !accessListTypes[tx.Type] {
+		// Legacy, deposit (0x7e), Arbitrum (0x6a), zkSync (0x71) and other
+		// types without one: nodes send no accessList key at all.
 		delete(o, "accessList")
+	}
+	switch tx.Type {
+	case 0:
+		// A legacy transaction names a chainId only when its signature does
+		// (EIP-155: v = chainId*2 + 35 or 36, else 27 or 28).
 		if v, ok := o["v"].(string); ok {
 			if n, err := HexToUint64(v); err == nil && n < 35 {
 				delete(o, "chainId")
 			}
 		}
+	case 0x7e:
+		// An OP deposit is not signed by its sender and names no chainId.
+		delete(o, "chainId")
 	}
 	return o
 }
+
+// accessListTypes are the transaction types that define an access list, so
+// nodes send one even when it is empty: EIP-2930 (1), EIP-1559 (2), EIP-4844
+// (3), EIP-7702 (4) and Celo's CIP-64 (0x7b).
+var accessListTypes = map[uint32]bool{1: true, 2: true, 3: true, 4: true, 0x7b: true}
 
 // receiptFiguresOnTransaction are the execution results a BDS Transaction
 // copies from its receipt. Nodes send them on the receipt only.
@@ -1163,10 +1178,8 @@ func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 		out["root"] = BytesToHex(r.Root)
 	}
 
-	// Add blockTimestamp
-	if r.BlockTimestamp != nil {
-		out["blockTimestamp"] = fmt.Sprintf("0x%x", *r.BlockTimestamp)
-	}
+	// No blockTimestamp: no provider sends one on a receipt (it is on the
+	// receipt's logs instead).
 
 	if r.GasUsedForL1 != nil {
 		out["gasUsedForL1"] = fmt.Sprintf("0x%x", *r.GasUsedForL1)
