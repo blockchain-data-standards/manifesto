@@ -10,8 +10,11 @@
 //! authorization lists) and `0x7e` (L2 deposit) — plus withdrawals, access
 //! lists, contract-creation receipts, and the OP-stack L1 fee fields.
 //!
-//! Every fixture must round-trip byte-identically except the one documented
-//! case below. A new difference means the mapping changed behaviour.
+//! The fixtures were rendered by the BDS converters as they were then, which
+//! sent fields no node sends where they were put (see `node_shaped`). Every
+//! fixture must round-trip to its node-shaped form, byte for byte, except the
+//! one documented case below. A new difference means the mapping changed
+//! behaviour.
 
 use std::collections::BTreeSet;
 
@@ -63,7 +66,12 @@ fn every_production_fixture_round_trips() {
         };
 
         let mut diffs = BTreeSet::new();
-        diff(&mut Vec::new(), original, &round, &mut diffs);
+        diff(
+            &mut Vec::new(),
+            &node_shaped(&name, original),
+            &round,
+            &mut diffs,
+        );
         for (fixture, allowed) in KNOWN_DIFFS {
             if *fixture == name {
                 diffs.remove(*allowed);
@@ -78,6 +86,78 @@ fn every_production_fixture_round_trips() {
         "mapping changed behaviour:\n  {}",
         failures.join("\n  ")
     );
+}
+
+/// The execution results a BDS `Transaction` carries from its receipt. Nodes
+/// send them on the receipt only.
+const RECEIPT_FIGURES_ON_TRANSACTION: &[&str] = &[
+    "gasUsed",
+    "effectiveGasPrice",
+    "blobGasUsed",
+    "blobGasPrice",
+    "l1Fee",
+    "l1GasUsed",
+    "l1GasPrice",
+    "l1FeeScalar",
+    "l1BlobBaseFee",
+    "l1BlobBaseFeeScalar",
+];
+
+/// A fixture as providers send it, stated independently of the mapping
+/// (2026-10-08 survey: 22 chains, 2-8 providers each):
+/// - a transaction carries no null field but `to` (a contract creation), none
+///   of its receipt's execution figures, an `accessList` only when its type
+///   defines one (0x1-0x4, 0x7b) or it has entries, and no `chainId` on an OP
+///   deposit (0x7e) or a pre-EIP-155 legacy transaction (v 27 or 28);
+/// - a receipt carries no null field but `to` and `contractAddress`, and no
+///   `blockTimestamp`.
+fn node_shaped(name: &str, original: &Value) -> Value {
+    fn transaction(tx: &mut Value) {
+        let Value::Object(o) = tx else { return };
+        o.retain(|k, v| !v.is_null() || k == "to");
+        for k in RECEIPT_FIGURES_ON_TRANSACTION {
+            o.remove(*k);
+        }
+        let ty = o
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let empty_access_list = o
+            .get("accessList")
+            .and_then(Value::as_array)
+            .is_some_and(Vec::is_empty);
+        if empty_access_list && !["0x1", "0x2", "0x3", "0x4", "0x7b"].contains(&ty.as_str()) {
+            o.remove("accessList");
+        }
+        let v = o.get("v").and_then(Value::as_str);
+        let pre_eip155 =
+            v.and_then(|v| u64::from_str_radix(v.trim_start_matches("0x"), 16).ok()) < Some(35);
+        if ty == "0x7e" || (ty == "0x0" && pre_eip155) {
+            o.remove("chainId");
+        }
+    }
+    fn receipt(r: &mut Value) {
+        if let Value::Object(o) = r {
+            o.retain(|k, v| !v.is_null() || k == "to" || k == "contractAddress");
+            o.remove("blockTimestamp");
+        }
+    }
+    let mut v = original.clone();
+    if name.contains("block-full") {
+        for tx in v["transactions"].as_array_mut().into_iter().flatten() {
+            transaction(tx);
+        }
+    } else if name.contains("-tx") {
+        transaction(&mut v);
+    } else if name.contains("-receipt") {
+        receipt(&mut v);
+    } else if name.contains("blockreceipts") {
+        for r in v.as_array_mut().into_iter().flatten() {
+            receipt(r);
+        }
+    }
+    v
 }
 
 /// Every transaction type production serves must appear in the corpus, so the

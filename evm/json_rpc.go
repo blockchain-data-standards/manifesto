@@ -781,9 +781,72 @@ func (e SignatureEncoding) hex(b []byte) string {
 	return BytesToQuantityHex(b)
 }
 
-// TransactionToJsonRpc converts a *Transaction into JSON-RPC representation.
+// TransactionToJsonRpc converts a *Transaction into the JSON-RPC transaction
+// object a node sends for eth_getTransactionByHash and full blocks.
 // sig selects the r/s encoding; pass SignatureEncodingForChain(chainId).
+//
+// A BDS Transaction also carries its receipt's execution figures (gasUsed,
+// effectiveGasPrice, blob gas, L2 fees) and optional fields a chain may not
+// have. Nodes send those figures on the receipt only, and omit a field the
+// transaction does not have rather than sending null, so this leaves them
+// out: a value the record carries is never invented or nulled.
+// TransactionRecordToJsonRpc renders every field the record holds.
+//
+// The shape follows what providers send (2026-10-08 survey: 22 chains, 2-8
+// providers each): an empty accessList only on the types that define one, no
+// chainId on an OP deposit (0x7e) or a pre-EIP-155 legacy transaction.
 func TransactionToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]interface{} {
+	o := TransactionRecordToJsonRpc(tx, sig)
+	if o == nil {
+		return nil
+	}
+	for k, v := range o {
+		// "to" is null on a contract creation, and nodes send it that way.
+		if v == nil && k != "to" {
+			delete(o, k)
+		}
+	}
+	for _, k := range receiptFiguresOnTransaction {
+		delete(o, k)
+	}
+	if len(tx.AccessList) == 0 && !accessListTypes[tx.Type] {
+		// Legacy, deposit (0x7e), Arbitrum (0x6a), zkSync (0x71) and other
+		// types without one: nodes send no accessList key at all.
+		delete(o, "accessList")
+	}
+	switch tx.Type {
+	case 0:
+		// A legacy transaction names a chainId only when its signature does
+		// (EIP-155: v = chainId*2 + 35 or 36, else 27 or 28).
+		if v, ok := o["v"].(string); ok {
+			if n, err := HexToUint64(v); err == nil && n < 35 {
+				delete(o, "chainId")
+			}
+		}
+	case 0x7e:
+		// An OP deposit is not signed by its sender and names no chainId.
+		delete(o, "chainId")
+	}
+	return o
+}
+
+// accessListTypes are the transaction types that define an access list, so
+// nodes send one even when it is empty: EIP-2930 (1), EIP-1559 (2), EIP-4844
+// (3), EIP-7702 (4) and Celo's CIP-64 (0x7b).
+var accessListTypes = map[uint32]bool{1: true, 2: true, 3: true, 4: true, 0x7b: true}
+
+// receiptFiguresOnTransaction are the execution results a BDS Transaction
+// copies from its receipt. Nodes send them on the receipt only.
+var receiptFiguresOnTransaction = []string{
+	"gasUsed", "effectiveGasPrice", "blobGasUsed", "blobGasPrice",
+	"l1Fee", "l1GasUsed", "l1GasPrice", "l1FeeScalar", "l1BlobBaseFee", "l1BlobBaseFeeScalar",
+}
+
+// TransactionRecordToJsonRpc renders every field a BDS Transaction holds,
+// including its receipt's execution figures, as the eth_query* methods serve
+// it (their field selection can ask for gasUsed and effectiveGasPrice).
+// sig selects the r/s encoding; pass SignatureEncodingForChain(chainId).
+func TransactionRecordToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]interface{} {
 	if tx == nil {
 		return nil
 	}
@@ -1115,10 +1178,8 @@ func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 		out["root"] = BytesToHex(r.Root)
 	}
 
-	// Add blockTimestamp
-	if r.BlockTimestamp != nil {
-		out["blockTimestamp"] = fmt.Sprintf("0x%x", *r.BlockTimestamp)
-	}
+	// No blockTimestamp: no provider sends one on a receipt (it is on the
+	// receipt's logs instead).
 
 	if r.GasUsedForL1 != nil {
 		out["gasUsedForL1"] = fmt.Sprintf("0x%x", *r.GasUsedForL1)
@@ -1128,27 +1189,22 @@ func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 		out["l1BlockNumber"] = fmt.Sprintf("0x%x", *r.L1BlockNumber)
 	}
 
-	// Additional L2 fee breakdown fields
+	// Additional L2 fee breakdown fields, present only on chains that have
+	// them: a node elsewhere omits them rather than sending null.
 	if r.L1Fee != nil {
 		if hex, err := DecimalStringToHex(*r.L1Fee); err == nil {
 			out["l1Fee"] = hex
 		}
-	} else {
-		out["l1Fee"] = nil
 	}
 	if r.L1GasUsed != nil {
 		if hex, err := DecimalStringToHex(*r.L1GasUsed); err == nil {
 			out["l1GasUsed"] = hex
 		}
-	} else {
-		out["l1GasUsed"] = nil
 	}
 	if r.L1GasPrice != nil {
 		if hex, err := DecimalStringToHex(*r.L1GasPrice); err == nil {
 			out["l1GasPrice"] = hex
 		}
-	} else {
-		out["l1GasPrice"] = nil
 	}
 	if r.GatewayFee != nil {
 		if hex, err := DecimalStringToHex(*r.GatewayFee); err == nil {

@@ -50,8 +50,8 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 			t.Error("Expected blobGasPrice to be '0x1000'")
 		}
 
-		// Test conversion back to JSON-RPC
-		jsonRpc := TransactionToJsonRpc(tx, SignatureQuantity)
+		// The record rendering (eth_query*) carries the execution results.
+		jsonRpc := TransactionRecordToJsonRpc(tx, SignatureQuantity)
 
 		// Verify execution result fields in output
 		if gasUsed, ok := jsonRpc["gasUsed"]; !ok || gasUsed != "0x5000" {
@@ -65,6 +65,18 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 		}
 		if blobGasPrice, ok := jsonRpc["blobGasPrice"]; !ok || blobGasPrice != "0x1000" {
 			t.Errorf("Expected blobGasPrice in JSON-RPC output to be '0x1000', got '%v'", blobGasPrice)
+		}
+
+		// The node shape (eth_getTransactionByHash, full blocks) leaves them to
+		// the receipt, and sends no null for a field the chain does not have.
+		nodeShaped := TransactionToJsonRpc(tx, SignatureQuantity)
+		for _, k := range []string{"gasUsed", "effectiveGasPrice", "blobGasUsed", "blobGasPrice", "l1Fee", "yParity"} {
+			if v, ok := nodeShaped[k]; ok {
+				t.Errorf("node-shaped transaction carries %s = %v", k, v)
+			}
+		}
+		if nodeShaped["hash"] != jsonRpc["hash"] || nodeShaped["chainId"] != "0x1" {
+			t.Errorf("node shape lost a transaction field: %v", nodeShaped)
 		}
 
 		// Check blockTimestamp is output when present
@@ -108,14 +120,12 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 			t.Errorf("Expected BlockTimestamp to be 0x65000000, got 0x%x", *protoReceipt.BlockTimestamp)
 		}
 
-		// Test conversion back to JSON-RPC
+		// The record keeps it, but no provider sends blockTimestamp on a
+		// receipt (2026-10-08 survey: 22 chains, 0 of 158 provider samples),
+		// so the node-shaped receipt leaves it out.
 		jsonRpcMap := ReceiptToJsonRpc(protoReceipt)
-
-		// Check blockTimestamp is in output
-		if blockTimestamp, ok := jsonRpcMap["blockTimestamp"]; !ok {
-			t.Error("Expected blockTimestamp in JSON-RPC output")
-		} else if blockTimestamp != "0x65000000" {
-			t.Errorf("Expected blockTimestamp to be '0x65000000', got '%v'", blockTimestamp)
+		if v, ok := jsonRpcMap["blockTimestamp"]; ok {
+			t.Errorf("Expected no blockTimestamp on a receipt, got %v", v)
 		}
 	})
 
