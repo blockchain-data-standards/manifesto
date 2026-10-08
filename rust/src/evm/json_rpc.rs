@@ -874,11 +874,65 @@ pub fn block_to_json(
     Value::Object(o)
 }
 
-/// Converts a BDS `Transaction` into the exact JSON-RPC transaction object
-/// shape. Mirrors `evm.TransactionToJsonRpc` in `evm/json_rpc.go`. `sig`
-/// selects the `r`/`s` encoding; pass [`SignatureEncoding::for_chain`].
+/// Converts a BDS `Transaction` into the JSON-RPC transaction object a node
+/// sends for `eth_getTransactionByHash` and full blocks. Mirrors
+/// `evm.TransactionToJsonRpc` in `evm/json_rpc.go`. `sig` selects the
+/// `r`/`s` encoding; pass [`SignatureEncoding::for_chain`].
+///
+/// A BDS `Transaction` also carries its receipt's execution figures
+/// (`gasUsed`, `effectiveGasPrice`, blob gas, L2 fees) and optional fields a
+/// chain may not have. A node sends those figures on the receipt only, and
+/// omits a field its chain does not have rather than sending `null`, so this
+/// leaves them out. [`transaction_record_to_json`] renders every field the
+/// record holds.
 #[must_use]
 pub fn transaction_to_json(tx: &Transaction, sig: SignatureEncoding) -> Value {
+    let mut v = transaction_record_to_json(tx, sig);
+    let Value::Object(o) = &mut v else {
+        return v;
+    };
+    // "to" is null on a contract creation, and nodes send it that way.
+    o.retain(|k, v| !v.is_null() || k == "to");
+    for k in RECEIPT_FIGURES_ON_TRANSACTION {
+        o.remove(*k);
+    }
+    if tx.r#type == 0 {
+        // A legacy transaction has no access list, and names a chainId only
+        // when its signature does (EIP-155: v = chainId*2 + 35 or 36, else
+        // 27 or 28).
+        o.remove("accessList");
+        // v below 35 is 27 or 28: one significant byte after leading zeros.
+        let pre_eip155 = tx.v.as_deref().is_some_and(|v| {
+            let digits: Vec<u8> = v.iter().copied().skip_while(|b| *b == 0).collect();
+            digits.len() <= 1 && digits.first().copied().unwrap_or(0) < 35
+        });
+        if pre_eip155 {
+            o.remove("chainId");
+        }
+    }
+    v
+}
+
+/// The execution results a BDS `Transaction` copies from its receipt. Nodes
+/// send them on the receipt only.
+const RECEIPT_FIGURES_ON_TRANSACTION: &[&str] = &[
+    "gasUsed",
+    "effectiveGasPrice",
+    "blobGasUsed",
+    "blobGasPrice",
+    "l1Fee",
+    "l1GasUsed",
+    "l1GasPrice",
+    "l1FeeScalar",
+    "l1BlobBaseFee",
+    "l1BlobBaseFeeScalar",
+];
+
+/// Renders every field a BDS `Transaction` holds, including its receipt's
+/// execution figures. Mirrors `evm.TransactionRecordToJsonRpc` in
+/// `evm/json_rpc.go`. `sig` selects the `r`/`s` encoding.
+#[must_use]
+pub fn transaction_record_to_json(tx: &Transaction, sig: SignatureEncoding) -> Value {
     let mut o = Map::new();
     o.insert("hash".into(), Value::String(bytes_to_hex(&tx.hash)));
     o.insert("nonce".into(), Value::String(quantity_hex(tx.nonce)));
@@ -1184,13 +1238,11 @@ pub fn receipt_to_json(r: &Receipt) -> Value {
         o.insert("l1BlockNumber".into(), Value::String(quantity_hex(v)));
     }
 
-    // Unlike the transaction's L2 fee breakdown, the RECEIPT's l1Fee,
-    // l1GasUsed AND l1GasPrice all fall back to explicit `null` when absent
-    // (json_rpc.go's `ReceiptToJsonRpc` has an `else { ... = nil }` branch
-    // on each of these three; `TransactionToJsonRpc` only has it for l1Fee).
-    insert_decimal_or_null(&mut o, "l1Fee", r.l1_fee.as_deref());
-    insert_decimal_or_null(&mut o, "l1GasUsed", r.l1_gas_used.as_deref());
-    insert_decimal_or_null(&mut o, "l1GasPrice", r.l1_gas_price.as_deref());
+    // L2 fee breakdown, present only on chains that have it: a node elsewhere
+    // omits these rather than sending `null`.
+    insert_decimal_omit(&mut o, "l1Fee", r.l1_fee.as_deref());
+    insert_decimal_omit(&mut o, "l1GasUsed", r.l1_gas_used.as_deref());
+    insert_decimal_omit(&mut o, "l1GasPrice", r.l1_gas_price.as_deref());
     insert_decimal_omit(&mut o, "gatewayFee", r.gateway_fee.as_deref());
 
     if let Some(v) = r.blob_gas_used {
@@ -2759,27 +2811,22 @@ mod tests {
     #[test]
     fn transaction_to_json_minimal_shape() {
         let v = transaction_to_json(&base_transaction(), SignatureEncoding::Quantity);
-        assert_eq!(v["to"], Value::Null);
         assert_eq!(
-            v["chainId"],
+            v["to"],
             Value::Null,
-            "chainId is always present, null when absent"
+            "a contract creation's `to` stays null"
         );
-        assert_eq!(
-            v["yParity"],
-            Value::Null,
-            "yParity is always present, null when absent"
-        );
-        assert_eq!(
-            v["accessList"],
-            json!([]),
-            "accessList is always present, even empty"
-        );
-        assert_eq!(
-            v["l1Fee"],
-            Value::Null,
-            "l1Fee is always present, null when absent"
-        );
+        // A node omits what the chain or the transaction does not have,
+        // rather than sending null or an empty array.
+        for absent in ["chainId", "yParity", "accessList", "l1Fee"] {
+            assert!(v.get(absent).is_none(), "{absent} is omitted when absent");
+        }
+        // The record rendering keeps the always-present keys.
+        let record = transaction_record_to_json(&base_transaction(), SignatureEncoding::Quantity);
+        assert_eq!(record["chainId"], Value::Null);
+        assert_eq!(record["yParity"], Value::Null);
+        assert_eq!(record["accessList"], json!([]));
+        assert_eq!(record["l1Fee"], Value::Null);
         // empty proto `value` string is omitted entirely, never "0x0".
         assert!(v.get("value").is_none());
         assert!(v.get("r").is_none());
@@ -2935,7 +2982,7 @@ mod tests {
     fn transaction_to_json_l1_fee_omitted_on_parse_error() {
         let mut tx = base_transaction();
         tx.l1_fee = Some("not-a-number".to_string());
-        let v = transaction_to_json(&tx, SignatureEncoding::Quantity);
+        let v = transaction_record_to_json(&tx, SignatureEncoding::Quantity);
         assert!(
             v.get("l1Fee").is_none(),
             "Some(unparseable) => omitted, not null"
@@ -2946,16 +2993,20 @@ mod tests {
     fn transaction_to_json_l1_fee_null_vs_hex() {
         let tx = base_transaction();
         assert_eq!(
-            transaction_to_json(&tx, SignatureEncoding::Quantity)["l1Fee"],
+            transaction_record_to_json(&tx, SignatureEncoding::Quantity)["l1Fee"],
             Value::Null
         );
 
         let mut tx = base_transaction();
         tx.l1_fee = Some("100".to_string());
         assert_eq!(
-            transaction_to_json(&tx, SignatureEncoding::Quantity)["l1Fee"],
+            transaction_record_to_json(&tx, SignatureEncoding::Quantity)["l1Fee"],
             "0x64"
         );
+        // A node sends l1Fee on the receipt only.
+        assert!(transaction_to_json(&tx, SignatureEncoding::Quantity)
+            .get("l1Fee")
+            .is_none());
     }
 
     #[test]
@@ -3929,8 +3980,21 @@ mod tests {
         assert_eq!(out_tx["r"], format!("0x{}", "10".repeat(32)));
         assert_eq!(out_tx["s"], format!("0x{}", "20".repeat(32)));
         assert_eq!(out_tx["v"], "0x1b");
-        assert_eq!(out_tx["l1Fee"], "0x64");
         assert_eq!(out_tx["type"], "0x0");
-        assert_eq!(out_tx["effectiveGasPrice"], "0x3b9aca00");
+        // A block's transactions are node-shaped: the receipt's execution
+        // figures stay on the receipt, and a pre-EIP-155 legacy transaction
+        // (v = 27) names no chainId and carries no access list.
+        for absent in [
+            "l1Fee",
+            "effectiveGasPrice",
+            "gasUsed",
+            "chainId",
+            "accessList",
+        ] {
+            assert!(
+                out_tx.get(absent).is_none(),
+                "{absent} is not on a block's transaction"
+            );
+        }
     }
 }

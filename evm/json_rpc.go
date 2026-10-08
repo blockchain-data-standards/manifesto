@@ -781,9 +781,57 @@ func (e SignatureEncoding) hex(b []byte) string {
 	return BytesToQuantityHex(b)
 }
 
-// TransactionToJsonRpc converts a *Transaction into JSON-RPC representation.
+// TransactionToJsonRpc converts a *Transaction into the JSON-RPC transaction
+// object a node sends for eth_getTransactionByHash and full blocks.
 // sig selects the r/s encoding; pass SignatureEncodingForChain(chainId).
+//
+// A BDS Transaction also carries its receipt's execution figures (gasUsed,
+// effectiveGasPrice, blob gas, L2 fees) and optional fields a chain may not
+// have. A node sends those figures on the receipt only, and omits a field its
+// chain does not have rather than sending null, so this leaves them out:
+// a value the record carries is never invented or nulled, and a field absent
+// on a chain is absent here too. TransactionRecordToJsonRpc renders every
+// field the record holds.
 func TransactionToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]interface{} {
+	o := TransactionRecordToJsonRpc(tx, sig)
+	if o == nil {
+		return nil
+	}
+	for k, v := range o {
+		// "to" is null on a contract creation, and nodes send it that way.
+		if v == nil && k != "to" {
+			delete(o, k)
+		}
+	}
+	for _, k := range receiptFiguresOnTransaction {
+		delete(o, k)
+	}
+	if tx.Type == 0 {
+		// A legacy transaction has no access list, and names a chainId only
+		// when its signature does (EIP-155: v = chainId*2 + 35 or 36, else 27
+		// or 28).
+		delete(o, "accessList")
+		if v, ok := o["v"].(string); ok {
+			if n, err := HexToUint64(v); err == nil && n < 35 {
+				delete(o, "chainId")
+			}
+		}
+	}
+	return o
+}
+
+// receiptFiguresOnTransaction are the execution results a BDS Transaction
+// copies from its receipt. Nodes send them on the receipt only.
+var receiptFiguresOnTransaction = []string{
+	"gasUsed", "effectiveGasPrice", "blobGasUsed", "blobGasPrice",
+	"l1Fee", "l1GasUsed", "l1GasPrice", "l1FeeScalar", "l1BlobBaseFee", "l1BlobBaseFeeScalar",
+}
+
+// TransactionRecordToJsonRpc renders every field a BDS Transaction holds,
+// including its receipt's execution figures, as the eth_query* methods serve
+// it (their field selection can ask for gasUsed and effectiveGasPrice).
+// sig selects the r/s encoding; pass SignatureEncodingForChain(chainId).
+func TransactionRecordToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]interface{} {
 	if tx == nil {
 		return nil
 	}
@@ -1128,27 +1176,22 @@ func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 		out["l1BlockNumber"] = fmt.Sprintf("0x%x", *r.L1BlockNumber)
 	}
 
-	// Additional L2 fee breakdown fields
+	// Additional L2 fee breakdown fields, present only on chains that have
+	// them: a node elsewhere omits them rather than sending null.
 	if r.L1Fee != nil {
 		if hex, err := DecimalStringToHex(*r.L1Fee); err == nil {
 			out["l1Fee"] = hex
 		}
-	} else {
-		out["l1Fee"] = nil
 	}
 	if r.L1GasUsed != nil {
 		if hex, err := DecimalStringToHex(*r.L1GasUsed); err == nil {
 			out["l1GasUsed"] = hex
 		}
-	} else {
-		out["l1GasUsed"] = nil
 	}
 	if r.L1GasPrice != nil {
 		if hex, err := DecimalStringToHex(*r.L1GasPrice); err == nil {
 			out["l1GasPrice"] = hex
 		}
-	} else {
-		out["l1GasPrice"] = nil
 	}
 	if r.GatewayFee != nil {
 		if hex, err := DecimalStringToHex(*r.GatewayFee); err == nil {

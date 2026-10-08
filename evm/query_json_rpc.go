@@ -102,7 +102,7 @@ func QueryBlocksResponseToJsonRpc(resp *QueryBlocksResponse) map[string]interfac
 func QueryTransactionsResponseToJsonRpc(resp *QueryTransactionsResponse, sig SignatureEncoding) map[string]interface{} {
 	txs := make([]interface{}, 0, len(resp.GetTransactions()))
 	for _, tx := range resp.GetTransactions() {
-		txs = append(txs, TransactionToJsonRpc(tx, sig))
+		txs = append(txs, TransactionRecordToJsonRpc(tx, sig))
 	}
 	blocks := make([]interface{}, 0, len(resp.GetBlocks()))
 	for _, block := range resp.GetBlocks() {
@@ -126,7 +126,7 @@ func QueryLogsResponseToJsonRpc(resp *QueryLogsResponse, sig SignatureEncoding) 
 	}
 	txs := make([]interface{}, 0, len(resp.GetTransactions()))
 	for _, tx := range resp.GetTransactions() {
-		txs = append(txs, TransactionToJsonRpc(tx, sig))
+		txs = append(txs, TransactionRecordToJsonRpc(tx, sig))
 	}
 	blocks := make([]interface{}, 0, len(resp.GetBlocks()))
 	for _, block := range resp.GetBlocks() {
@@ -151,7 +151,7 @@ func QueryTracesResponseToJsonRpc(resp *QueryTracesResponse, sig SignatureEncodi
 	}
 	txs := make([]interface{}, 0, len(resp.GetTransactions()))
 	for _, tx := range resp.GetTransactions() {
-		txs = append(txs, TransactionToJsonRpc(tx, sig))
+		txs = append(txs, TransactionRecordToJsonRpc(tx, sig))
 	}
 	blocks := make([]interface{}, 0, len(resp.GetBlocks()))
 	for _, block := range resp.GetBlocks() {
@@ -176,7 +176,7 @@ func QueryTransfersResponseToJsonRpc(resp *QueryTransfersResponse, sig Signature
 	}
 	txs := make([]interface{}, 0, len(resp.GetTransactions()))
 	for _, tx := range resp.GetTransactions() {
-		txs = append(txs, TransactionToJsonRpc(tx, sig))
+		txs = append(txs, TransactionRecordToJsonRpc(tx, sig))
 	}
 	blocks := make([]interface{}, 0, len(resp.GetBlocks()))
 	for _, block := range resp.GetBlocks() {
