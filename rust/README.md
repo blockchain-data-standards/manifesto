@@ -2,7 +2,8 @@
 
 Generated message types, tonic **clients**, and tonic **server traits** for the
 BDS protobuf definitions in this repository, plus JSON-RPC mapping helpers for
-the EVM family (the Rust counterpart of `evm/json_rpc.go`).
+the EVM and SVM families (the Rust counterparts of `evm/json_rpc.go` and
+`svm/json_rpc.go`).
 
 - `bds::common` — shared error details (`ErrorDetails`, `ErrorCode`).
 - `bds::evm` — models (`Block`, `Transaction`, `Receipt`, `Log`, …) and the
@@ -11,6 +12,11 @@ the EVM family (the Rust counterpart of `evm/json_rpc.go`).
 - `bds::evm::json_rpc` — map Ethereum JSON-RPC requests onto
   `RPCQueryService` calls and BDS responses back into exact JSON-RPC result
   shapes.
+- `bds::svm` — Solana models (`ConfirmedBlock`, `ConfirmedTransaction`, …)
+  and the `RPCQueryService` stubs.
+- `bds::svm::json_rpc` — map a Solana `getBlock` request onto
+  `RPCQueryService.GetBlock` and the response back into Agave's
+  `encoding: "json"` result.
 
 Building needs **no system `protoc`** — the protos compile at build time with
 [`protox`](https://crates.io/crates/protox) (pure Rust).
