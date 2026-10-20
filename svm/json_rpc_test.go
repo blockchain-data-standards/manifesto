@@ -122,7 +122,9 @@ func TestMetaNullVersusEmptyDistinction(t *testing.T) {
 	}
 }
 
-// Agave renders legacy as the string "legacy" and v0 as the number 0.
+// Agave renders legacy as the string "legacy" and v0/v1 as numbers. A v1
+// message carries transactionConfig with every key (null when unset) and no
+// addressTableLookups, in both the json and jsonParsed renderers.
 func TestTransactionVersionRendering(t *testing.T) {
 	legacy := ConfirmedTransactionToJsonRpc(&ConfirmedTransaction{Version: str("legacy")})
 	if legacy["version"] != "legacy" {
@@ -132,6 +134,41 @@ func TestTransactionVersionRendering(t *testing.T) {
 	v0 := ConfirmedTransactionToJsonRpc(&ConfirmedTransaction{Version: str("0")})
 	if v0["version"] != uint64(0) {
 		t.Fatalf("version = %#v (%T), want numeric 0", v0["version"], v0["version"])
+	}
+
+	v1 := &ConfirmedTransaction{
+		Version: str("1"),
+		Transaction: &Transaction{Message: &Message{
+			RecentBlockhash:   make([]byte, 32),
+			TransactionConfig: &TransactionConfig{ComputeUnitLimit: u32(200000), PriorityFee: u64(5003)},
+		}},
+	}
+	const wantConfig = `{"computeUnitLimit":200000,"heapSize":null,"loadedAccountsDataSizeLimit":null,"priorityFee":5003}`
+	for name, rendered := range map[string]map[string]interface{}{
+		"json":       ConfirmedTransactionToJsonRpc(v1),
+		"jsonParsed": ConfirmedTransactionToJsonRpcParsed(v1),
+	} {
+		if rendered["version"] != uint64(1) {
+			t.Fatalf("%s: version = %#v, want numeric 1", name, rendered["version"])
+		}
+		msg := rendered["transaction"].(map[string]interface{})["message"].(map[string]interface{})
+		if _, present := msg["addressTableLookups"]; present {
+			t.Fatalf("%s: addressTableLookups must be absent for v1", name)
+		}
+		got, err := json.Marshal(msg["transactionConfig"])
+		if err != nil || string(got) != wantConfig {
+			t.Fatalf("%s: transactionConfig = %s (%v), want %s", name, got, err, wantConfig)
+		}
+	}
+	v0msg := ConfirmedTransactionToJsonRpc(&ConfirmedTransaction{
+		Version:     str("0"),
+		Transaction: &Transaction{Message: &Message{RecentBlockhash: make([]byte, 32)}},
+	})["transaction"].(map[string]interface{})["message"].(map[string]interface{})
+	if _, present := v0msg["transactionConfig"]; present {
+		t.Fatal("transactionConfig must be absent for v0")
+	}
+	if _, present := v0msg["addressTableLookups"]; !present {
+		t.Fatal("addressTableLookups must be present for v0 even when empty")
 	}
 
 	// No opt-in recorded: the key is omitted entirely.

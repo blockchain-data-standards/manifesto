@@ -136,9 +136,9 @@ type ConfirmedTransaction struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Transaction *Transaction           `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
 	Meta        *TransactionStatusMeta `protobuf:"bytes,2,opt,name=meta,proto3,oneof" json:"meta,omitempty"`
-	// "legacy" or "0". Absent when unknown. Serving layers must apply
-	// maxSupportedTransactionVersion gating (a v0 transaction returned to a
-	// client that did not opt in is a protocol error, Agave code -32015).
+	// "legacy", "0" or "1". Absent when unknown. Serving layers must apply
+	// maxSupportedTransactionVersion gating (a versioned transaction returned
+	// to a client that did not opt in is a protocol error, Agave code -32015).
 	Version       *string `protobuf:"bytes,3,opt,name=version,proto3,oneof" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -254,10 +254,12 @@ type Message struct {
 	AccountKeys     [][]byte               `protobuf:"bytes,2,rep,name=accountKeys,proto3" json:"accountKeys,omitempty"`
 	RecentBlockhash []byte                 `protobuf:"bytes,3,opt,name=recentBlockhash,proto3" json:"recentBlockhash,omitempty"`
 	Instructions    []*CompiledInstruction `protobuf:"bytes,4,rep,name=instructions,proto3" json:"instructions,omitempty"`
-	// v0 transactions only; empty for legacy.
+	// v0 transactions only; empty for legacy and v1.
 	AddressTableLookups []*AddressTableLookup `protobuf:"bytes,5,rep,name=addressTableLookups,proto3" json:"addressTableLookups,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// v1 transactions only (SIMD-0385); absent for legacy and v0.
+	TransactionConfig *TransactionConfig `protobuf:"bytes,6,opt,name=transactionConfig,proto3" json:"transactionConfig,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Message) Reset() {
@@ -325,6 +327,82 @@ func (x *Message) GetAddressTableLookups() []*AddressTableLookup {
 	return nil
 }
 
+func (x *Message) GetTransactionConfig() *TransactionConfig {
+	if x != nil {
+		return x.TransactionConfig
+	}
+	return nil
+}
+
+// SIMD-0385 inline compute budget. An unset field renders as JSON null.
+type TransactionConfig struct {
+	state                       protoimpl.MessageState `protogen:"open.v1"`
+	PriorityFee                 *uint64                `protobuf:"varint,1,opt,name=priorityFee,proto3,oneof" json:"priorityFee,omitempty"`
+	ComputeUnitLimit            *uint32                `protobuf:"varint,2,opt,name=computeUnitLimit,proto3,oneof" json:"computeUnitLimit,omitempty"`
+	LoadedAccountsDataSizeLimit *uint32                `protobuf:"varint,3,opt,name=loadedAccountsDataSizeLimit,proto3,oneof" json:"loadedAccountsDataSizeLimit,omitempty"`
+	HeapSize                    *uint32                `protobuf:"varint,4,opt,name=heapSize,proto3,oneof" json:"heapSize,omitempty"`
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
+}
+
+func (x *TransactionConfig) Reset() {
+	*x = TransactionConfig{}
+	mi := &file_svm_models_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransactionConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransactionConfig) ProtoMessage() {}
+
+func (x *TransactionConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_svm_models_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransactionConfig.ProtoReflect.Descriptor instead.
+func (*TransactionConfig) Descriptor() ([]byte, []int) {
+	return file_svm_models_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *TransactionConfig) GetPriorityFee() uint64 {
+	if x != nil && x.PriorityFee != nil {
+		return *x.PriorityFee
+	}
+	return 0
+}
+
+func (x *TransactionConfig) GetComputeUnitLimit() uint32 {
+	if x != nil && x.ComputeUnitLimit != nil {
+		return *x.ComputeUnitLimit
+	}
+	return 0
+}
+
+func (x *TransactionConfig) GetLoadedAccountsDataSizeLimit() uint32 {
+	if x != nil && x.LoadedAccountsDataSizeLimit != nil {
+		return *x.LoadedAccountsDataSizeLimit
+	}
+	return 0
+}
+
+func (x *TransactionConfig) GetHeapSize() uint32 {
+	if x != nil && x.HeapSize != nil {
+		return *x.HeapSize
+	}
+	return 0
+}
+
 type MessageHeader struct {
 	state                       protoimpl.MessageState `protogen:"open.v1"`
 	NumRequiredSignatures       uint32                 `protobuf:"varint,1,opt,name=numRequiredSignatures,proto3" json:"numRequiredSignatures,omitempty"`
@@ -336,7 +414,7 @@ type MessageHeader struct {
 
 func (x *MessageHeader) Reset() {
 	*x = MessageHeader{}
-	mi := &file_svm_models_proto_msgTypes[4]
+	mi := &file_svm_models_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -348,7 +426,7 @@ func (x *MessageHeader) String() string {
 func (*MessageHeader) ProtoMessage() {}
 
 func (x *MessageHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_svm_models_proto_msgTypes[4]
+	mi := &file_svm_models_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -361,7 +439,7 @@ func (x *MessageHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageHeader.ProtoReflect.Descriptor instead.
 func (*MessageHeader) Descriptor() ([]byte, []int) {
-	return file_svm_models_proto_rawDescGZIP(), []int{4}
+	return file_svm_models_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *MessageHeader) GetNumRequiredSignatures() uint32 {
@@ -406,7 +484,7 @@ type CompiledInstruction struct {
 
 func (x *CompiledInstruction) Reset() {
 	*x = CompiledInstruction{}
-	mi := &file_svm_models_proto_msgTypes[5]
+	mi := &file_svm_models_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -418,7 +496,7 @@ func (x *CompiledInstruction) String() string {
 func (*CompiledInstruction) ProtoMessage() {}
 
 func (x *CompiledInstruction) ProtoReflect() protoreflect.Message {
-	mi := &file_svm_models_proto_msgTypes[5]
+	mi := &file_svm_models_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -431,7 +509,7 @@ func (x *CompiledInstruction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompiledInstruction.ProtoReflect.Descriptor instead.
 func (*CompiledInstruction) Descriptor() ([]byte, []int) {
-	return file_svm_models_proto_rawDescGZIP(), []int{5}
+	return file_svm_models_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CompiledInstruction) GetProgramIdIndex() uint32 {
@@ -480,7 +558,7 @@ type AddressTableLookup struct {
 
 func (x *AddressTableLookup) Reset() {
 	*x = AddressTableLookup{}
-	mi := &file_svm_models_proto_msgTypes[6]
+	mi := &file_svm_models_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -492,7 +570,7 @@ func (x *AddressTableLookup) String() string {
 func (*AddressTableLookup) ProtoMessage() {}
 
 func (x *AddressTableLookup) ProtoReflect() protoreflect.Message {
-	mi := &file_svm_models_proto_msgTypes[6]
+	mi := &file_svm_models_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -505,7 +583,7 @@ func (x *AddressTableLookup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddressTableLookup.ProtoReflect.Descriptor instead.
 func (*AddressTableLookup) Descriptor() ([]byte, []int) {
-	return file_svm_models_proto_rawDescGZIP(), []int{6}
+	return file_svm_models_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AddressTableLookup) GetAccountKey() []byte {
@@ -561,7 +639,7 @@ type TransactionStatusMeta struct {
 
 func (x *TransactionStatusMeta) Reset() {
 	*x = TransactionStatusMeta{}
-	mi := &file_svm_models_proto_msgTypes[7]
+	mi := &file_svm_models_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -573,7 +651,7 @@ func (x *TransactionStatusMeta) String() string {
 func (*TransactionStatusMeta) ProtoMessage() {}
 
 func (x *TransactionStatusMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_svm_models_proto_msgTypes[7]
+	mi := &file_svm_models_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -586,7 +664,7 @@ func (x *TransactionStatusMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransactionStatusMeta.ProtoReflect.Descriptor instead.
 func (*TransactionStatusMeta) Descriptor() ([]byte, []int) {
-	return file_svm_models_proto_rawDescGZIP(), []int{7}
+	return file_svm_models_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *TransactionStatusMeta) GetErr() string {
@@ -733,7 +811,7 @@ type InnerInstructions struct {
 
 func (x *InnerInstructions) Reset() {
 	*x = InnerInstructions{}
-	mi := &file_svm_models_proto_msgTypes[8]
+	mi := &file_svm_models_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -745,7 +823,7 @@ func (x *InnerInstructions) String() string {
 func (*InnerInstructions) ProtoMessage() {}
 
 func (x *InnerInstructions) ProtoReflect() protoreflect.Message {
-	mi := &file_svm_models_proto_msgTypes[8]
+	mi := &file_svm_models_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -758,7 +836,7 @@ func (x *InnerInstructions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InnerInstructions.ProtoReflect.Descriptor instead.
 func (*InnerInstructions) Descriptor() ([]byte, []int) {
-	return file_svm_models_proto_rawDescGZIP(), []int{8}
+	return file_svm_models_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *InnerInstructions) GetIndex() uint32 {
@@ -789,7 +867,7 @@ type TokenBalance struct {
 
 func (x *TokenBalance) Reset() {
 	*x = TokenBalance{}
-	mi := &file_svm_models_proto_msgTypes[9]
+	mi := &file_svm_models_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -801,7 +879,7 @@ func (x *TokenBalance) String() string {
 func (*TokenBalance) ProtoMessage() {}
 
 func (x *TokenBalance) ProtoReflect() protoreflect.Message {
-	mi := &file_svm_models_proto_msgTypes[9]
+	mi := &file_svm_models_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -814,7 +892,7 @@ func (x *TokenBalance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TokenBalance.ProtoReflect.Descriptor instead.
 func (*TokenBalance) Descriptor() ([]byte, []int) {
-	return file_svm_models_proto_rawDescGZIP(), []int{9}
+	return file_svm_models_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *TokenBalance) GetAccountIndex() uint32 {
@@ -866,7 +944,7 @@ type UiTokenAmount struct {
 
 func (x *UiTokenAmount) Reset() {
 	*x = UiTokenAmount{}
-	mi := &file_svm_models_proto_msgTypes[10]
+	mi := &file_svm_models_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -878,7 +956,7 @@ func (x *UiTokenAmount) String() string {
 func (*UiTokenAmount) ProtoMessage() {}
 
 func (x *UiTokenAmount) ProtoReflect() protoreflect.Message {
-	mi := &file_svm_models_proto_msgTypes[10]
+	mi := &file_svm_models_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -891,7 +969,7 @@ func (x *UiTokenAmount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UiTokenAmount.ProtoReflect.Descriptor instead.
 func (*UiTokenAmount) Descriptor() ([]byte, []int) {
-	return file_svm_models_proto_rawDescGZIP(), []int{10}
+	return file_svm_models_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UiTokenAmount) GetAmount() string {
@@ -926,7 +1004,7 @@ type ReturnData struct {
 
 func (x *ReturnData) Reset() {
 	*x = ReturnData{}
-	mi := &file_svm_models_proto_msgTypes[11]
+	mi := &file_svm_models_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -938,7 +1016,7 @@ func (x *ReturnData) String() string {
 func (*ReturnData) ProtoMessage() {}
 
 func (x *ReturnData) ProtoReflect() protoreflect.Message {
-	mi := &file_svm_models_proto_msgTypes[11]
+	mi := &file_svm_models_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -951,7 +1029,7 @@ func (x *ReturnData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReturnData.ProtoReflect.Descriptor instead.
 func (*ReturnData) Descriptor() ([]byte, []int) {
-	return file_svm_models_proto_rawDescGZIP(), []int{11}
+	return file_svm_models_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ReturnData) GetProgramId() []byte {
@@ -983,7 +1061,7 @@ type Reward struct {
 
 func (x *Reward) Reset() {
 	*x = Reward{}
-	mi := &file_svm_models_proto_msgTypes[12]
+	mi := &file_svm_models_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -995,7 +1073,7 @@ func (x *Reward) String() string {
 func (*Reward) ProtoMessage() {}
 
 func (x *Reward) ProtoReflect() protoreflect.Message {
-	mi := &file_svm_models_proto_msgTypes[12]
+	mi := &file_svm_models_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1008,7 +1086,7 @@ func (x *Reward) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Reward.ProtoReflect.Descriptor instead.
 func (*Reward) Descriptor() ([]byte, []int) {
-	return file_svm_models_proto_rawDescGZIP(), []int{12}
+	return file_svm_models_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Reward) GetPubkey() []byte {
@@ -1078,13 +1156,23 @@ const file_svm_models_proto_rawDesc = "" +
 	"\n" +
 	"signatures\x18\x01 \x03(\fR\n" +
 	"signatures\x12*\n" +
-	"\amessage\x18\x02 \x01(\v2\x10.bds.svm.MessageR\amessage\"\x96\x02\n" +
+	"\amessage\x18\x02 \x01(\v2\x10.bds.svm.MessageR\amessage\"\xe0\x02\n" +
 	"\aMessage\x12.\n" +
 	"\x06header\x18\x01 \x01(\v2\x16.bds.svm.MessageHeaderR\x06header\x12 \n" +
 	"\vaccountKeys\x18\x02 \x03(\fR\vaccountKeys\x12(\n" +
 	"\x0frecentBlockhash\x18\x03 \x01(\fR\x0frecentBlockhash\x12@\n" +
 	"\finstructions\x18\x04 \x03(\v2\x1c.bds.svm.CompiledInstructionR\finstructions\x12M\n" +
-	"\x13addressTableLookups\x18\x05 \x03(\v2\x1b.bds.svm.AddressTableLookupR\x13addressTableLookups\"\xc5\x01\n" +
+	"\x13addressTableLookups\x18\x05 \x03(\v2\x1b.bds.svm.AddressTableLookupR\x13addressTableLookups\x12H\n" +
+	"\x11transactionConfig\x18\x06 \x01(\v2\x1a.bds.svm.TransactionConfigR\x11transactionConfig\"\xa5\x02\n" +
+	"\x11TransactionConfig\x12%\n" +
+	"\vpriorityFee\x18\x01 \x01(\x04H\x00R\vpriorityFee\x88\x01\x01\x12/\n" +
+	"\x10computeUnitLimit\x18\x02 \x01(\rH\x01R\x10computeUnitLimit\x88\x01\x01\x12E\n" +
+	"\x1bloadedAccountsDataSizeLimit\x18\x03 \x01(\rH\x02R\x1bloadedAccountsDataSizeLimit\x88\x01\x01\x12\x1f\n" +
+	"\bheapSize\x18\x04 \x01(\rH\x03R\bheapSize\x88\x01\x01B\x0e\n" +
+	"\f_priorityFeeB\x13\n" +
+	"\x11_computeUnitLimitB\x1e\n" +
+	"\x1c_loadedAccountsDataSizeLimitB\v\n" +
+	"\t_heapSize\"\xc5\x01\n" +
 	"\rMessageHeader\x124\n" +
 	"\x15numRequiredSignatures\x18\x01 \x01(\rR\x15numRequiredSignatures\x12<\n" +
 	"\x19numReadonlySignedAccounts\x18\x02 \x01(\rR\x19numReadonlySignedAccounts\x12@\n" +
@@ -1178,43 +1266,45 @@ func file_svm_models_proto_rawDescGZIP() []byte {
 	return file_svm_models_proto_rawDescData
 }
 
-var file_svm_models_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_svm_models_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_svm_models_proto_goTypes = []any{
 	(*ConfirmedBlock)(nil),        // 0: bds.svm.ConfirmedBlock
 	(*ConfirmedTransaction)(nil),  // 1: bds.svm.ConfirmedTransaction
 	(*Transaction)(nil),           // 2: bds.svm.Transaction
 	(*Message)(nil),               // 3: bds.svm.Message
-	(*MessageHeader)(nil),         // 4: bds.svm.MessageHeader
-	(*CompiledInstruction)(nil),   // 5: bds.svm.CompiledInstruction
-	(*AddressTableLookup)(nil),    // 6: bds.svm.AddressTableLookup
-	(*TransactionStatusMeta)(nil), // 7: bds.svm.TransactionStatusMeta
-	(*InnerInstructions)(nil),     // 8: bds.svm.InnerInstructions
-	(*TokenBalance)(nil),          // 9: bds.svm.TokenBalance
-	(*UiTokenAmount)(nil),         // 10: bds.svm.UiTokenAmount
-	(*ReturnData)(nil),            // 11: bds.svm.ReturnData
-	(*Reward)(nil),                // 12: bds.svm.Reward
+	(*TransactionConfig)(nil),     // 4: bds.svm.TransactionConfig
+	(*MessageHeader)(nil),         // 5: bds.svm.MessageHeader
+	(*CompiledInstruction)(nil),   // 6: bds.svm.CompiledInstruction
+	(*AddressTableLookup)(nil),    // 7: bds.svm.AddressTableLookup
+	(*TransactionStatusMeta)(nil), // 8: bds.svm.TransactionStatusMeta
+	(*InnerInstructions)(nil),     // 9: bds.svm.InnerInstructions
+	(*TokenBalance)(nil),          // 10: bds.svm.TokenBalance
+	(*UiTokenAmount)(nil),         // 11: bds.svm.UiTokenAmount
+	(*ReturnData)(nil),            // 12: bds.svm.ReturnData
+	(*Reward)(nil),                // 13: bds.svm.Reward
 }
 var file_svm_models_proto_depIdxs = []int32{
 	1,  // 0: bds.svm.ConfirmedBlock.transactions:type_name -> bds.svm.ConfirmedTransaction
-	12, // 1: bds.svm.ConfirmedBlock.rewards:type_name -> bds.svm.Reward
+	13, // 1: bds.svm.ConfirmedBlock.rewards:type_name -> bds.svm.Reward
 	2,  // 2: bds.svm.ConfirmedTransaction.transaction:type_name -> bds.svm.Transaction
-	7,  // 3: bds.svm.ConfirmedTransaction.meta:type_name -> bds.svm.TransactionStatusMeta
+	8,  // 3: bds.svm.ConfirmedTransaction.meta:type_name -> bds.svm.TransactionStatusMeta
 	3,  // 4: bds.svm.Transaction.message:type_name -> bds.svm.Message
-	4,  // 5: bds.svm.Message.header:type_name -> bds.svm.MessageHeader
-	5,  // 6: bds.svm.Message.instructions:type_name -> bds.svm.CompiledInstruction
-	6,  // 7: bds.svm.Message.addressTableLookups:type_name -> bds.svm.AddressTableLookup
-	8,  // 8: bds.svm.TransactionStatusMeta.innerInstructions:type_name -> bds.svm.InnerInstructions
-	9,  // 9: bds.svm.TransactionStatusMeta.preTokenBalances:type_name -> bds.svm.TokenBalance
-	9,  // 10: bds.svm.TransactionStatusMeta.postTokenBalances:type_name -> bds.svm.TokenBalance
-	12, // 11: bds.svm.TransactionStatusMeta.rewards:type_name -> bds.svm.Reward
-	11, // 12: bds.svm.TransactionStatusMeta.returnData:type_name -> bds.svm.ReturnData
-	5,  // 13: bds.svm.InnerInstructions.instructions:type_name -> bds.svm.CompiledInstruction
-	10, // 14: bds.svm.TokenBalance.uiTokenAmount:type_name -> bds.svm.UiTokenAmount
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	5,  // 5: bds.svm.Message.header:type_name -> bds.svm.MessageHeader
+	6,  // 6: bds.svm.Message.instructions:type_name -> bds.svm.CompiledInstruction
+	7,  // 7: bds.svm.Message.addressTableLookups:type_name -> bds.svm.AddressTableLookup
+	4,  // 8: bds.svm.Message.transactionConfig:type_name -> bds.svm.TransactionConfig
+	9,  // 9: bds.svm.TransactionStatusMeta.innerInstructions:type_name -> bds.svm.InnerInstructions
+	10, // 10: bds.svm.TransactionStatusMeta.preTokenBalances:type_name -> bds.svm.TokenBalance
+	10, // 11: bds.svm.TransactionStatusMeta.postTokenBalances:type_name -> bds.svm.TokenBalance
+	13, // 12: bds.svm.TransactionStatusMeta.rewards:type_name -> bds.svm.Reward
+	12, // 13: bds.svm.TransactionStatusMeta.returnData:type_name -> bds.svm.ReturnData
+	6,  // 14: bds.svm.InnerInstructions.instructions:type_name -> bds.svm.CompiledInstruction
+	11, // 15: bds.svm.TokenBalance.uiTokenAmount:type_name -> bds.svm.UiTokenAmount
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_svm_models_proto_init() }
@@ -1224,18 +1314,19 @@ func file_svm_models_proto_init() {
 	}
 	file_svm_models_proto_msgTypes[0].OneofWrappers = []any{}
 	file_svm_models_proto_msgTypes[1].OneofWrappers = []any{}
-	file_svm_models_proto_msgTypes[5].OneofWrappers = []any{}
-	file_svm_models_proto_msgTypes[7].OneofWrappers = []any{}
-	file_svm_models_proto_msgTypes[9].OneofWrappers = []any{}
+	file_svm_models_proto_msgTypes[4].OneofWrappers = []any{}
+	file_svm_models_proto_msgTypes[6].OneofWrappers = []any{}
+	file_svm_models_proto_msgTypes[8].OneofWrappers = []any{}
 	file_svm_models_proto_msgTypes[10].OneofWrappers = []any{}
-	file_svm_models_proto_msgTypes[12].OneofWrappers = []any{}
+	file_svm_models_proto_msgTypes[11].OneofWrappers = []any{}
+	file_svm_models_proto_msgTypes[13].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_svm_models_proto_rawDesc), len(file_svm_models_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

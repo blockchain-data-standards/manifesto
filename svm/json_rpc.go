@@ -95,8 +95,9 @@ func ConfirmedTransactionToJsonRpc(ct *ConfirmedTransaction) map[string]interfac
 		txr := TransactionToJsonRpc(ct.Transaction)
 		// addressTableLookups presence keys on version, not emptiness: a v0
 		// message carries the key even with zero lookups (MessageToJsonRpc
-		// cannot know the version, so the omission is repaired here).
-		if ct.Version != nil && *ct.Version != "legacy" {
+		// cannot know the version, so the omission is repaired here). Legacy
+		// and v1 messages omit it.
+		if ct.Version != nil && *ct.Version == "0" {
 			if msg, ok := txr["message"].(map[string]interface{}); ok {
 				if _, has := msg["addressTableLookups"]; !has {
 					msg["addressTableLookups"] = []interface{}{}
@@ -185,7 +186,28 @@ func MessageToJsonRpc(m *Message) map[string]interface{} {
 		}
 		res["addressTableLookups"] = lookups
 	}
+	if m.TransactionConfig != nil {
+		res["transactionConfig"] = transactionConfigToJsonRpc(m.TransactionConfig)
+	}
 	return res
+}
+
+// transactionConfigToJsonRpc renders a v1 message's inline compute budget.
+// Agave renders every key, null when the transaction left it unset.
+func transactionConfigToJsonRpc(c *TransactionConfig) map[string]interface{} {
+	return map[string]interface{}{
+		"priorityFee":                 optionalJson(c.PriorityFee),
+		"computeUnitLimit":            optionalJson(c.ComputeUnitLimit),
+		"loadedAccountsDataSizeLimit": optionalJson(c.LoadedAccountsDataSizeLimit),
+		"heapSize":                    optionalJson(c.HeapSize),
+	}
+}
+
+func optionalJson[T any](v *T) interface{} {
+	if v == nil {
+		return nil
+	}
+	return *v
 }
 
 // CompiledInstructionToJsonRpc renders one compiled instruction. Instruction
@@ -561,7 +583,7 @@ func ConfirmedTransactionToJsonRpcParsed(ct *ConfirmedTransaction) map[string]in
 			if ct.Meta != nil {
 				lw, lr = ct.Meta.LoadedWritableAddresses, ct.Meta.LoadedReadonlyAddresses
 			}
-			tx["message"] = messageToJsonRpcParsed(t.Message, lw, lr, ct.Version != nil && *ct.Version != "legacy", renderIx)
+			tx["message"] = messageToJsonRpcParsed(t.Message, lw, lr, ct.Version != nil && *ct.Version == "0", renderIx)
 		}
 		res["transaction"] = tx
 	}
@@ -681,8 +703,9 @@ func messageToJsonRpcParsed(m *Message, loadedWritable, loadedReadonly [][]byte,
 	//
 	// addressTableLookups presence keys on the transaction VERSION, not on
 	// emptiness: a v0 message carries the key even with zero lookups, legacy
-	// omits it. The repeated proto field cannot express that distinction, so
-	// the caller passes it down from ConfirmedTransaction.version.
+	// and v1 omit it. The repeated proto field cannot express that
+	// distinction, so the caller passes it down from
+	// ConfirmedTransaction.version.
 	if emitLookups {
 		lookups := make([]interface{}, 0, len(m.AddressTableLookups))
 		for _, l := range m.AddressTableLookups {
@@ -693,6 +716,9 @@ func messageToJsonRpcParsed(m *Message, loadedWritable, loadedReadonly [][]byte,
 			})
 		}
 		res["addressTableLookups"] = lookups
+	}
+	if m.TransactionConfig != nil {
+		res["transactionConfig"] = transactionConfigToJsonRpc(m.TransactionConfig)
 	}
 	return res
 }

@@ -35,9 +35,9 @@ message ConfirmedBlock {
 message ConfirmedTransaction {
   Transaction transaction = 1;
   optional TransactionStatusMeta meta = 2;
-  // "legacy" or "0". Absent when unknown. Serving layers must apply
-  // maxSupportedTransactionVersion gating (a v0 transaction returned to a
-  // client that did not opt in is a protocol error, Agave code -32015).
+  // "legacy", "0" or "1". Absent when unknown. Serving layers must apply
+  // maxSupportedTransactionVersion gating (a versioned transaction returned
+  // to a client that did not opt in is a protocol error, Agave code -32015).
   optional string version = 3;
 }
 
@@ -52,8 +52,18 @@ message Message {
   repeated bytes accountKeys = 2;
   bytes recentBlockhash = 3;
   repeated CompiledInstruction instructions = 4;
-  // v0 transactions only; empty for legacy.
+  // v0 transactions only; empty for legacy and v1.
   repeated AddressTableLookup addressTableLookups = 5;
+  // v1 transactions only (SIMD-0385); absent for legacy and v0.
+  TransactionConfig transactionConfig = 6;
+}
+
+// SIMD-0385 inline compute budget. An unset field renders as JSON null.
+message TransactionConfig {
+  optional uint64 priorityFee = 1;
+  optional uint32 computeUnitLimit = 2;
+  optional uint32 loadedAccountsDataSizeLimit = 3;
+  optional uint32 heapSize = 4;
 }
 
 message MessageHeader {
