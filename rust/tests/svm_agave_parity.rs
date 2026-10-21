@@ -11,15 +11,17 @@
 //! as Agave does. Zero differences allowed.
 //!
 //! Between them: a v0 transaction with an address-table lookup and loaded
-//! addresses, a failed v0 transaction, a legacy transaction asked for with
-//! and without `maxSupportedTransactionVersion`, and
-//! `getSignatureStatuses` history over all three.
+//! addresses, a failed v0 transaction, a v1 transaction with its inline
+//! `transactionConfig` (slot 459,597,150), a legacy transaction asked for
+//! with and without `maxSupportedTransactionVersion`, and
+//! `getSignatureStatuses` history over the v0, failed and legacy ones.
 
 use bds::svm::json_rpc::{self as j, Reply, RpcQueryCall};
 use bds::svm::{
     AddressTableLookup, CompiledInstruction, ConfirmedTransaction, GetSignatureStatusesResponse,
     GetTransactionResponse, InnerInstructions, Message, MessageHeader, ReturnData, Reward,
-    SignatureStatus, TokenBalance, Transaction, TransactionStatusMeta, UiTokenAmount,
+    SignatureStatus, TokenBalance, Transaction, TransactionConfig, TransactionStatusMeta,
+    UiTokenAmount,
 };
 use bytes::Bytes;
 use serde_json::Value;
@@ -88,7 +90,15 @@ fn message(v: &Value) -> Message {
                     .collect()
             })
             .unwrap_or_default(),
-        transaction_config: None,
+        transaction_config: v.get("transactionConfig").map(|c| {
+            let u32_or_none = |k: &str| c[k].as_u64().map(|n| u32::try_from(n).expect("u32"));
+            TransactionConfig {
+                priority_fee: c["priorityFee"].as_u64(),
+                compute_unit_limit: u32_or_none("computeUnitLimit"),
+                loaded_accounts_data_size_limit: u32_or_none("loadedAccountsDataSizeLimit"),
+                heap_size: u32_or_none("heapSize"),
+            }
+        }),
     }
 }
 
@@ -250,6 +260,7 @@ fn get_transaction_matches_agave() {
     let names = [
         "get-transaction-v0-lookups.json",
         "get-transaction-failed.json",
+        "get-transaction-v1-config.json",
         "get-transaction-legacy-unversioned.json",
         "get-transaction-legacy-versioned.json",
     ];
