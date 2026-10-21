@@ -705,11 +705,15 @@ func (x *GetTransactionRequest) GetMinContextSlot() uint64 {
 type GetTransactionResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unset => not found (JSON-RPC `result: null`).
-	Transaction   *ConfirmedTransaction `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
-	Slot          uint64                `protobuf:"varint,2,opt,name=slot,proto3" json:"slot,omitempty"`
-	BlockTime     *int64                `protobuf:"varint,3,opt,name=blockTime,proto3,oneof" json:"blockTime,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Transaction *ConfirmedTransaction `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
+	Slot        uint64                `protobuf:"varint,2,opt,name=slot,proto3" json:"slot,omitempty"`
+	BlockTime   *int64                `protobuf:"varint,3,opt,name=blockTime,proto3,oneof" json:"blockTime,omitempty"`
+	// The transaction's position in its block. Agave's getTransaction always
+	// renders it (`transactionIndex`); unset means the server cannot say, and
+	// a renderer that needs it must not invent one.
+	TransactionIndex *uint32 `protobuf:"varint,4,opt,name=transactionIndex,proto3,oneof" json:"transactionIndex,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetTransactionResponse) Reset() {
@@ -759,6 +763,13 @@ func (x *GetTransactionResponse) GetSlot() uint64 {
 func (x *GetTransactionResponse) GetBlockTime() int64 {
 	if x != nil && x.BlockTime != nil {
 		return *x.BlockTime
+	}
+	return 0
+}
+
+func (x *GetTransactionResponse) GetTransactionIndex() uint32 {
+	if x != nil && x.TransactionIndex != nil {
+		return *x.TransactionIndex
 	}
 	return 0
 }
@@ -1404,13 +1415,15 @@ const file_svm_rpc_proto_rawDesc = "" +
 	"\x0eminContextSlot\x18\x05 \x01(\x04H\x02R\x0eminContextSlot\x88\x01\x01B!\n" +
 	"\x1f_maxSupportedTransactionVersionB\x0e\n" +
 	"\f_genesisHashB\x11\n" +
-	"\x0f_minContextSlot\"\x9e\x01\n" +
+	"\x0f_minContextSlot\"\xe4\x01\n" +
 	"\x16GetTransactionResponse\x12?\n" +
 	"\vtransaction\x18\x01 \x01(\v2\x1d.bds.svm.ConfirmedTransactionR\vtransaction\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\x04R\x04slot\x12!\n" +
-	"\tblockTime\x18\x03 \x01(\x03H\x00R\tblockTime\x88\x01\x01B\f\n" +
+	"\tblockTime\x18\x03 \x01(\x03H\x00R\tblockTime\x88\x01\x01\x12/\n" +
+	"\x10transactionIndex\x18\x04 \x01(\rH\x01R\x10transactionIndex\x88\x01\x01B\f\n" +
 	"\n" +
-	"_blockTime\"`\n" +
+	"_blockTimeB\x13\n" +
+	"\x11_transactionIndex\"`\n" +
 	"\x13GetBlockTimeRequest\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x04R\x04slot\x12%\n" +
 	"\vgenesisHash\x18\x02 \x01(\fH\x00R\vgenesisHash\x88\x01\x01B\x0e\n" +

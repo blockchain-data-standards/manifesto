@@ -14,9 +14,11 @@ the EVM and SVM families (the Rust counterparts of `evm/json_rpc.go` and
   shapes.
 - `bds::svm` — Solana models (`ConfirmedBlock`, `ConfirmedTransaction`, …)
   and the `RPCQueryService` stubs.
-- `bds::svm::json_rpc` — map a Solana `getBlock` request onto
-  `RPCQueryService.GetBlock` and the response back into Agave's
-  `encoding: "json"` result.
+- `bds::svm::json_rpc` — map Solana's history methods (`getBlock`,
+  `getTransaction`, `getSignatureStatuses` with history search,
+  `getBlocksWithLimit`, `getBlockTime`, `getFirstAvailableBlock`) onto
+  `RPCQueryService` and the responses back into Agave's `encoding: "json"`
+  results; `tests/svm_agave_parity.rs` diffs them against live mainnet.
 
 Building needs **no system `protoc`** — the protos compile at build time with
 [`protox`](https://crates.io/crates/protox) (pure Rust).
