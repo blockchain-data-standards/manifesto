@@ -36,6 +36,10 @@ fn compile(protos: &[&str], includes: &[&str]) -> Result<(), Box<dyn std::error:
     tonic_prost_build::configure()
         .build_server(true)
         .build_client(true)
+        // Server traits answer UNIMPLEMENTED for any call an implementer does
+        // not override, as Go's embedded `Unimplemented*Server` does. Adding a
+        // call to a service then never breaks an existing server's build.
+        .generate_default_stubs(true)
         .bytes(".")
         .compile_fds(fds)?;
     Ok(())
