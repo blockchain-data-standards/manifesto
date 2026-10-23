@@ -27,6 +27,16 @@ service RPCQueryService {
   
   // Get all transaction receipts for a block (equivalent to eth_getBlockReceipts)
   rpc GetBlockReceipts(GetBlockReceiptsRequest) returns (GetBlockReceiptsResponse);
+
+  // Get the trace of every transaction in a block (equivalent to
+  // debug_traceBlockByNumber and debug_traceBlockByHash).
+  rpc TraceBlock(TraceBlockRequest) returns (TraceResponse);
+
+  // Get the trace of one transaction (equivalent to debug_traceTransaction)
+  rpc TraceTransaction(TraceTransactionRequest) returns (TraceResponse);
+
+  // Get the native balance of an address at a block (equivalent to eth_getBalance)
+  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
 }
 
 // Request for getting the chain ID
@@ -188,4 +198,86 @@ message GetBlockReceiptsRequest {
 message GetBlockReceiptsResponse {
   // Array of receipts for all transactions in the block
   repeated Receipt receipts = 1;
+}
+
+// Tracer options of a debug_trace* call, passed through as the caller sent
+// them. A server that cannot run this tracer with this config returns
+// UNIMPLEMENTED, so a caller with other upstreams falls through to them.
+message TraceOptions {
+  // Tracer name as in the JSON-RPC `tracer` option (e.g. "callTracer").
+  // Empty means the node's default struct logger.
+  string tracer = 1;
+
+  // The JSON-RPC `tracerConfig` object, UTF-8 JSON. Empty when absent.
+  bytes tracerConfig = 2;
+
+  // The remaining JSON-RPC trace options (`timeout`, `reexec`, ...), as one
+  // UTF-8 JSON object without `tracer` and `tracerConfig`. Empty when absent.
+  bytes options = 3;
+}
+
+// Request for tracing every transaction in a block
+message TraceBlockRequest {
+  // Block number as hex string (e.g., "0x14ee0030") or tag ("latest", "earliest", "pending")
+  // Mutually exclusive with blockHash
+  optional string blockNumber = 1;
+
+  // Block hash as bytes (32 bytes)
+  // Mutually exclusive with blockNumber
+  optional bytes blockHash = 2;
+
+  TraceOptions trace = 3;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 4;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 5;
+}
+
+// Request for tracing one transaction
+message TraceTransactionRequest {
+  // The transaction hash to trace
+  bytes transactionHash = 1;
+
+  TraceOptions trace = 2;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 3;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 4;
+}
+
+// Response containing a trace result
+message TraceResponse {
+  // The JSON-RPC `result`, UTF-8 JSON, exactly as the tracer renders it. The
+  // shape depends on the tracer, so it is not modelled here.
+  bytes result = 1;
+}
+
+// Request for the native balance of an address
+message GetBalanceRequest {
+  // The address (20 bytes)
+  bytes address = 1;
+
+  // Block number as hex string (e.g., "0x14ee0030") or tag ("latest", "earliest", "pending")
+  // Mutually exclusive with blockHash
+  optional string blockNumber = 2;
+
+  // Block hash as bytes (32 bytes)
+  // Mutually exclusive with blockNumber
+  optional bytes blockHash = 3;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 4;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 5;
+}
+
+// Response containing a native balance
+message GetBalanceResponse {
+  // The balance in wei, big-endian without leading zero bytes. Empty is zero.
+  bytes balance = 1;
 }
