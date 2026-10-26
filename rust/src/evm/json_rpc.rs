@@ -16,11 +16,12 @@ use serde_json::{Map, Value};
 
 use super::rpc_query_service_client::RpcQueryServiceClient;
 use super::{
-    AccessListItem, AuthorizationListItem, BlockHeader, ChainIdRequest, GetBlockByHashRequest,
-    GetBlockByNumberRequest, GetBlockReceiptsRequest, GetBlockReceiptsResponse, GetBlockResponse,
-    GetLogsRequest, GetLogsResponse, GetTransactionByHashRequest, GetTransactionByHashResponse,
-    GetTransactionReceiptRequest, GetTransactionReceiptResponse, Log, Receipt, TopicFilter,
-    Transaction, Withdrawal,
+    AccessListItem, AuthorizationListItem, BlockHeader, ChainIdRequest, GetBalanceRequest,
+    GetBalanceResponse, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockReceiptsRequest,
+    GetBlockReceiptsResponse, GetBlockResponse, GetLogsRequest, GetLogsResponse,
+    GetTransactionByHashRequest, GetTransactionByHashResponse, GetTransactionReceiptRequest,
+    GetTransactionReceiptResponse, Log, Receipt, TopicFilter, TraceBlockRequest, TraceOptions,
+    TraceResponse, TraceTransactionRequest, Transaction, Withdrawal,
 };
 
 /// Whether `method` has a `bds.evm.RPCQueryService` equivalent.
@@ -35,6 +36,10 @@ pub fn method_supported(method: &str) -> bool {
             | "eth_getTransactionReceipt"
             | "eth_getLogs"
             | "eth_getBlockReceipts"
+            | "debug_traceBlockByNumber"
+            | "debug_traceBlockByHash"
+            | "debug_traceTransaction"
+            | "eth_getBalance"
     )
 }
 
@@ -111,6 +116,13 @@ pub enum RpcQueryCall {
     GetLogs(GetLogsRequest),
     /// `eth_getBlockReceipts`.
     GetBlockReceipts(GetBlockReceiptsRequest),
+    /// `debug_traceBlockByNumber` (`blockNumber` set) or
+    /// `debug_traceBlockByHash` (`blockHash` set).
+    TraceBlock(TraceBlockRequest),
+    /// `debug_traceTransaction`.
+    TraceTransaction(TraceTransactionRequest),
+    /// `eth_getBalance`.
+    GetBalance(GetBalanceRequest),
 }
 
 /// Maps a JSON-RPC `method` + `params` pair onto a [`RpcQueryCall`].
@@ -126,6 +138,10 @@ pub enum RpcQueryCall {
 /// hex, wrong byte length, or — for `eth_getLogs` — a block *tag* / missing
 /// bound with no `blockHash`, which this mapping deliberately refuses since
 /// those queries are served elsewhere, never by the BDS server).
+///
+/// Block tags (`latest`, `pending`, ...) in a block-number position are
+/// mapped verbatim, never refused: whether a tagged call is worth sending
+/// is the caller's decision.
 pub fn map_request(method: &str, params: &Value) -> Result<RpcQueryCall, MapError> {
     match method {
         "eth_chainId" => Ok(RpcQueryCall::ChainId(ChainIdRequest {})),
@@ -135,6 +151,10 @@ pub fn map_request(method: &str, params: &Value) -> Result<RpcQueryCall, MapErro
         "eth_getTransactionReceipt" => map_get_transaction_receipt(params),
         "eth_getLogs" => map_get_logs(params),
         "eth_getBlockReceipts" => map_get_block_receipts(params),
+        "debug_traceBlockByNumber" => map_trace_block_by_number(params),
+        "debug_traceBlockByHash" => map_trace_block_by_hash(params),
+        "debug_traceTransaction" => map_trace_transaction(params),
+        "eth_getBalance" => map_get_balance(params),
         _ => Err(MapError::UnsupportedMethod),
     }
 }
@@ -240,6 +260,141 @@ fn map_get_block_receipts(params: &Value) -> Result<RpcQueryCall, MapError> {
         }
     }
     Ok(RpcQueryCall::GetBlockReceipts(req))
+}
+
+fn map_trace_block_by_number(params: &Value) -> Result<RpcQueryCall, MapError> {
+    let block_number = param(params, 0)
+        .and_then(Value::as_str)
+        .ok_or(MapError::Unmappable(
+            "debug_traceBlockByNumber: params[0] must be a block number or tag string",
+        ))?
+        .to_string();
+    Ok(RpcQueryCall::TraceBlock(TraceBlockRequest {
+        block_number: Some(block_number),
+        block_hash: None,
+        trace: Some(parse_trace_options(param(params, 1))?),
+        chain_id: None,
+        chain_genesis_hash: None,
+    }))
+}
+
+fn map_trace_block_by_hash(params: &Value) -> Result<RpcQueryCall, MapError> {
+    let hash_str = param(params, 0)
+        .and_then(Value::as_str)
+        .ok_or(MapError::Unmappable(
+            "debug_traceBlockByHash: params[0] must be a 0x-hex block hash",
+        ))?;
+    Ok(RpcQueryCall::TraceBlock(TraceBlockRequest {
+        block_number: None,
+        block_hash: Some(parse_hex_bytes_exact(hash_str, 32)?.into()),
+        trace: Some(parse_trace_options(param(params, 1))?),
+        chain_id: None,
+        chain_genesis_hash: None,
+    }))
+}
+
+fn map_trace_transaction(params: &Value) -> Result<RpcQueryCall, MapError> {
+    let hash_str = param(params, 0)
+        .and_then(Value::as_str)
+        .ok_or(MapError::Unmappable(
+            "debug_traceTransaction: params[0] must be a 0x-hex transaction hash",
+        ))?;
+    Ok(RpcQueryCall::TraceTransaction(TraceTransactionRequest {
+        transaction_hash: parse_hex_bytes_exact(hash_str, 32)?.into(),
+        trace: Some(parse_trace_options(param(params, 1))?),
+        chain_id: None,
+        chain_genesis_hash: None,
+    }))
+}
+
+/// Splits a `debug_trace*` options object into [`TraceOptions`]: `tracer`
+/// as its string, `tracerConfig` as the raw JSON of its value, and every
+/// other key as one JSON object in `options`. An absent or `null` object,
+/// key or `tracerConfig` leaves its field empty.
+fn parse_trace_options(v: Option<&Value>) -> Result<TraceOptions, MapError> {
+    let mut trace = TraceOptions::default();
+    let obj = match v {
+        None | Some(Value::Null) => return Ok(trace),
+        Some(Value::Object(obj)) => obj,
+        Some(_) => {
+            return Err(MapError::Unmappable(
+                "debug_trace*: trace options must be an object",
+            ));
+        }
+    };
+    let mut rest = Vec::new();
+    for (key, value) in obj {
+        match key.as_str() {
+            "tracer" => match value {
+                Value::Null => {}
+                Value::String(s) => trace.tracer.clone_from(s),
+                _ => {
+                    return Err(MapError::Unmappable(
+                        "debug_trace*: tracer must be a string",
+                    ));
+                }
+            },
+            "tracerConfig" => {
+                if !value.is_null() {
+                    trace.tracer_config = to_json_bytes(value).into();
+                }
+            }
+            _ => {
+                // Written straight from the borrowed entries, so the rest
+                // of the object is never cloned into a new `Map`.
+                rest.push(if rest.is_empty() { b'{' } else { b',' });
+                serde_json::to_writer(&mut rest, key).expect("a String serialises");
+                rest.push(b':');
+                serde_json::to_writer(&mut rest, value).expect("a Value serialises");
+            }
+        }
+    }
+    if !rest.is_empty() {
+        rest.push(b'}');
+        trace.options = rest.into();
+    }
+    Ok(trace)
+}
+
+fn to_json_bytes(v: &Value) -> Vec<u8> {
+    serde_json::to_vec(v).expect("a Value serialises")
+}
+
+fn map_get_balance(params: &Value) -> Result<RpcQueryCall, MapError> {
+    let addr_str = param(params, 0)
+        .and_then(Value::as_str)
+        .ok_or(MapError::Unmappable(
+            "eth_getBalance: params[0] must be a 0x-hex address",
+        ))?;
+    let mut req = GetBalanceRequest {
+        address: parse_hex_bytes_exact(addr_str, 20)?.into(),
+        block_number: None,
+        block_hash: None,
+        chain_id: None,
+        chain_genesis_hash: None,
+    };
+    // A node refuses a missing block parameter, so it is unmappable here
+    // too rather than guessed; EIP-1898 objects map like eth_getBlockReceipts.
+    match param(params, 1) {
+        Some(Value::String(s)) => req.block_number = Some(s.clone()),
+        Some(Value::Object(obj)) => {
+            if let Some(h) = obj.get("blockHash").and_then(Value::as_str) {
+                req.block_hash = Some(parse_hex_bytes_exact(h, 32)?.into());
+            } else if let Some(n) = obj.get("blockNumber").and_then(Value::as_str) {
+                req.block_number = Some(n.to_string());
+            } else {
+                return Err(MapError::Unmappable(
+                    "eth_getBalance: object param needs a string blockHash or blockNumber",
+                ));
+            }
+        }
+        _ => {
+            return Err(MapError::Unmappable(
+                "eth_getBalance: params[1] must be a block number/tag string or an object",
+            ));
+        }
+    }
+    Ok(RpcQueryCall::GetBalance(req))
 }
 
 fn map_get_logs(params: &Value) -> Result<RpcQueryCall, MapError> {
@@ -394,6 +549,67 @@ pub fn call_to_json_rpc(call: &RpcQueryCall) -> (&'static str, Value) {
             "eth_getBlockReceipts",
             Value::Array(vec![get_block_receipts_param_to_json(req)]),
         ),
+        RpcQueryCall::TraceBlock(req) => {
+            let (method, block) = match &req.block_hash {
+                Some(h) => ("debug_traceBlockByHash", Value::String(bytes_to_hex(h))),
+                None => (
+                    "debug_traceBlockByNumber",
+                    Value::String(req.block_number.clone().unwrap_or_default()),
+                ),
+            };
+            (method, trace_params(block, req.trace.as_ref()))
+        }
+        RpcQueryCall::TraceTransaction(req) => (
+            "debug_traceTransaction",
+            trace_params(
+                Value::String(bytes_to_hex(&req.transaction_hash)),
+                req.trace.as_ref(),
+            ),
+        ),
+        RpcQueryCall::GetBalance(req) => {
+            let block = match &req.block_hash {
+                Some(h) => {
+                    let mut o = Map::new();
+                    o.insert("blockHash".into(), Value::String(bytes_to_hex(h)));
+                    Value::Object(o)
+                }
+                None => Value::String(req.block_number.clone().unwrap_or_default()),
+            };
+            (
+                "eth_getBalance",
+                Value::Array(vec![Value::String(bytes_to_hex(&req.address)), block]),
+            )
+        }
+    }
+}
+
+/// `[first]`, plus the trace options object when it holds anything —
+/// the inverse of [`parse_trace_options`]. `tracerConfig` / `options`
+/// bytes that are not valid JSON (only a hand-built request can carry
+/// them) are left out.
+fn trace_params(first: Value, trace: Option<&TraceOptions>) -> Value {
+    let mut o = match trace
+        .filter(|t| !t.options.is_empty())
+        .and_then(|t| serde_json::from_slice::<Map<String, Value>>(&t.options).ok())
+    {
+        Some(rest) => rest,
+        None => Map::new(),
+    };
+    if let Some(t) = trace {
+        if !t.tracer.is_empty() {
+            o.insert("tracer".into(), Value::String(t.tracer.clone()));
+        }
+        if let Some(config) = (!t.tracer_config.is_empty())
+            .then(|| serde_json::from_slice::<Value>(&t.tracer_config).ok())
+            .flatten()
+        {
+            o.insert("tracerConfig".into(), config);
+        }
+    }
+    if o.is_empty() {
+        Value::Array(vec![first])
+    } else {
+        Value::Array(vec![first, Value::Object(o)])
     }
 }
 
@@ -554,7 +770,10 @@ impl RpcQueryCall {
     /// JSON-RPC `null` "not found" case. `eth_getLogs` and
     /// `eth_getBlockReceipts` always return `Ok(Some(_))`, using an empty
     /// array for a zero-hit query, since an empty result is a valid answer
-    /// rather than a miss. Any `tonic::Status` from the transport is
+    /// rather than a miss. `eth_getBalance` always returns `Ok(Some(_))`.
+    /// A trace returns `Ok(None)` when the server sent an empty `result`, and
+    /// an `INTERNAL` status when the `result` is not JSON (see
+    /// [`trace_response_to_json`]). Any `tonic::Status` from the transport is
     /// propagated untouched.
     ///
     /// # Errors
@@ -639,6 +858,30 @@ impl RpcQueryCall {
                     ))
                 }))
             }
+            Self::TraceBlock(req) => {
+                let resp = client
+                    .trace_block(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                to_json_span().in_scope(|| trace_status(&resp))
+            }
+            Self::TraceTransaction(req) => {
+                let resp = client
+                    .trace_transaction(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                to_json_span().in_scope(|| trace_status(&resp))
+            }
+            Self::GetBalance(req) => {
+                let resp = client
+                    .get_balance(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                Ok(to_json_span().in_scope(|| Some(get_balance_response_to_json(&resp))))
+            }
         }
     }
 }
@@ -661,6 +904,32 @@ fn with_timeout<T>(msg: T, timeout: Option<Duration>) -> tonic::Request<T> {
         req.set_timeout(t);
     }
     req
+}
+
+fn trace_status(resp: &TraceResponse) -> Result<Option<Value>, tonic::Status> {
+    trace_response_to_json(resp)
+        .map_err(|e| tonic::Status::internal(format!("trace result is not JSON: {e}")))
+}
+
+/// The JSON-RPC `result` of a `debug_trace*` call: the server's UTF-8 JSON
+/// bytes, parsed once straight from the response buffer, never re-encoded
+/// from a typed model. `None` when the server sent no result.
+///
+/// # Errors
+///
+/// Returns the parse error when `result` is not valid JSON.
+pub fn trace_response_to_json(resp: &TraceResponse) -> Result<Option<Value>, serde_json::Error> {
+    if resp.result.is_empty() {
+        return Ok(None);
+    }
+    serde_json::from_slice(&resp.result).map(Some)
+}
+
+/// The `eth_getBalance` result: the big-endian wei bytes as a QUANTITY
+/// (`0x0` for empty or all-zero bytes, no leading zeros otherwise).
+#[must_use]
+pub fn get_balance_response_to_json(resp: &GetBalanceResponse) -> Value {
+    Value::String(bytes_to_quantity_hex(&resp.balance))
 }
 
 fn get_block_response_to_json(resp: &GetBlockResponse, sig: SignatureEncoding) -> Option<Value> {
@@ -2481,6 +2750,146 @@ mod tests {
         assert!(matches!(err, MapError::Unmappable(_)));
     }
 
+    #[test]
+    fn new_methods_are_supported() {
+        for m in [
+            "debug_traceBlockByNumber",
+            "debug_traceBlockByHash",
+            "debug_traceTransaction",
+            "eth_getBalance",
+        ] {
+            assert!(method_supported(m), "{m}");
+        }
+    }
+
+    #[test]
+    fn trace_block_by_number_splits_options() {
+        let params = json!(["0x10", {
+            "tracer": "callTracer",
+            "tracerConfig": { "onlyTopCall": true, "withLog": false },
+            "timeout": "10s",
+            "reexec": 128,
+        }]);
+        match map_request("debug_traceBlockByNumber", &params).unwrap() {
+            RpcQueryCall::TraceBlock(req) => {
+                assert_eq!(req.block_number.as_deref(), Some("0x10"));
+                assert!(req.block_hash.is_none());
+                let trace = req.trace.unwrap();
+                assert_eq!(trace.tracer, "callTracer");
+                let config: Value = serde_json::from_slice(&trace.tracer_config).unwrap();
+                assert_eq!(config, json!({ "onlyTopCall": true, "withLog": false }));
+                let rest: Value = serde_json::from_slice(&trace.options).unwrap();
+                assert_eq!(rest, json!({ "timeout": "10s", "reexec": 128 }));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn trace_block_by_number_tag_passes_through_verbatim() {
+        for tag in ["latest", "pending", "safe", "finalized", "earliest"] {
+            match map_request("debug_traceBlockByNumber", &json!([tag])).unwrap() {
+                RpcQueryCall::TraceBlock(req) => assert_eq!(req.block_number.as_deref(), Some(tag)),
+                _ => panic!("wrong variant"),
+            }
+        }
+    }
+
+    #[test]
+    fn trace_options_absent_or_null_are_empty() {
+        let hash = format!("0x{}", "ab".repeat(32));
+        for params in [
+            json!([hash]),
+            json!([hash, null]),
+            json!([hash, {}]),
+            json!([hash, { "tracer": null, "tracerConfig": null }]),
+        ] {
+            match map_request("debug_traceBlockByHash", &params).unwrap() {
+                RpcQueryCall::TraceBlock(req) => {
+                    assert!(req.block_number.is_none());
+                    assert_eq!(req.block_hash.unwrap().len(), 32);
+                    assert_eq!(req.trace, Some(TraceOptions::default()));
+                }
+                _ => panic!("wrong variant"),
+            }
+        }
+    }
+
+    #[test]
+    fn trace_options_keep_only_the_options_present() {
+        let hash = format!("0x{}", "cd".repeat(32));
+        let params = json!([hash, { "tracerConfig": { "diffMode": true } }]);
+        match map_request("debug_traceTransaction", &params).unwrap() {
+            RpcQueryCall::TraceTransaction(req) => {
+                assert_eq!(req.transaction_hash.len(), 32);
+                let trace = req.trace.unwrap();
+                assert!(trace.tracer.is_empty());
+                assert_eq!(&trace.tracer_config[..], br#"{"diffMode":true}"#);
+                assert!(trace.options.is_empty());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn trace_invalid_params_are_unmappable() {
+        let hash = format!("0x{}", "ab".repeat(32));
+        for (method, params) in [
+            ("debug_traceBlockByNumber", json!([])),
+            ("debug_traceBlockByNumber", json!([16])),
+            ("debug_traceBlockByNumber", json!(["0x10", "callTracer"])),
+            ("debug_traceBlockByNumber", json!(["0x10", { "tracer": 1 }])),
+            ("debug_traceBlockByHash", json!([])),
+            ("debug_traceBlockByHash", json!(["0x1234"])),
+            ("debug_traceTransaction", json!([])),
+            ("debug_traceTransaction", json!(["0xzz"])),
+            ("debug_traceTransaction", json!([hash, []])),
+        ] {
+            let err = map_request(method, &params).unwrap_err();
+            assert!(matches!(err, MapError::Unmappable(_)), "{method} {params}");
+        }
+    }
+
+    #[test]
+    fn get_balance_block_param_forms() {
+        let addr = format!("0x{}", "12".repeat(20));
+        let hash = format!("0x{}", "34".repeat(32));
+        let cases = [
+            (json!("latest"), Some("latest"), false),
+            (json!("0x1b4"), Some("0x1b4"), false),
+            (json!({ "blockNumber": "0x1b4" }), Some("0x1b4"), false),
+            (json!({ "blockHash": hash }), None, true),
+        ];
+        for (block, number, by_hash) in cases {
+            match map_request("eth_getBalance", &json!([addr, block])).unwrap() {
+                RpcQueryCall::GetBalance(req) => {
+                    assert_eq!(req.address.len(), 20);
+                    assert_eq!(req.block_number.as_deref(), number);
+                    assert_eq!(req.block_hash.is_some(), by_hash);
+                    assert!(req.chain_id.is_none());
+                }
+                _ => panic!("wrong variant"),
+            }
+        }
+    }
+
+    #[test]
+    fn get_balance_invalid_params_are_unmappable() {
+        let addr = format!("0x{}", "12".repeat(20));
+        for params in [
+            json!([]),
+            json!([addr]),
+            json!([addr, null]),
+            json!([addr, 16]),
+            json!([addr, { "foo": "bar" }]),
+            json!([addr, { "blockHash": "0x12" }]),
+            json!(["0x1234", "latest"]),
+        ] {
+            let err = map_request("eth_getBalance", &params).unwrap_err();
+            assert!(matches!(err, MapError::Unmappable(_)), "{params}");
+        }
+    }
+
     fn logs_filter(extra: Value) -> Value {
         let mut base = json!({ "fromBlock": "0x1", "toBlock": "0x10" });
         if let (Value::Object(base_obj), Value::Object(extra_obj)) = (&mut base, extra) {
@@ -3472,6 +3881,107 @@ mod tests {
             (RpcQueryCall::GetLogs(a), RpcQueryCall::GetLogs(b)) => assert_eq!(a, b),
             _ => panic!("wrong variant"),
         }
+    }
+
+    #[test]
+    fn call_to_json_rpc_trace_block_round_trips() {
+        let hash = format!("0x{}", "aa".repeat(32));
+        let opts = json!({
+            "tracer": "callTracer",
+            "tracerConfig": { "onlyTopCall": true },
+            "timeout": "10s",
+        });
+        for (method, first) in [
+            ("debug_traceBlockByNumber", json!("0x10")),
+            ("debug_traceBlockByHash", json!(hash)),
+        ] {
+            for params in [json!([first.clone()]), json!([first.clone(), opts.clone()])] {
+                let call = map_request(method, &params).unwrap();
+                let (out_method, out_params) = call_to_json_rpc(&call);
+                assert_eq!(out_method, method);
+                assert_eq!(out_params, params);
+                match (call, map_request(out_method, &out_params).unwrap()) {
+                    (RpcQueryCall::TraceBlock(a), RpcQueryCall::TraceBlock(b)) => {
+                        assert_eq!(a, b);
+                    }
+                    _ => panic!("wrong variant"),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn call_to_json_rpc_trace_transaction_round_trips() {
+        let hash = format!("0x{}", "bb".repeat(32));
+        let params = json!([hash, { "tracer": "prestateTracer", "reexec": 128 }]);
+        let call = map_request("debug_traceTransaction", &params).unwrap();
+        let (method, out_params) = call_to_json_rpc(&call);
+        assert_eq!(method, "debug_traceTransaction");
+        assert_eq!(out_params, params);
+        match (call, map_request(method, &out_params).unwrap()) {
+            (RpcQueryCall::TraceTransaction(a), RpcQueryCall::TraceTransaction(b)) => {
+                assert_eq!(a, b);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn call_to_json_rpc_get_balance_round_trips() {
+        let addr = format!("0x{}", "44".repeat(20));
+        let hash = format!("0x{}", "55".repeat(32));
+        for block in [json!("latest"), json!("0x1"), json!({ "blockHash": hash })] {
+            let params = json!([addr, block]);
+            let call = map_request("eth_getBalance", &params).unwrap();
+            let (method, out_params) = call_to_json_rpc(&call);
+            assert_eq!(method, "eth_getBalance");
+            assert_eq!(out_params, params);
+            match (call, map_request(method, &out_params).unwrap()) {
+                (RpcQueryCall::GetBalance(a), RpcQueryCall::GetBalance(b)) => assert_eq!(a, b),
+                _ => panic!("wrong variant"),
+            }
+        }
+    }
+
+    // --- trace / balance responses ------------------------------------
+
+    #[test]
+    fn trace_response_parses_the_result_bytes() {
+        let raw = br#"[{"txHash":"0x01","result":{"type":"CALL","gas":"0x5208"}}]"#;
+        let resp = TraceResponse {
+            result: Bytes::from_static(raw),
+        };
+        let v = trace_response_to_json(&resp).unwrap().unwrap();
+        assert_eq!(v, serde_json::from_slice::<Value>(raw).unwrap());
+    }
+
+    #[test]
+    fn trace_response_empty_is_none_and_garbage_is_an_error() {
+        assert!(trace_response_to_json(&TraceResponse::default())
+            .unwrap()
+            .is_none());
+        let resp = TraceResponse {
+            result: Bytes::from_static(b"{not json"),
+        };
+        assert!(trace_response_to_json(&resp).is_err());
+        assert_eq!(
+            trace_status(&resp).unwrap_err().code(),
+            tonic::Code::Internal
+        );
+    }
+
+    #[test]
+    fn balance_response_is_a_minimal_quantity() {
+        let balance = |b: &'static [u8]| {
+            get_balance_response_to_json(&GetBalanceResponse {
+                balance: Bytes::from_static(b),
+            })
+        };
+        assert_eq!(balance(b""), json!("0x0"));
+        assert_eq!(balance(&[0]), json!("0x0"));
+        assert_eq!(balance(&[0x1a]), json!("0x1a"));
+        assert_eq!(balance(&[0x01, 0x00]), json!("0x100"));
+        assert_eq!(balance(&[0x00, 0x0d, 0xe0]), json!("0xde0"));
     }
 
     // --- ingest fixtures --------------------------------------------------

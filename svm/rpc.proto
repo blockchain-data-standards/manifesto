@@ -152,6 +152,10 @@ message GetTransactionResponse {
   ConfirmedTransaction transaction = 1;
   uint64 slot = 2;
   optional int64 blockTime = 3;
+  // The transaction's position in its block. Agave's getTransaction always
+  // renders it (`transactionIndex`); unset means the server cannot say, and
+  // a renderer that needs it must not invent one.
+  optional uint32 transactionIndex = 4;
 }
 
 message GetBlockTimeRequest {

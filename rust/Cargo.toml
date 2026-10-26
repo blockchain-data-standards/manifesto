@@ -3,18 +3,22 @@ name = "bds"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Rust bindings for the Blockchain Data Standards (BDS) protobuf definitions, with JSON-RPC mapping helpers for the EVM family"
+description = "Rust bindings for the Blockchain Data Standards (BDS) protobuf definitions, with JSON-RPC mapping helpers for the EVM and SVM families"
 repository = "https://github.com/blockchain-data-standards/manifesto"
-keywords = ["blockchain", "ethereum", "grpc", "protobuf", "json-rpc"]
+keywords = ["blockchain", "ethereum", "solana", "grpc", "protobuf"]
 categories = ["encoding", "api-bindings"]
 
 [dependencies]
+# `returnData` renders base64 (svm::json_rpc).
+base64 = { version = "0.22", default-features = false, features = ["std"] }
+# Solana keys, hashes and signatures render base58 (svm::json_rpc).
+bs58 = { version = "0.5", default-features = false, features = ["std"] }
 # Generated message types (`bytes::Bytes`-backed byte fields).
 bytes = "1"
 prost = "0.14"
 # `google.protobuf.Any` in bds.common error details.
 prost-types = "0.14"
-# JSON-RPC <-> BDS mapping helpers (evm::json_rpc).
+# JSON-RPC <-> BDS mapping helpers (evm::json_rpc, svm::json_rpc).
 serde_json = "1"
 thiserror = "2"
 # Generated client + server stubs.

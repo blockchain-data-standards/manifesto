@@ -2,10 +2,11 @@
 //! protobuf definitions.
 //!
 //! Message types, tonic clients, and tonic server traits are generated for
-//! every BDS family (`bds.common`, `bds.discovery`, `bds.evm`). The
-//! [`evm::json_rpc`] module additionally maps Ethereum JSON-RPC requests onto
-//! `bds.evm.RPCQueryService` calls and BDS responses back into exact JSON-RPC
-//! result shapes — the Rust counterpart of the repository's Go `json_rpc.go`.
+//! every BDS family (`bds.common`, `bds.discovery`, `bds.evm`, `bds.svm`). The
+//! [`evm::json_rpc`] and [`svm::json_rpc`] modules additionally map JSON-RPC
+//! requests onto `RPCQueryService` calls and BDS responses back into exact
+//! JSON-RPC result shapes — the Rust counterparts of the repository's Go
+//! `json_rpc.go` files.
 
 /// `bds.common` — shared error details.
 pub mod common {
@@ -20,6 +21,14 @@ pub mod common {
 pub mod evm {
     #![allow(clippy::all, clippy::pedantic, missing_docs)]
     include!(concat!(env!("OUT_DIR"), "/bds.evm.rs"));
+
+    pub mod json_rpc;
+}
+
+/// `bds.svm` — Solana (SVM) models plus the RPC query service.
+pub mod svm {
+    #![allow(clippy::all, clippy::pedantic, missing_docs)]
+    include!(concat!(env!("OUT_DIR"), "/bds.svm.rs"));
 
     pub mod json_rpc;
 }
