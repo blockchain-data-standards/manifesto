@@ -1046,6 +1046,12 @@ func queryTransactionToJsonRpc(tx *Transaction, sel *TransactionFieldSelection, 
 	if sel.LogsBloom {
 		o["logsBloom"] = BytesToHex(tx.LogsBloom)
 	}
+	if sel.SourceHash && len(tx.SourceHash) > 0 {
+		o["sourceHash"] = BytesToHex(tx.SourceHash)
+	}
+	if sel.Mint {
+		setQuantityString(o, "mint", tx.Mint)
+	}
 	return o
 }
 

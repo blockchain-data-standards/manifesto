@@ -261,11 +261,12 @@ func TestQueryJsonRpcMip16(t *testing.T) {
 }
 
 // conditionalQueryFields are the fields MIP-16 Appendix 1 marks type- or
-// fork-dependent: selected, they may still be absent from an object.
+// fork-dependent, plus the OP-stack deposit fields: selected, they may still
+// be absent from an object.
 var conditionalQueryFields = map[string]bool{
 	"maxFeePerGas": true, "maxPriorityFeePerGas": true, "chainId": true, "accessList": true,
 	"authorizationList": true, "yParity": true, "requestsHash": true,
-	"maxFeePerBlobGas": true, "blobVersionedHashes": true,
+	"maxFeePerBlobGas": true, "blobVersionedHashes": true, "sourceHash": true, "mint": true,
 }
 
 // expectSelectedFields checks that data has exactly the primary key and the
@@ -828,4 +829,29 @@ func topicsMatch(filter []*TopicFilter, topics [][]byte) bool {
 		}
 	}
 	return true
+}
+
+// TestQueryTransactionDepositFields covers the OP-stack deposit fields: the
+// generic schema selects them, Monad's does not, and a transaction without
+// them renders neither key. Values are unichain tx 0x049d…325f (block
+// 62279274), whose node response carries both on the transaction object.
+func TestQueryTransactionDepositFields(t *testing.T) {
+	const sourceHash = "0x41b63ce873cc3959fefb01edbb4a8c154c45aa9e23ec027eb20b99fdca24b899"
+	const mint = "0x2239c5b40dca45f5c"
+	sel := &TransactionFieldSelection{}
+	if err := parseSelection(json.RawMessage(`["sourceHash","mint"]`), "transactions", QuerySchemaForChain(130).Transactions, sel); err != nil {
+		t.Fatalf("generic schema rejects deposit fields: %v", err)
+	}
+	if err := parseSelection(json.RawMessage(`["sourceHash"]`), "transactions", QuerySchemaForChain(143).Transactions, &TransactionFieldSelection{}); err == nil {
+		t.Fatal("Monad schema accepts sourceHash")
+	}
+
+	deposit := &Transaction{Type: 0x7e, SourceHash: mustHex(t, sourceHash[2:]), Mint: StringPtr(mint)}
+	o := queryTransactionToJsonRpc(deposit, sel, SignatureQuantity)
+	if o["sourceHash"] != sourceHash || o["mint"] != mint {
+		t.Fatalf("deposit rendered %v", o)
+	}
+	if o := queryTransactionToJsonRpc(&Transaction{Type: 2}, sel, SignatureQuantity); len(o) != 0 {
+		t.Fatalf("non-deposit rendered %v", o)
+	}
 }
