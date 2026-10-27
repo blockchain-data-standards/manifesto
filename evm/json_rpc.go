@@ -1363,8 +1363,9 @@ func BlockToJsonRpc(header *BlockHeader, txHashes [][]byte, fullTxs []*Transacti
 	if header.ProposerPublicKey != nil {
 		res["proposerPublicKey"] = *header.ProposerPublicKey
 	}
-	// Output withdrawals array if provided
-	if withdrawals != nil {
+	// A header with withdrawalsRoot always carries a withdrawals list, which
+	// proto decodes as nil when empty; JSON-RPC nodes return [] for it.
+	if withdrawals != nil || header.WithdrawalsRoot != nil {
 		res["withdrawals"] = WithdrawalsToJsonRpc(withdrawals)
 	}
 	if header.CanonicalRlp != nil {
