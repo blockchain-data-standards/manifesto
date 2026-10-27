@@ -1,7 +1,10 @@
 package evm
 
 import (
+	"encoding/json"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func TestBaseChainFields(t *testing.T) {
@@ -125,6 +128,54 @@ func TestBaseChainFields(t *testing.T) {
 		jsonRpcMap := BlockToJsonRpc(protoBlock.Header, nil, nil, nil, SignatureQuantity)
 		if requestsHash, ok := jsonRpcMap["requestsHash"]; !ok || requestsHash != "0x7685abcdef1234567890abcdef1234567890abcdef1234567890abcdef123456" {
 			t.Errorf("Expected requestsHash in JSON-RPC output, got '%v'", requestsHash)
+		}
+	})
+
+	// OP-stack blocks carry withdrawalsRoot with an always-empty withdrawals
+	// list. Proto decodes an empty repeated field as nil, so the list must
+	// survive the wire hop as [] rather than vanish from the block.
+	t.Run("empty withdrawals survive a proto round trip", func(t *testing.T) {
+		block := &JsonRpcBlock{
+			Number:           "0x1",
+			Hash:             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			ParentHash:       "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+			Timestamp:        "0x1",
+			GasLimit:         "0x1000",
+			GasUsed:          "0x100",
+			Size:             "0x100",
+			TransactionsRoot: "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+			StateRoot:        "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+			ReceiptsRoot:     "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+			Sha3Uncles:       "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+			Miner:            "0x0000000000000000000000000000000000000000",
+			ExtraData:        "0x",
+			WithdrawalsRoot:  "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+			Withdrawals:      []*JsonRpcWithdrawal{},
+			Transactions:     []interface{}{},
+		}
+		protoBlock, err := block.ToProto()
+		if err != nil {
+			t.Fatalf("Failed to convert block to proto: %v", err)
+		}
+		wire, err := proto.Marshal(protoBlock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded Block
+		if err := proto.Unmarshal(wire, &decoded); err != nil {
+			t.Fatal(err)
+		}
+
+		out, _ := json.Marshal(BlockToJsonRpc(decoded.Header, nil, nil, decoded.Withdrawals, SignatureQuantity))
+		var got map[string]json.RawMessage
+		_ = json.Unmarshal(out, &got)
+		if string(got["withdrawals"]) != "[]" {
+			t.Errorf("withdrawals = %q, want []", got["withdrawals"])
+		}
+
+		decoded.Header.WithdrawalsRoot = nil
+		if _, ok := BlockToJsonRpc(decoded.Header, nil, nil, nil, SignatureQuantity)["withdrawals"]; ok {
+			t.Error("pre-Shanghai block must not gain a withdrawals key")
 		}
 	})
 }
