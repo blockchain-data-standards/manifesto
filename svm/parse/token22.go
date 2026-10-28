@@ -1,8 +1,9 @@
 package parse
 
-// Token-2022 extension instructions: TokenInstruction discriminants 25..=44,
-// ported from Agave's parse_token.rs extension arms (solana-transaction-status
-// 2.3.13) with wire layouts from spl-token-2022 8.0.1.
+// Token-2022 extension instructions: TokenInstruction discriminants 25..=46
+// and 255 (Batch), ported from Agave's parse_token.rs extension arms
+// (solana-transaction-status 4.3.0) with wire layouts from
+// spl-token-2022-interface 3.1.1.
 //
 // Error taxonomy (load-bearing, see errTokenUnpack): fields decoded inside
 // TokenInstruction::unpack in Rust (disc 25 COption, disc 29 extension-type
@@ -168,9 +169,189 @@ func parseTokenExtension(disc byte, data []byte, accounts []string) (typeInfo, e
 
 	case 44: // PausableExtension
 		return parsePausableExtension(rest, accounts)
+
+	case 45: // UnwrapLamports — the COption<u64> amount decodes at unpack level.
+		amount, err := tokenU64Option(rest)
+		if err != nil {
+			return typeInfo{}, err
+		}
+		if err := checkNumAccounts(accounts, 3); err != nil {
+			return typeInfo{}, err
+		}
+		info := map[string]any{"source": accounts[0], "destination": accounts[1]}
+		if amount != nil {
+			info["amount"] = fmt.Sprintf("%d", *amount)
+		}
+		parseSigners(info, 2, accounts, "authority", "multisigAuthority")
+		return typeInfo{Type: "unwrapLamports", Info: info}, nil
+
+	case 46: // PermissionedBurnExtension
+		return parsePermissionedBurnExtension(rest, accounts)
+
+	case 255: // Batch
+		return parseTokenBatch(rest, accounts)
 	}
 	// Unknown discriminant: TokenInstruction::unpack fails in Agave.
 	return typeInfo{}, fmt.Errorf("%w: token discriminant %d", errTokenUnpack, disc)
+}
+
+// tokenU64Option is the token program's COption<u64>: a one-byte tag, then 8
+// bytes when the tag is 1. Any other tag, or a short amount, fails unpack.
+func tokenU64Option(b []byte) (*uint64, error) {
+	if len(b) < 1 {
+		return nil, fmt.Errorf("%w: truncated COption tag", errTokenUnpack)
+	}
+	switch b[0] {
+	case 0:
+		return nil, nil
+	case 1:
+		v, err := tokenU64(b[1:])
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	}
+	return nil, fmt.Errorf("%w: COption tag %d", errTokenUnpack, b[0])
+}
+
+// parseTokenBatch is Agave's parse_batch_instruction: a run of
+// (num_accounts u8, data_len u8, data) records, each consuming the next
+// num_accounts of the outer account list and parsed as a whole token
+// instruction. Any malformed record or a nested batch refuses the batch.
+// Every refusal here is past unpack, so none falls through to the
+// TokenGroup/TokenMetadata parsers.
+func parseTokenBatch(data []byte, accounts []string) (typeInfo, error) {
+	instructions := []typeInfo{}
+	dataCursor, accountCursor := 0, 0
+	for dataCursor < len(data) {
+		if dataCursor+2 > len(data) {
+			return typeInfo{}, fmt.Errorf("%w: truncated batch record header", ErrNotParsable)
+		}
+		numAccounts, dataLen := int(data[dataCursor]), int(data[dataCursor+1])
+		dataCursor += 2
+		if dataCursor+dataLen > len(data) {
+			return typeInfo{}, fmt.Errorf("%w: truncated batch record data", ErrNotParsable)
+		}
+		innerData := data[dataCursor : dataCursor+dataLen]
+		dataCursor += dataLen
+		if accountCursor+numAccounts > len(accounts) {
+			return typeInfo{}, fmt.Errorf("%w: batch record wants %d accounts", ErrNotParsable, numAccounts)
+		}
+		innerAccounts := accounts[accountCursor : accountCursor+numAccounts]
+		accountCursor += numAccounts
+		if len(innerData) > 0 && innerData[0] == 255 {
+			return typeInfo{}, fmt.Errorf("%w: nested batch", ErrNotParsable)
+		}
+		// parse_token's key guard: an empty account list refuses.
+		if len(innerAccounts) == 0 {
+			return typeInfo{}, fmt.Errorf("%w: batch record has no accounts", ErrNotParsable)
+		}
+		inner, err := parseTokenInstruction(innerData, innerAccounts)
+		if err != nil {
+			return typeInfo{}, fmt.Errorf("%w: batch record: %v", ErrNotParsable, err)
+		}
+		instructions = append(instructions, inner)
+	}
+	return typeInfo{Type: "batch", Info: map[string]any{"instructions": instructions}}, nil
+}
+
+// parsePermissionedBurnExtension is PermissionedBurnInstruction (disc 46
+// sub-set). Every arm decodes with decode_instruction_data: exact length.
+func parsePermissionedBurnExtension(sub []byte, accounts []string) (typeInfo, error) {
+	if len(sub) < 1 {
+		return typeInfo{}, fmt.Errorf("%w: missing permissionedBurn sub-instruction", ErrNotParsable)
+	}
+	switch sub[0] {
+	case 0: // Initialize
+		if err := checkNumAccounts(accounts, 1); err != nil {
+			return typeInfo{}, err
+		}
+		body, err := t22PodData(sub, 32)
+		if err != nil {
+			return typeInfo{}, err
+		}
+		return typeInfo{Type: "initializePermissionedBurnConfig", Info: map[string]any{
+			"mint":      accounts[0],
+			"authority": svm.Base58Encode(body[0:32]),
+		}}, nil
+
+	case 1: // Burn
+		if err := checkNumAccounts(accounts, 4); err != nil {
+			return typeInfo{}, err
+		}
+		body, err := t22PodData(sub, 8)
+		if err != nil {
+			return typeInfo{}, err
+		}
+		info := map[string]any{
+			"account":                   accounts[0],
+			"mint":                      accounts[1],
+			"permissionedBurnAuthority": accounts[2],
+			"amount":                    fmt.Sprintf("%d", binary.LittleEndian.Uint64(body)),
+		}
+		parseSigners(info, 3, accounts, "authority", "multisigAuthority")
+		return typeInfo{Type: "permissionedBurn", Info: info}, nil
+
+	case 2: // BurnChecked
+		if err := checkNumAccounts(accounts, 4); err != nil {
+			return typeInfo{}, err
+		}
+		body, err := t22PodData(sub, 9)
+		if err != nil {
+			return typeInfo{}, err
+		}
+		info := map[string]any{
+			"account":                   accounts[0],
+			"mint":                      accounts[1],
+			"permissionedBurnAuthority": accounts[2],
+			"tokenAmount":               tokenAmount(binary.LittleEndian.Uint64(body[0:8]), body[8]),
+		}
+		parseSigners(info, 3, accounts, "authority", "multisigAuthority")
+		return typeInfo{Type: "permissionedBurnChecked", Info: info}, nil
+
+	case 3: // ConfidentialBurn — the confidential mint/burn Burn payload.
+		if err := checkNumAccounts(accounts, 4); err != nil {
+			return typeInfo{}, err
+		}
+		// new_decryptable_available_balance(36) lo(64) hi(64) eq(1) cv(1) range(1)
+		body, err := t22PodData(sub, 167)
+		if err != nil {
+			return typeInfo{}, err
+		}
+		equality, validity, rangeProof := int8(body[164]), int8(body[165]), int8(body[166])
+		info := map[string]any{
+			"account":                        accounts[0],
+			"mint":                           accounts[1],
+			"newDecryptableAvailableBalance": t22Base64(body[0:36]),
+			"equalityProofInstructionOffset": equality,
+			"ciphertextValidityProofInstructionOffset": validity,
+			"rangeProofInstructionOffset":              rangeProof,
+		}
+		// The burn authority and the owner/delegate are always the trailing
+		// two accounts; only what lies between the mint and them is proof
+		// material, and only context-state accounts are named (Agave).
+		offset := 2
+		proofEnd := len(accounts) - 2
+		if (equality != 0 || validity != 0 || rangeProof != 0) && offset < proofEnd {
+			info["instructionsSysvar"] = accounts[offset]
+			offset++
+		}
+		for _, p := range []t22Proof{
+			{"equalityProof", equality}, {"ciphertextValidityProof", validity}, {"rangeProof", rangeProof},
+		} {
+			if p.offset == 0 && offset < proofEnd {
+				info[p.label+"ContextStateAccount"] = accounts[offset]
+				offset++
+			}
+		}
+		if offset < len(accounts)-1 {
+			info["permissionedBurnAuthority"] = accounts[offset]
+			offset++
+		}
+		parseSigners(info, offset, accounts, "authority", "multisigAuthority")
+		return typeInfo{Type: "permissionedConfidentialBurn", Info: info}, nil
+	}
+	return typeInfo{}, fmt.Errorf("%w: permissionedBurn sub-instruction %d", ErrNotParsable, sub[0])
 }
 
 // parseTransferFeeExtension is TransferFeeInstruction (disc 26 sub-set).
@@ -1149,6 +1330,7 @@ func uiExtensionTypeName(t uint16) (string, bool) {
 		"scaledUiAmount",                // 25
 		"pausable",                      // 26
 		"pausableAccount",               // 27
+		"permissionedBurn",              // 28
 	}
 	if int(t) < len(names) {
 		return names[t], true

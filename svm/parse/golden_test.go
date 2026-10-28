@@ -38,6 +38,7 @@ var registryProgramIDs = map[string]bool{
 	parse.AssociatedID:           true,
 	parse.MemoV1ID:               true,
 	parse.MemoV3ID:               true,
+	parse.MemoV4ID:               true,
 	parse.VoteProgramID:          true,
 	parse.StakeProgramID:         true,
 	parse.LookupTableID:          true,
