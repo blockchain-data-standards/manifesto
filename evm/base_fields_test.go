@@ -40,7 +40,7 @@ func TestBaseChainFields(t *testing.T) {
 		}
 
 		// Test conversion back to JSON-RPC
-		jsonRpc := TransactionToJsonRpc(tx, SignatureQuantity)
+		jsonRpc := decoded(t, AppendTransactionJsonRpc(nil, tx, SignatureQuantity))
 		if isSystemTx, ok := jsonRpc["isSystemTx"].(bool); !ok || !isSystemTx {
 			t.Error("Expected isSystemTx in JSON-RPC output to be true")
 		}
@@ -82,7 +82,7 @@ func TestBaseChainFields(t *testing.T) {
 		}
 
 		// Test conversion back to JSON-RPC
-		jsonRpcMap := ReceiptToJsonRpc(protoReceipt)
+		jsonRpcMap := decoded(t, receiptJSON(t, protoReceipt))
 		if l1BlobBaseFeeScalar, ok := jsonRpcMap["l1BlobBaseFeeScalar"]; !ok || l1BlobBaseFeeScalar != "0x101c12" {
 			t.Errorf("Expected l1BlobBaseFeeScalar in JSON-RPC output to be '0x101c12', got '%v'", l1BlobBaseFeeScalar)
 		}
@@ -125,7 +125,7 @@ func TestBaseChainFields(t *testing.T) {
 		}
 
 		// Test conversion back to JSON-RPC
-		jsonRpcMap := BlockToJsonRpc(protoBlock.Header, nil, nil, nil, SignatureQuantity)
+		jsonRpcMap := decoded(t, AppendBlockJsonRpc(nil, protoBlock.Header, nil, nil, nil, SignatureQuantity))
 		if requestsHash, ok := jsonRpcMap["requestsHash"]; !ok || requestsHash != "0x7685abcdef1234567890abcdef1234567890abcdef1234567890abcdef123456" {
 			t.Errorf("Expected requestsHash in JSON-RPC output, got '%v'", requestsHash)
 		}
@@ -166,15 +166,16 @@ func TestBaseChainFields(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		out, _ := json.Marshal(BlockToJsonRpc(decoded.Header, nil, nil, decoded.Withdrawals, SignatureQuantity))
 		var got map[string]json.RawMessage
-		_ = json.Unmarshal(out, &got)
+		_ = json.Unmarshal(AppendBlockJsonRpc(nil, decoded.Header, nil, nil, decoded.Withdrawals, SignatureQuantity), &got)
 		if string(got["withdrawals"]) != "[]" {
 			t.Errorf("withdrawals = %q, want []", got["withdrawals"])
 		}
 
 		decoded.Header.WithdrawalsRoot = nil
-		if _, ok := BlockToJsonRpc(decoded.Header, nil, nil, nil, SignatureQuantity)["withdrawals"]; ok {
+		got = nil
+		_ = json.Unmarshal(AppendBlockJsonRpc(nil, decoded.Header, nil, nil, nil, SignatureQuantity), &got)
+		if _, ok := got["withdrawals"]; ok {
 			t.Error("pre-Shanghai block must not gain a withdrawals key")
 		}
 	})
