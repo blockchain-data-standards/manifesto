@@ -1000,9 +1000,9 @@ func (w *jsonWriter) transaction(tx *Transaction, sig SignatureEncoding) {
 }
 
 // AppendReceiptsJsonRpc appends receipts as the JSON-RPC array
-// eth_getBlockReceipts returns. A value JSON cannot hold, a NaN or infinite
-// l1FeeScalar, is an error; b then holds a partial result, returned so a
-// caller can reuse its buffer.
+// eth_getBlockReceipts returns. A NaN or infinite l1FeeScalar, which no node
+// sends, is an error; b then holds a partial result, returned so a caller can
+// reuse its buffer.
 func AppendReceiptsJsonRpc(b []byte, receipts []*Receipt) ([]byte, error) {
 	w := jsonWriter{b: b}
 	w.open('[')
@@ -1076,7 +1076,7 @@ func (w *jsonWriter) receipt(r *Receipt) {
 		w.quantity(*r.L1BlockNumber)
 	}
 	w.quantityField("l1Fee", r.L1Fee)
-	w.floatField("l1FeeScalar", r.L1FeeScalar)
+	w.floatTextField("l1FeeScalar", r.L1FeeScalar)
 	w.quantityField("l1GasPrice", r.L1GasPrice)
 	w.quantityField("l1GasUsed", r.L1GasUsed)
 	w.key("logs")

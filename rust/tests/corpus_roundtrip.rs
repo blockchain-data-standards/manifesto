@@ -259,3 +259,36 @@ fn flatten(path: &[String]) -> String {
         .collect::<Vec<_>>()
         .join(".")
 }
+
+/// `evm/testdata/op-stack-pre-ecotone-receipts.json`, shared with the Go
+/// tests, holds `eth_getBlockReceipts` as nodes sent it, keyed chain-block:
+/// Base and OP Mainnet before Ecotone, which removed `l1FeeScalar`, and OP
+/// Mainnet before Bedrock. Each receipt's `l1FeeScalar` must render as sent.
+#[test]
+fn l1_fee_scalar_renders_as_nodes_send_it() {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../evm/testdata/op-stack-pre-ecotone-receipts.json"
+    );
+    let blocks: Value = serde_json::from_str(&std::fs::read_to_string(path).expect(path)).unwrap();
+    let mut base = 0;
+    let mut seen = BTreeSet::new();
+    for (name, receipts) in blocks.as_object().expect("object") {
+        for (i, node) in receipts.as_array().expect("array").iter().enumerate() {
+            let want = &node["l1FeeScalar"];
+            assert!(want.is_string(), "{name} receipt {i}: l1FeeScalar {want}");
+            let receipt =
+                j::receipt_from_json(node).unwrap_or_else(|e| panic!("{name} receipt {i}: {e}"));
+            let got = &j::receipt_to_json(&receipt)["l1FeeScalar"];
+            assert_eq!(got, want, "{name} receipt {i}");
+            seen.insert(want.as_str().unwrap().to_owned());
+            if name.starts_with("base-") {
+                base += 1;
+            }
+        }
+    }
+    assert!(base >= 50, "{base} Base receipts, want at least 50");
+    for s in ["0.684", "1", "1.24", "1.5"] {
+        assert!(seen.contains(s), "no node receipt with l1FeeScalar {s}");
+    }
+}

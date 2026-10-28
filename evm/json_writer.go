@@ -150,32 +150,23 @@ func (w *jsonWriter) quantityField(k string, s *string) {
 	w.b = append(w.b, '"')
 }
 
-// floatField writes member k with v as encoding/json formats a float64.
-// JSON has no NaN or infinity: those set w.err, as encoding/json fails.
-func (w *jsonWriter) floatField(k string, v *float64) {
+// floatTextField writes member k with v as a JSON string: the shortest
+// decimal that parses back to v, without an exponent ("0.684", "1"), as
+// OP-stack nodes send l1FeeScalar. A NaN or infinity sets w.err.
+func (w *jsonWriter) floatTextField(k string, v *float64) {
 	if v == nil {
 		return
 	}
 	if math.IsNaN(*v) || math.IsInf(*v, 0) {
 		if w.err == nil {
-			w.err = fmt.Errorf("%s is %v, which JSON cannot hold", k, *v)
+			w.err = fmt.Errorf("%s is %v, which no node sends", k, *v)
 		}
 		return
 	}
 	w.key(k)
-	f := *v
-	format := byte('f')
-	if abs := math.Abs(f); abs != 0 && (abs < 1e-6 || abs >= 1e21) {
-		format = 'e'
-	}
-	w.b = strconv.AppendFloat(w.b, f, format, -1, 64)
-	if format == 'e' {
-		// 1e-07 → 1e-7, as encoding/json writes it.
-		if n := len(w.b); n >= 4 && w.b[n-4] == 'e' && w.b[n-3] == '-' && w.b[n-2] == '0' {
-			w.b[n-2] = w.b[n-1]
-			w.b = w.b[:n-1]
-		}
-	}
+	w.b = append(w.b, '"')
+	w.b = strconv.AppendFloat(w.b, *v, 'f', -1, 64)
+	w.b = append(w.b, '"')
 }
 
 // text writes v as a JSON string, escaped as encoding/json escapes it.

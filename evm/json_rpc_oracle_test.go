@@ -1,9 +1,14 @@
 package evm
 
 // The map converters these writers replaced, verbatim from manifesto
-// aea005ce6ae7 with an oracle prefix: the fuzz oracle for the writers.
+// aea005ce6ae7 with an oracle prefix, except the receipt's l1FeeScalar, now a
+// string as nodes send it: the fuzz oracle for the writers.
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+	"strconv"
+)
 
 // oracleLogToJsonRpc serialises a *Log into a JSON-RPC compatible map[string]interface{}.
 func oracleLogToJsonRpc(l *Log) map[string]interface{} {
@@ -484,7 +489,12 @@ func oracleReceiptToJsonRpc(r *Receipt) map[string]interface{} {
 		}
 	}
 	if r.L1FeeScalar != nil {
+		// Changed from the original: nodes send l1FeeScalar as a string. A
+		// NaN or infinity stays a float64, so encoding/json still fails.
 		out["l1FeeScalar"] = *r.L1FeeScalar
+		if f := *r.L1FeeScalar; !math.IsNaN(f) && !math.IsInf(f, 0) {
+			out["l1FeeScalar"] = strconv.FormatFloat(f, 'f', -1, 64)
+		}
 	}
 	if r.L1BaseFeeScalar != nil {
 		out["l1BaseFeeScalar"] = fmt.Sprintf("0x%x", *r.L1BaseFeeScalar)
