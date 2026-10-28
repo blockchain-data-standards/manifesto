@@ -35,6 +35,10 @@ service RPCQueryService {
   // Get the trace of one transaction (equivalent to debug_traceTransaction)
   rpc TraceTransaction(TraceTransactionRequest) returns (TraceResponse);
 
+  // Get the Parity-style traces of every transaction in a block (equivalent
+  // to trace_block)
+  rpc ParityTraceBlock(ParityTraceBlockRequest) returns (TraceResponse);
+
   // Get the native balance of an address at a block (equivalent to eth_getBalance)
   rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
 }
@@ -241,6 +245,23 @@ message TraceTransactionRequest {
   bytes transactionHash = 1;
 
   TraceOptions trace = 2;
+
+  // Optional chain ID to use for the request
+  optional uint64 chainId = 3;
+
+  // Optional genesis hash to narrow down identical networks with the same chain ID
+  optional bytes chainGenesisHash = 4;
+}
+
+// Request for the Parity-style traces of a block (trace_block)
+message ParityTraceBlockRequest {
+  // Block number as hex string (e.g., "0x14ee0030") or tag ("latest", "earliest", "pending")
+  // Mutually exclusive with blockHash
+  optional string blockNumber = 1;
+
+  // Block hash as bytes (32 bytes), for nodes that accept a hash
+  // Mutually exclusive with blockNumber
+  optional bytes blockHash = 2;
 
   // Optional chain ID to use for the request
   optional uint64 chainId = 3;

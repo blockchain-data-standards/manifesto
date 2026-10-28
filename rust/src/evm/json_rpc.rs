@@ -20,8 +20,9 @@ use super::{
     GetBalanceResponse, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockReceiptsRequest,
     GetBlockReceiptsResponse, GetBlockResponse, GetLogsRequest, GetLogsResponse,
     GetTransactionByHashRequest, GetTransactionByHashResponse, GetTransactionReceiptRequest,
-    GetTransactionReceiptResponse, Log, Receipt, TopicFilter, TraceBlockRequest, TraceOptions,
-    TraceResponse, TraceTransactionRequest, Transaction, Withdrawal,
+    GetTransactionReceiptResponse, Log, ParityTraceBlockRequest, Receipt, TopicFilter,
+    TraceBlockRequest, TraceOptions, TraceResponse, TraceTransactionRequest, Transaction,
+    Withdrawal,
 };
 
 /// Whether `method` has a `bds.evm.RPCQueryService` equivalent.
@@ -39,6 +40,7 @@ pub fn method_supported(method: &str) -> bool {
             | "debug_traceBlockByNumber"
             | "debug_traceBlockByHash"
             | "debug_traceTransaction"
+            | "trace_block"
             | "eth_getBalance"
     )
 }
@@ -121,6 +123,9 @@ pub enum RpcQueryCall {
     TraceBlock(TraceBlockRequest),
     /// `debug_traceTransaction`.
     TraceTransaction(TraceTransactionRequest),
+    /// `trace_block`: a block number or tag (`blockNumber` set), or a
+    /// 32-byte hash (`blockHash` set).
+    ParityTraceBlock(ParityTraceBlockRequest),
     /// `eth_getBalance`.
     GetBalance(GetBalanceRequest),
 }
@@ -154,6 +159,7 @@ pub fn map_request(method: &str, params: &Value) -> Result<RpcQueryCall, MapErro
         "debug_traceBlockByNumber" => map_trace_block_by_number(params),
         "debug_traceBlockByHash" => map_trace_block_by_hash(params),
         "debug_traceTransaction" => map_trace_transaction(params),
+        "trace_block" => map_parity_trace_block(params),
         "eth_getBalance" => map_get_balance(params),
         _ => Err(MapError::UnsupportedMethod),
     }
@@ -291,6 +297,23 @@ fn map_trace_block_by_hash(params: &Value) -> Result<RpcQueryCall, MapError> {
         chain_id: None,
         chain_genesis_hash: None,
     }))
+}
+
+fn map_parity_trace_block(params: &Value) -> Result<RpcQueryCall, MapError> {
+    let block = param(params, 0)
+        .and_then(Value::as_str)
+        .ok_or(MapError::Unmappable(
+            "trace_block: params[0] must be a block number, tag or hash string",
+        ))?;
+    // A 32-byte hex string is a block hash (nodes such as Erigon and reth
+    // accept one); anything else is a number or tag, passed through verbatim.
+    let mut req = ParityTraceBlockRequest::default();
+    if block.len() == 66 {
+        req.block_hash = Some(parse_hex_bytes_exact(block, 32)?.into());
+    } else {
+        req.block_number = Some(block.to_string());
+    }
+    Ok(RpcQueryCall::ParityTraceBlock(req))
 }
 
 fn map_trace_transaction(params: &Value) -> Result<RpcQueryCall, MapError> {
@@ -566,6 +589,13 @@ pub fn call_to_json_rpc(call: &RpcQueryCall) -> (&'static str, Value) {
                 req.trace.as_ref(),
             ),
         ),
+        RpcQueryCall::ParityTraceBlock(req) => {
+            let block = match &req.block_hash {
+                Some(h) => bytes_to_hex(h),
+                None => req.block_number.clone().unwrap_or_default(),
+            };
+            ("trace_block", Value::Array(vec![Value::String(block)]))
+        }
         RpcQueryCall::GetBalance(req) => {
             let block = match &req.block_hash {
                 Some(h) => {
@@ -869,6 +899,14 @@ impl RpcQueryCall {
             Self::TraceTransaction(req) => {
                 let resp = client
                     .trace_transaction(with_timeout(req, timeout))
+                    .instrument(rpc_span())
+                    .await?
+                    .into_inner();
+                to_json_span().in_scope(|| trace_status(&resp))
+            }
+            Self::ParityTraceBlock(req) => {
+                let resp = client
+                    .parity_trace_block(with_timeout(req, timeout))
                     .instrument(rpc_span())
                     .await?
                     .into_inner();
