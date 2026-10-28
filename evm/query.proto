@@ -88,6 +88,9 @@ message TransactionFieldSelection {
   bool contractAddress = 28;
   bool logsBloom = 29;
   bool authorizationList = 30;
+  // OP-stack deposit transaction (type 0x7e) fields; absent on other types.
+  bool sourceHash = 31;
+  bool mint = 32;
 }
 
 // MIP-16 `logs` schema.
