@@ -3,6 +3,7 @@ package evm
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math"
 	"strconv"
 )
@@ -15,6 +16,7 @@ import (
 type jsonWriter struct {
 	b    []byte
 	more bool
+	err  error // the first value JSON cannot hold
 }
 
 func (w *jsonWriter) sep() {
@@ -149,9 +151,15 @@ func (w *jsonWriter) quantityField(k string, s *string) {
 }
 
 // floatField writes member k with v as encoding/json formats a float64.
-// JSON has no NaN or infinity, so those write nothing.
+// JSON has no NaN or infinity: those set w.err, as encoding/json fails.
 func (w *jsonWriter) floatField(k string, v *float64) {
-	if v == nil || math.IsNaN(*v) || math.IsInf(*v, 0) {
+	if v == nil {
+		return
+	}
+	if math.IsNaN(*v) || math.IsInf(*v, 0) {
+		if w.err == nil {
+			w.err = fmt.Errorf("%s is %v, which JSON cannot hold", k, *v)
+		}
 		return
 	}
 	w.key(k)

@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -206,7 +207,7 @@ func renderings(t testing.TB) map[string][]byte {
 	out := map[string][]byte{}
 	for _, name := range nodeFixtures {
 		f := loadNodeFixture(t, name)
-		out[name+"-receipts"] = AppendReceiptsJsonRpc(nil, f.receipts.Receipts)
+		out[name+"-receipts"] = receiptsJSON(t, f.receipts.Receipts)
 		out[name+"-block-full"] = AppendBlockJsonRpc(nil, f.fullBlock.Block, f.fullBlock.Transactions, f.fullBlock.FullTransactions, f.fullBlock.Withdrawals, f.signatures)
 		out[name+"-block-hashes"] = AppendBlockJsonRpc(nil, f.hashBlock.Block, f.hashBlock.Transactions, f.hashBlock.FullTransactions, f.hashBlock.Withdrawals, f.signatures)
 		out[name+"-logs"] = AppendLogsJsonRpc(nil, f.blockLogs)
@@ -214,7 +215,7 @@ func renderings(t testing.TB) map[string][]byte {
 	block, receipts := syntheticFixture()
 	out["synthetic-block-quantity"] = AppendBlockJsonRpc(nil, block.Block, nil, block.FullTransactions, block.Withdrawals, SignatureQuantity)
 	out["synthetic-block-fixed32"] = AppendBlockJsonRpc(nil, block.Block, nil, block.FullTransactions, block.Withdrawals, SignatureFixedData32)
-	out["synthetic-receipts"] = AppendReceiptsJsonRpc(nil, receipts)
+	out["synthetic-receipts"] = receiptsJSON(t, receipts)
 	out["synthetic-empty-block"] = AppendBlockJsonRpc(nil, &BlockHeader{}, nil, nil, nil, SignatureQuantity)
 	return out
 }
@@ -224,13 +225,21 @@ func renderings(t testing.TB) map[string][]byte {
 // keys in that order, so the bytes match too.
 func TestJsonRpcRenderingsMatchFixtures(t *testing.T) {
 	for _, b := range [][]byte{
-		AppendReceiptJsonRpc(nil, nil),
+		receiptJSON(t, nil),
 		AppendTransactionJsonRpc(nil, nil, SignatureQuantity),
 		AppendBlockJsonRpc(nil, nil, nil, nil, nil, SignatureQuantity),
 	} {
 		if string(b) != "null" {
 			t.Errorf("nil rendered as %s, want null", b)
 		}
+	}
+	// JSON has no NaN: rendering fails, as encoding/json did, rather than
+	// dropping the field.
+	nan := math.NaN()
+	_, receipts := syntheticFixture()
+	receipts[2].L1FeeScalar = &nan
+	if _, err := AppendReceiptsJsonRpc(nil, receipts); err == nil || !strings.Contains(err.Error(), "l1FeeScalar") {
+		t.Errorf("NaN l1FeeScalar: err = %v, want an l1FeeScalar error", err)
 	}
 	for name, got := range renderings(t) {
 		path := filepath.Join("testdata", name+".expected.json.gz")

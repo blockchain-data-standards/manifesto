@@ -41,7 +41,7 @@ func TestReceiptL1BlobBaseFeeConversion(t *testing.T) {
 	}
 
 	// Test Proto to JsonRpc conversion
-	jsonRpcMap := decoded(t, AppendReceiptJsonRpc(nil, protoReceipt))
+	jsonRpcMap := decoded(t, receiptJSON(t, protoReceipt))
 
 	// Check that l1BlobBaseFee is properly converted back to hex
 	if l1BlobBaseFee, ok := jsonRpcMap["l1BlobBaseFee"]; !ok {
@@ -82,7 +82,7 @@ func TestReceiptL1BlobBaseFeeOmitted(t *testing.T) {
 	}
 
 	// Test Proto to JsonRpc conversion
-	jsonRpcMap := decoded(t, AppendReceiptJsonRpc(nil, protoReceipt))
+	jsonRpcMap := decoded(t, receiptJSON(t, protoReceipt))
 
 	// Check that l1BlobBaseFee is not in the output when nil
 	if _, ok := jsonRpcMap["l1BlobBaseFee"]; ok {
@@ -107,6 +107,24 @@ func decoded(t *testing.T, b []byte) map[string]interface{} {
 		t.Fatalf("invalid JSON %s: %v", b, err)
 	}
 	return m
+}
+
+func receiptJSON(t testing.TB, r *Receipt) []byte {
+	t.Helper()
+	b, err := AppendReceiptJsonRpc(nil, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func receiptsJSON(t testing.TB, rs []*Receipt) []byte {
+	t.Helper()
+	b, err := AppendReceiptsJsonRpc(nil, rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 func TestSignatureRAndSRenderAsQuantities(t *testing.T) {

@@ -1000,8 +1000,10 @@ func (w *jsonWriter) transaction(tx *Transaction, sig SignatureEncoding) {
 }
 
 // AppendReceiptsJsonRpc appends receipts as the JSON-RPC array
-// eth_getBlockReceipts returns.
-func AppendReceiptsJsonRpc(b []byte, receipts []*Receipt) []byte {
+// eth_getBlockReceipts returns. A value JSON cannot hold, a NaN or infinite
+// l1FeeScalar, is an error; b then holds a partial result, returned so a
+// caller can reuse its buffer.
+func AppendReceiptsJsonRpc(b []byte, receipts []*Receipt) ([]byte, error) {
 	w := jsonWriter{b: b}
 	w.open('[')
 	for _, r := range receipts {
@@ -1009,17 +1011,18 @@ func AppendReceiptsJsonRpc(b []byte, receipts []*Receipt) []byte {
 		w.receipt(r)
 	}
 	w.close(']')
-	return w.b
+	return w.b, w.err
 }
 
 // AppendReceiptJsonRpc appends the JSON-RPC receipt object, or null for nil.
 // L2 fee fields appear only on chains that have them: a node elsewhere omits
 // them rather than sending null. No blockTimestamp: no provider sends one on
-// a receipt (it is on the receipt's logs instead).
-func AppendReceiptJsonRpc(b []byte, r *Receipt) []byte {
+// a receipt (it is on the receipt's logs instead). Errors as
+// AppendReceiptsJsonRpc does.
+func AppendReceiptJsonRpc(b []byte, r *Receipt) ([]byte, error) {
 	w := jsonWriter{b: b}
 	w.receipt(r)
-	return w.b
+	return w.b, w.err
 }
 
 func (w *jsonWriter) receipt(r *Receipt) {

@@ -82,7 +82,7 @@ func TestBaseChainFields(t *testing.T) {
 		}
 
 		// Test conversion back to JSON-RPC
-		jsonRpcMap := decoded(t, AppendReceiptJsonRpc(nil, protoReceipt))
+		jsonRpcMap := decoded(t, receiptJSON(t, protoReceipt))
 		if l1BlobBaseFeeScalar, ok := jsonRpcMap["l1BlobBaseFeeScalar"]; !ok || l1BlobBaseFeeScalar != "0x101c12" {
 			t.Errorf("Expected l1BlobBaseFeeScalar in JSON-RPC output to be '0x101c12', got '%v'", l1BlobBaseFeeScalar)
 		}

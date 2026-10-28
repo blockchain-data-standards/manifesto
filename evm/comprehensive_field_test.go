@@ -98,7 +98,7 @@ func TestComprehensiveFieldCoverage(t *testing.T) {
 		// The record keeps it, but no provider sends blockTimestamp on a
 		// receipt (2026-10-08 survey: 22 chains, 0 of 158 provider samples),
 		// so the node-shaped receipt leaves it out.
-		jsonRpcMap := decoded(t, AppendReceiptJsonRpc(nil, protoReceipt))
+		jsonRpcMap := decoded(t, receiptJSON(t, protoReceipt))
 		if v, ok := jsonRpcMap["blockTimestamp"]; ok {
 			t.Errorf("Expected no blockTimestamp on a receipt, got %v", v)
 		}
