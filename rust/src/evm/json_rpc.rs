@@ -978,7 +978,7 @@ impl SignatureEncoding {
 
 /// Converts a BDS `BlockHeader` — plus its transactions (either hashes or
 /// full objects, whichever the server populated) and withdrawals — into the
-/// exact JSON-RPC block object shape. Mirrors `evm.BlockToJsonRpc` in
+/// exact JSON-RPC block object shape. Mirrors `evm.AppendBlockJsonRpc` in
 /// `evm/json_rpc.go`. `sig` selects the `r`/`s` encoding of full transactions.
 #[must_use]
 pub fn block_to_json(
@@ -1145,7 +1145,7 @@ pub fn block_to_json(
 
 /// Converts a BDS `Transaction` into the JSON-RPC transaction object a node
 /// sends for `eth_getTransactionByHash` and full blocks. Mirrors
-/// `evm.TransactionToJsonRpc` in `evm/json_rpc.go`. `sig` selects the
+/// `evm.AppendTransactionJsonRpc` in `evm/json_rpc.go`. `sig` selects the
 /// `r`/`s` encoding; pass [`SignatureEncoding::for_chain`].
 ///
 /// A BDS `Transaction` also carries its receipt's execution figures
@@ -1217,8 +1217,7 @@ const RECEIPT_FIGURES_ON_TRANSACTION: &[&str] = &[
 ];
 
 /// Renders every field a BDS `Transaction` holds, including its receipt's
-/// execution figures. Mirrors `evm.TransactionRecordToJsonRpc` in
-/// `evm/json_rpc.go`. `sig` selects the `r`/`s` encoding.
+/// execution figures. `sig` selects the `r`/`s` encoding.
 #[must_use]
 pub fn transaction_record_to_json(tx: &Transaction, sig: SignatureEncoding) -> Value {
     let mut o = Map::new();
@@ -1453,8 +1452,8 @@ fn authorization_list_item_to_json(item: &AuthorizationListItem, sig: SignatureE
 }
 
 /// Converts a BDS `Receipt` into the exact JSON-RPC transaction receipt
-/// object shape, including its `logs` array. Mirrors `evm.ReceiptToJsonRpc`
-/// in `evm/json_rpc.go`.
+/// object shape, including its `logs` array. Mirrors
+/// `evm.AppendReceiptJsonRpc` in `evm/json_rpc.go`.
 #[must_use]
 pub fn receipt_to_json(r: &Receipt) -> Value {
     let mut o = Map::new();
@@ -1566,7 +1565,7 @@ pub fn receipt_to_json(r: &Receipt) -> Value {
 }
 
 /// Converts a BDS `Log` into the exact JSON-RPC log object shape. Mirrors
-/// `evm.LogToJsonRpc` in `evm/json_rpc.go`. `removed` is always `false` —
+/// `evm.AppendLogsJsonRpc` in `evm/json_rpc.go`. `removed` is always `false` —
 /// the BDS server only ever returns confirmed, non-reorged logs.
 #[must_use]
 pub fn log_to_json(log: &Log) -> Value {
@@ -1610,7 +1609,7 @@ pub fn log_to_json(log: &Log) -> Value {
 }
 
 /// Converts a BDS `Withdrawal` into the exact JSON-RPC withdrawal object
-/// shape. Mirrors `evm.WithdrawalToJsonRpc` in `evm/json_rpc.go`.
+/// shape. Mirrors the withdrawals of `evm.AppendBlockJsonRpc` in `evm/json_rpc.go`.
 #[must_use]
 pub fn withdrawal_to_json(w: &Withdrawal) -> Value {
     let mut o = Map::new();
