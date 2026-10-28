@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -222,7 +223,8 @@ func renderings(t testing.TB) map[string][]byte {
 
 // The expected files were rendered by the map-based converters these writers
 // replaced, with encoding/json, which sorts object keys; the writers write
-// keys in that order, so the bytes match too.
+// keys in that order, so the bytes match too. One change since: l1FeeScalar
+// is a string, as nodes send it (oracleL1FeeScalar).
 func TestJsonRpcRenderingsMatchFixtures(t *testing.T) {
 	for _, b := range [][]byte{
 		receiptJSON(t, nil),
@@ -243,7 +245,7 @@ func TestJsonRpcRenderingsMatchFixtures(t *testing.T) {
 	}
 	for name, got := range renderings(t) {
 		path := filepath.Join("testdata", name+".expected.json.gz")
-		want := readGzip(t, path)
+		want := oracleL1FeeScalar(t, readGzip(t, path))
 		var gotV, wantV interface{}
 		if err := json.Unmarshal(got, &gotV); err != nil {
 			t.Fatalf("%s: invalid JSON: %v", name, err)
@@ -260,6 +262,85 @@ func TestJsonRpcRenderingsMatchFixtures(t *testing.T) {
 				i++
 			}
 			t.Errorf("%s: bytes differ at %d: got …%s… want …%s…", name, i, snippet(got, i), snippet(want, i))
+		}
+	}
+}
+
+// oracleL1FeeScalar rewrites each l1FeeScalar the old converters wrote as a
+// JSON number to the string the writers now send.
+func oracleL1FeeScalar(t testing.TB, b []byte) []byte {
+	t.Helper()
+	asString := map[string]string{
+		`1e-7`:    `"0.0000001"`,
+		`1.5e+21`: `"1500000000000000000000"`,
+	}
+	return l1FeeScalarNumber.ReplaceAllFunc(b, func(m []byte) []byte {
+		num := l1FeeScalarNumber.FindSubmatch(m)[1]
+		s, ok := asString[string(num)]
+		if !ok {
+			t.Fatalf("l1FeeScalar %s has no expected string", num)
+		}
+		return append([]byte(`"l1FeeScalar":`), s...)
+	})
+}
+
+var l1FeeScalarNumber = regexp.MustCompile(`"l1FeeScalar":([-0-9.e+]+)`)
+
+// testdata/op-stack-pre-ecotone-receipts.json holds eth_getBlockReceipts as
+// nodes sent it, keyed chain-block: Base and OP Mainnet before Ecotone, which
+// removed l1FeeScalar, and OP Mainnet before Bedrock.
+func TestL1FeeScalarMatchesNodes(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "op-stack-pre-ecotone-receipts.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var blocks map[string][]json.RawMessage
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		t.Fatal(err)
+	}
+	base := 0
+	seen := map[string]bool{}
+	for name, receipts := range blocks {
+		for i, node := range receipts {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(node, &fields); err != nil {
+				t.Fatal(err)
+			}
+			want, ok := fields["l1FeeScalar"]
+			if !ok {
+				t.Fatalf("%s receipt %d: no l1FeeScalar", name, i)
+			}
+			var jr JsonRpcReceipt
+			if err := json.Unmarshal(node, &jr); err != nil {
+				t.Fatalf("%s receipt %d: %v", name, i, err)
+			}
+			r, err := jr.ToProto()
+			if err != nil {
+				t.Fatalf("%s receipt %d: %v", name, i, err)
+			}
+			out, err := AppendReceiptJsonRpc(nil, wire(t, r))
+			if err != nil {
+				t.Fatalf("%s receipt %d: %v", name, i, err)
+			}
+			var got map[string]json.RawMessage
+			if err := json.Unmarshal(out, &got); err != nil {
+				t.Fatal(err)
+			}
+			if string(got["l1FeeScalar"]) != string(want) {
+				t.Errorf("%s receipt %d: l1FeeScalar %s, node sent %s", name, i, got["l1FeeScalar"], want)
+			}
+			seen[string(want)] = true
+			if strings.HasPrefix(name, "base-") {
+				base++
+			}
+		}
+	}
+	if base < 50 {
+		t.Errorf("%d Base receipts, want at least 50", base)
+	}
+	for _, s := range []string{`"0.684"`, `"1"`, `"1.24"`, `"1.5"`} {
+		if !seen[s] {
+			t.Errorf("no node receipt with l1FeeScalar %s", s)
 		}
 	}
 }

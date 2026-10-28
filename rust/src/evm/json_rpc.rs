@@ -1359,7 +1359,7 @@ pub fn transaction_record_to_json(tx: &Transaction, sig: SignatureEncoding) -> V
     insert_decimal_omit(&mut o, "l1GasUsed", tx.l1_gas_used.as_deref());
     insert_decimal_omit(&mut o, "l1GasPrice", tx.l1_gas_price.as_deref());
     if let Some(v) = tx.l1_fee_scalar {
-        o.insert("l1FeeScalar".into(), Value::from(v));
+        o.insert("l1FeeScalar".into(), l1_fee_scalar_json(v));
     }
     insert_decimal_omit(&mut o, "l1BlobBaseFee", tx.l1_blob_base_fee.as_deref());
     if let Some(v) = tx.l1_blob_base_fee_scalar {
@@ -1451,6 +1451,17 @@ fn authorization_list_item_to_json(item: &AuthorizationListItem, sig: SignatureE
     Value::Object(o)
 }
 
+/// `l1FeeScalar` as OP-stack nodes send it: a string, the shortest decimal
+/// that parses back to `v`, without an exponent (`"0.684"`, `"1"`). JSON has no
+/// NaN or infinity: those stay `null`.
+fn l1_fee_scalar_json(v: f64) -> Value {
+    if v.is_finite() {
+        Value::String(v.to_string())
+    } else {
+        Value::Null
+    }
+}
+
 /// Converts a BDS `Receipt` into the exact JSON-RPC transaction receipt
 /// object shape, including its `logs` array. Mirrors
 /// `evm.AppendReceiptJsonRpc` in `evm/json_rpc.go`.
@@ -1536,7 +1547,7 @@ pub fn receipt_to_json(r: &Receipt) -> Value {
     }
     insert_decimal_omit(&mut o, "blobGasPrice", r.blob_gas_price.as_deref());
     if let Some(v) = r.l1_fee_scalar {
-        o.insert("l1FeeScalar".into(), Value::from(v));
+        o.insert("l1FeeScalar".into(), l1_fee_scalar_json(v));
     }
     if let Some(v) = r.l1_base_fee_scalar {
         o.insert("l1BaseFeeScalar".into(), Value::String(quantity_hex(v)));
