@@ -9,6 +9,8 @@ The Go code is generated from the protobuf definitions:
 - `models.proto` → `models.pb.go` - Core data structures (BlockHeader, Log)
 - `query.proto` → `query.pb.go`, `query_grpc.pb.go` - gRPC query service definitions
 
+Other languages: [Rust](../rust/README.md), [Python](../python/README.md), [Java](../java/README.md).
+
 ## Models
 
 ### BlockHeader
