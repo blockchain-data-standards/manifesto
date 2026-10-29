@@ -28,6 +28,7 @@ const (
 	RPCQueryService_GetBlockReceipts_FullMethodName      = "/bds.evm.RPCQueryService/GetBlockReceipts"
 	RPCQueryService_TraceBlock_FullMethodName            = "/bds.evm.RPCQueryService/TraceBlock"
 	RPCQueryService_TraceTransaction_FullMethodName      = "/bds.evm.RPCQueryService/TraceTransaction"
+	RPCQueryService_ParityTraceBlock_FullMethodName      = "/bds.evm.RPCQueryService/ParityTraceBlock"
 	RPCQueryService_GetBalance_FullMethodName            = "/bds.evm.RPCQueryService/GetBalance"
 )
 
@@ -56,6 +57,9 @@ type RPCQueryServiceClient interface {
 	TraceBlock(ctx context.Context, in *TraceBlockRequest, opts ...grpc.CallOption) (*TraceResponse, error)
 	// Get the trace of one transaction (equivalent to debug_traceTransaction)
 	TraceTransaction(ctx context.Context, in *TraceTransactionRequest, opts ...grpc.CallOption) (*TraceResponse, error)
+	// Get the Parity-style traces of every transaction in a block (equivalent
+	// to trace_block)
+	ParityTraceBlock(ctx context.Context, in *ParityTraceBlockRequest, opts ...grpc.CallOption) (*TraceResponse, error)
 	// Get the native balance of an address at a block (equivalent to eth_getBalance)
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error)
 }
@@ -158,6 +162,16 @@ func (c *rPCQueryServiceClient) TraceTransaction(ctx context.Context, in *TraceT
 	return out, nil
 }
 
+func (c *rPCQueryServiceClient) ParityTraceBlock(ctx context.Context, in *ParityTraceBlockRequest, opts ...grpc.CallOption) (*TraceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TraceResponse)
+	err := c.cc.Invoke(ctx, RPCQueryService_ParityTraceBlock_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *rPCQueryServiceClient) GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetBalanceResponse)
@@ -193,6 +207,9 @@ type RPCQueryServiceServer interface {
 	TraceBlock(context.Context, *TraceBlockRequest) (*TraceResponse, error)
 	// Get the trace of one transaction (equivalent to debug_traceTransaction)
 	TraceTransaction(context.Context, *TraceTransactionRequest) (*TraceResponse, error)
+	// Get the Parity-style traces of every transaction in a block (equivalent
+	// to trace_block)
+	ParityTraceBlock(context.Context, *ParityTraceBlockRequest) (*TraceResponse, error)
 	// Get the native balance of an address at a block (equivalent to eth_getBalance)
 	GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error)
 	mustEmbedUnimplementedRPCQueryServiceServer()
@@ -231,6 +248,9 @@ func (UnimplementedRPCQueryServiceServer) TraceBlock(context.Context, *TraceBloc
 }
 func (UnimplementedRPCQueryServiceServer) TraceTransaction(context.Context, *TraceTransactionRequest) (*TraceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TraceTransaction not implemented")
+}
+func (UnimplementedRPCQueryServiceServer) ParityTraceBlock(context.Context, *ParityTraceBlockRequest) (*TraceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ParityTraceBlock not implemented")
 }
 func (UnimplementedRPCQueryServiceServer) GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBalance not implemented")
@@ -418,6 +438,24 @@ func _RPCQueryService_TraceTransaction_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RPCQueryService_ParityTraceBlock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ParityTraceBlockRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RPCQueryServiceServer).ParityTraceBlock(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RPCQueryService_ParityTraceBlock_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RPCQueryServiceServer).ParityTraceBlock(ctx, req.(*ParityTraceBlockRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RPCQueryService_GetBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetBalanceRequest)
 	if err := dec(in); err != nil {
@@ -478,6 +516,10 @@ var RPCQueryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TraceTransaction",
 			Handler:    _RPCQueryService_TraceTransaction_Handler,
+		},
+		{
+			MethodName: "ParityTraceBlock",
+			Handler:    _RPCQueryService_ParityTraceBlock_Handler,
 		},
 		{
 			MethodName: "GetBalance",

@@ -1109,6 +1109,81 @@ func (x *TraceTransactionRequest) GetChainGenesisHash() []byte {
 	return nil
 }
 
+// Request for the Parity-style traces of a block (trace_block)
+type ParityTraceBlockRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Block number as hex string (e.g., "0x14ee0030") or tag ("latest", "earliest", "pending")
+	// Mutually exclusive with blockHash
+	BlockNumber *string `protobuf:"bytes,1,opt,name=blockNumber,proto3,oneof" json:"blockNumber,omitempty"`
+	// Block hash as bytes (32 bytes), for nodes that accept a hash
+	// Mutually exclusive with blockNumber
+	BlockHash []byte `protobuf:"bytes,2,opt,name=blockHash,proto3,oneof" json:"blockHash,omitempty"`
+	// Optional chain ID to use for the request
+	ChainId *uint64 `protobuf:"varint,3,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
+	// Optional genesis hash to narrow down identical networks with the same chain ID
+	ChainGenesisHash []byte `protobuf:"bytes,4,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ParityTraceBlockRequest) Reset() {
+	*x = ParityTraceBlockRequest{}
+	mi := &file_rpc_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParityTraceBlockRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParityTraceBlockRequest) ProtoMessage() {}
+
+func (x *ParityTraceBlockRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ParityTraceBlockRequest.ProtoReflect.Descriptor instead.
+func (*ParityTraceBlockRequest) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ParityTraceBlockRequest) GetBlockNumber() string {
+	if x != nil && x.BlockNumber != nil {
+		return *x.BlockNumber
+	}
+	return ""
+}
+
+func (x *ParityTraceBlockRequest) GetBlockHash() []byte {
+	if x != nil {
+		return x.BlockHash
+	}
+	return nil
+}
+
+func (x *ParityTraceBlockRequest) GetChainId() uint64 {
+	if x != nil && x.ChainId != nil {
+		return *x.ChainId
+	}
+	return 0
+}
+
+func (x *ParityTraceBlockRequest) GetChainGenesisHash() []byte {
+	if x != nil {
+		return x.ChainGenesisHash
+	}
+	return nil
+}
+
 // Response containing a trace result
 type TraceResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1121,7 +1196,7 @@ type TraceResponse struct {
 
 func (x *TraceResponse) Reset() {
 	*x = TraceResponse{}
-	mi := &file_rpc_proto_msgTypes[17]
+	mi := &file_rpc_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1133,7 +1208,7 @@ func (x *TraceResponse) String() string {
 func (*TraceResponse) ProtoMessage() {}
 
 func (x *TraceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[17]
+	mi := &file_rpc_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1146,7 +1221,7 @@ func (x *TraceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TraceResponse.ProtoReflect.Descriptor instead.
 func (*TraceResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{17}
+	return file_rpc_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TraceResponse) GetResult() []byte {
@@ -1177,7 +1252,7 @@ type GetBalanceRequest struct {
 
 func (x *GetBalanceRequest) Reset() {
 	*x = GetBalanceRequest{}
-	mi := &file_rpc_proto_msgTypes[18]
+	mi := &file_rpc_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1189,7 +1264,7 @@ func (x *GetBalanceRequest) String() string {
 func (*GetBalanceRequest) ProtoMessage() {}
 
 func (x *GetBalanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[18]
+	mi := &file_rpc_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1202,7 +1277,7 @@ func (x *GetBalanceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBalanceRequest.ProtoReflect.Descriptor instead.
 func (*GetBalanceRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{18}
+	return file_rpc_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetBalanceRequest) GetAddress() []byte {
@@ -1251,7 +1326,7 @@ type GetBalanceResponse struct {
 
 func (x *GetBalanceResponse) Reset() {
 	*x = GetBalanceResponse{}
-	mi := &file_rpc_proto_msgTypes[19]
+	mi := &file_rpc_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1263,7 +1338,7 @@ func (x *GetBalanceResponse) String() string {
 func (*GetBalanceResponse) ProtoMessage() {}
 
 func (x *GetBalanceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_proto_msgTypes[19]
+	mi := &file_rpc_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1276,7 +1351,7 @@ func (x *GetBalanceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBalanceResponse.ProtoReflect.Descriptor instead.
 func (*GetBalanceResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_proto_rawDescGZIP(), []int{19}
+	return file_rpc_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetBalanceResponse) GetBalance() []byte {
@@ -1396,6 +1471,17 @@ const file_rpc_proto_rawDesc = "" +
 	"\x10chainGenesisHash\x18\x04 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01B\n" +
 	"\n" +
 	"\b_chainIdB\x13\n" +
+	"\x11_chainGenesisHash\"\xf2\x01\n" +
+	"\x17ParityTraceBlockRequest\x12%\n" +
+	"\vblockNumber\x18\x01 \x01(\tH\x00R\vblockNumber\x88\x01\x01\x12!\n" +
+	"\tblockHash\x18\x02 \x01(\fH\x01R\tblockHash\x88\x01\x01\x12\x1d\n" +
+	"\achainId\x18\x03 \x01(\x04H\x02R\achainId\x88\x01\x01\x12/\n" +
+	"\x10chainGenesisHash\x18\x04 \x01(\fH\x03R\x10chainGenesisHash\x88\x01\x01B\x0e\n" +
+	"\f_blockNumberB\f\n" +
+	"\n" +
+	"_blockHashB\n" +
+	"\n" +
+	"\b_chainIdB\x13\n" +
 	"\x11_chainGenesisHash\"'\n" +
 	"\rTraceResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\fR\x06result\"\x86\x02\n" +
@@ -1412,7 +1498,7 @@ const file_rpc_proto_rawDesc = "" +
 	"\b_chainIdB\x13\n" +
 	"\x11_chainGenesisHash\".\n" +
 	"\x12GetBalanceResponse\x12\x18\n" +
-	"\abalance\x18\x01 \x01(\fR\abalance2\xa8\x06\n" +
+	"\abalance\x18\x01 \x01(\fR\abalance2\xf6\x06\n" +
 	"\x0fRPCQueryService\x12<\n" +
 	"\aChainId\x12\x17.bds.evm.ChainIdRequest\x1a\x18.bds.evm.ChainIdResponse\x12O\n" +
 	"\x10GetBlockByNumber\x12 .bds.evm.GetBlockByNumberRequest\x1a\x19.bds.evm.GetBlockResponse\x12K\n" +
@@ -1423,7 +1509,8 @@ const file_rpc_proto_rawDesc = "" +
 	"\x10GetBlockReceipts\x12 .bds.evm.GetBlockReceiptsRequest\x1a!.bds.evm.GetBlockReceiptsResponse\x12@\n" +
 	"\n" +
 	"TraceBlock\x12\x1a.bds.evm.TraceBlockRequest\x1a\x16.bds.evm.TraceResponse\x12L\n" +
-	"\x10TraceTransaction\x12 .bds.evm.TraceTransactionRequest\x1a\x16.bds.evm.TraceResponse\x12E\n" +
+	"\x10TraceTransaction\x12 .bds.evm.TraceTransactionRequest\x1a\x16.bds.evm.TraceResponse\x12L\n" +
+	"\x10ParityTraceBlock\x12 .bds.evm.ParityTraceBlockRequest\x1a\x16.bds.evm.TraceResponse\x12E\n" +
 	"\n" +
 	"GetBalance\x12\x1a.bds.evm.GetBalanceRequest\x1a\x1b.bds.evm.GetBalanceResponseB4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
 
@@ -1439,7 +1526,7 @@ func file_rpc_proto_rawDescGZIP() []byte {
 	return file_rpc_proto_rawDescData
 }
 
-var file_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_rpc_proto_goTypes = []any{
 	(*ChainIdRequest)(nil),                // 0: bds.evm.ChainIdRequest
 	(*ChainIdResponse)(nil),               // 1: bds.evm.ChainIdResponse
@@ -1458,24 +1545,25 @@ var file_rpc_proto_goTypes = []any{
 	(*TraceOptions)(nil),                  // 14: bds.evm.TraceOptions
 	(*TraceBlockRequest)(nil),             // 15: bds.evm.TraceBlockRequest
 	(*TraceTransactionRequest)(nil),       // 16: bds.evm.TraceTransactionRequest
-	(*TraceResponse)(nil),                 // 17: bds.evm.TraceResponse
-	(*GetBalanceRequest)(nil),             // 18: bds.evm.GetBalanceRequest
-	(*GetBalanceResponse)(nil),            // 19: bds.evm.GetBalanceResponse
-	(*BlockHeader)(nil),                   // 20: bds.evm.BlockHeader
-	(*Transaction)(nil),                   // 21: bds.evm.Transaction
-	(*Withdrawal)(nil),                    // 22: bds.evm.Withdrawal
-	(*Log)(nil),                           // 23: bds.evm.Log
-	(*Receipt)(nil),                       // 24: bds.evm.Receipt
+	(*ParityTraceBlockRequest)(nil),       // 17: bds.evm.ParityTraceBlockRequest
+	(*TraceResponse)(nil),                 // 18: bds.evm.TraceResponse
+	(*GetBalanceRequest)(nil),             // 19: bds.evm.GetBalanceRequest
+	(*GetBalanceResponse)(nil),            // 20: bds.evm.GetBalanceResponse
+	(*BlockHeader)(nil),                   // 21: bds.evm.BlockHeader
+	(*Transaction)(nil),                   // 22: bds.evm.Transaction
+	(*Withdrawal)(nil),                    // 23: bds.evm.Withdrawal
+	(*Log)(nil),                           // 24: bds.evm.Log
+	(*Receipt)(nil),                       // 25: bds.evm.Receipt
 }
 var file_rpc_proto_depIdxs = []int32{
-	20, // 0: bds.evm.GetBlockResponse.block:type_name -> bds.evm.BlockHeader
-	21, // 1: bds.evm.GetBlockResponse.fullTransactions:type_name -> bds.evm.Transaction
-	22, // 2: bds.evm.GetBlockResponse.withdrawals:type_name -> bds.evm.Withdrawal
+	21, // 0: bds.evm.GetBlockResponse.block:type_name -> bds.evm.BlockHeader
+	22, // 1: bds.evm.GetBlockResponse.fullTransactions:type_name -> bds.evm.Transaction
+	23, // 2: bds.evm.GetBlockResponse.withdrawals:type_name -> bds.evm.Withdrawal
 	6,  // 3: bds.evm.GetLogsRequest.topics:type_name -> bds.evm.TopicFilter
-	23, // 4: bds.evm.GetLogsResponse.logs:type_name -> bds.evm.Log
-	21, // 5: bds.evm.GetTransactionByHashResponse.transaction:type_name -> bds.evm.Transaction
-	24, // 6: bds.evm.GetTransactionReceiptResponse.receipt:type_name -> bds.evm.Receipt
-	24, // 7: bds.evm.GetBlockReceiptsResponse.receipts:type_name -> bds.evm.Receipt
+	24, // 4: bds.evm.GetLogsResponse.logs:type_name -> bds.evm.Log
+	22, // 5: bds.evm.GetTransactionByHashResponse.transaction:type_name -> bds.evm.Transaction
+	25, // 6: bds.evm.GetTransactionReceiptResponse.receipt:type_name -> bds.evm.Receipt
+	25, // 7: bds.evm.GetBlockReceiptsResponse.receipts:type_name -> bds.evm.Receipt
 	14, // 8: bds.evm.TraceBlockRequest.trace:type_name -> bds.evm.TraceOptions
 	14, // 9: bds.evm.TraceTransactionRequest.trace:type_name -> bds.evm.TraceOptions
 	0,  // 10: bds.evm.RPCQueryService.ChainId:input_type -> bds.evm.ChainIdRequest
@@ -1487,19 +1575,21 @@ var file_rpc_proto_depIdxs = []int32{
 	12, // 16: bds.evm.RPCQueryService.GetBlockReceipts:input_type -> bds.evm.GetBlockReceiptsRequest
 	15, // 17: bds.evm.RPCQueryService.TraceBlock:input_type -> bds.evm.TraceBlockRequest
 	16, // 18: bds.evm.RPCQueryService.TraceTransaction:input_type -> bds.evm.TraceTransactionRequest
-	18, // 19: bds.evm.RPCQueryService.GetBalance:input_type -> bds.evm.GetBalanceRequest
-	1,  // 20: bds.evm.RPCQueryService.ChainId:output_type -> bds.evm.ChainIdResponse
-	4,  // 21: bds.evm.RPCQueryService.GetBlockByNumber:output_type -> bds.evm.GetBlockResponse
-	4,  // 22: bds.evm.RPCQueryService.GetBlockByHash:output_type -> bds.evm.GetBlockResponse
-	7,  // 23: bds.evm.RPCQueryService.GetLogs:output_type -> bds.evm.GetLogsResponse
-	9,  // 24: bds.evm.RPCQueryService.GetTransactionByHash:output_type -> bds.evm.GetTransactionByHashResponse
-	11, // 25: bds.evm.RPCQueryService.GetTransactionReceipt:output_type -> bds.evm.GetTransactionReceiptResponse
-	13, // 26: bds.evm.RPCQueryService.GetBlockReceipts:output_type -> bds.evm.GetBlockReceiptsResponse
-	17, // 27: bds.evm.RPCQueryService.TraceBlock:output_type -> bds.evm.TraceResponse
-	17, // 28: bds.evm.RPCQueryService.TraceTransaction:output_type -> bds.evm.TraceResponse
-	19, // 29: bds.evm.RPCQueryService.GetBalance:output_type -> bds.evm.GetBalanceResponse
-	20, // [20:30] is the sub-list for method output_type
-	10, // [10:20] is the sub-list for method input_type
+	17, // 19: bds.evm.RPCQueryService.ParityTraceBlock:input_type -> bds.evm.ParityTraceBlockRequest
+	19, // 20: bds.evm.RPCQueryService.GetBalance:input_type -> bds.evm.GetBalanceRequest
+	1,  // 21: bds.evm.RPCQueryService.ChainId:output_type -> bds.evm.ChainIdResponse
+	4,  // 22: bds.evm.RPCQueryService.GetBlockByNumber:output_type -> bds.evm.GetBlockResponse
+	4,  // 23: bds.evm.RPCQueryService.GetBlockByHash:output_type -> bds.evm.GetBlockResponse
+	7,  // 24: bds.evm.RPCQueryService.GetLogs:output_type -> bds.evm.GetLogsResponse
+	9,  // 25: bds.evm.RPCQueryService.GetTransactionByHash:output_type -> bds.evm.GetTransactionByHashResponse
+	11, // 26: bds.evm.RPCQueryService.GetTransactionReceipt:output_type -> bds.evm.GetTransactionReceiptResponse
+	13, // 27: bds.evm.RPCQueryService.GetBlockReceipts:output_type -> bds.evm.GetBlockReceiptsResponse
+	18, // 28: bds.evm.RPCQueryService.TraceBlock:output_type -> bds.evm.TraceResponse
+	18, // 29: bds.evm.RPCQueryService.TraceTransaction:output_type -> bds.evm.TraceResponse
+	18, // 30: bds.evm.RPCQueryService.ParityTraceBlock:output_type -> bds.evm.TraceResponse
+	20, // 31: bds.evm.RPCQueryService.GetBalance:output_type -> bds.evm.GetBalanceResponse
+	21, // [21:32] is the sub-list for method output_type
+	10, // [10:21] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -1520,14 +1610,15 @@ func file_rpc_proto_init() {
 	file_rpc_proto_msgTypes[12].OneofWrappers = []any{}
 	file_rpc_proto_msgTypes[15].OneofWrappers = []any{}
 	file_rpc_proto_msgTypes[16].OneofWrappers = []any{}
-	file_rpc_proto_msgTypes[18].OneofWrappers = []any{}
+	file_rpc_proto_msgTypes[17].OneofWrappers = []any{}
+	file_rpc_proto_msgTypes[19].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_rpc_proto_rawDesc), len(file_rpc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
