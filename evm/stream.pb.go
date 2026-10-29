@@ -21,6 +21,161 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Which blocks a stream delivers.
+type Finality int32
+
+const (
+	// Every block from the canonical head.
+	Finality_FINALITY_LATEST Finality = 0
+	// Blocks at or below the safe block.
+	Finality_FINALITY_SAFE Finality = 1
+	// Blocks at or below the finalized block.
+	Finality_FINALITY_FINALIZED Finality = 2
+	// Blocks at least `depth` below the head.
+	Finality_FINALITY_DEPTH Finality = 3
+)
+
+// Enum value maps for Finality.
+var (
+	Finality_name = map[int32]string{
+		0: "FINALITY_LATEST",
+		1: "FINALITY_SAFE",
+		2: "FINALITY_FINALIZED",
+		3: "FINALITY_DEPTH",
+	}
+	Finality_value = map[string]int32{
+		"FINALITY_LATEST":    0,
+		"FINALITY_SAFE":      1,
+		"FINALITY_FINALIZED": 2,
+		"FINALITY_DEPTH":     3,
+	}
+)
+
+func (x Finality) Enum() *Finality {
+	p := new(Finality)
+	*p = x
+	return p
+}
+
+func (x Finality) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Finality) Descriptor() protoreflect.EnumDescriptor {
+	return file_stream_proto_enumTypes[0].Descriptor()
+}
+
+func (Finality) Type() protoreflect.EnumType {
+	return &file_stream_proto_enumTypes[0]
+}
+
+func (x Finality) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Finality.Descriptor instead.
+func (Finality) EnumDescriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{0}
+}
+
+// How a stream reports a reorg.
+type Reorg int32
+
+const (
+	// Undo with the fork point, then the new branch.
+	Reorg_REORG_UNDO Reorg = 0
+	// No reorg handling; valid with FINALITY_FINALIZED only.
+	Reorg_REORG_NONE Reorg = 1
+)
+
+// Enum value maps for Reorg.
+var (
+	Reorg_name = map[int32]string{
+		0: "REORG_UNDO",
+		1: "REORG_NONE",
+	}
+	Reorg_value = map[string]int32{
+		"REORG_UNDO": 0,
+		"REORG_NONE": 1,
+	}
+)
+
+func (x Reorg) Enum() *Reorg {
+	p := new(Reorg)
+	*p = x
+	return p
+}
+
+func (x Reorg) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Reorg) Descriptor() protoreflect.EnumDescriptor {
+	return file_stream_proto_enumTypes[1].Descriptor()
+}
+
+func (Reorg) Type() protoreflect.EnumType {
+	return &file_stream_proto_enumTypes[1]
+}
+
+func (x Reorg) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Reorg.Descriptor instead.
+func (Reorg) EnumDescriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{1}
+}
+
+type StreamStatus_State int32
+
+const (
+	StreamStatus_STATE_OK       StreamStatus_State = 0
+	StreamStatus_STATE_DEGRADED StreamStatus_State = 1
+	StreamStatus_STATE_LAGGING  StreamStatus_State = 2
+)
+
+// Enum value maps for StreamStatus_State.
+var (
+	StreamStatus_State_name = map[int32]string{
+		0: "STATE_OK",
+		1: "STATE_DEGRADED",
+		2: "STATE_LAGGING",
+	}
+	StreamStatus_State_value = map[string]int32{
+		"STATE_OK":       0,
+		"STATE_DEGRADED": 1,
+		"STATE_LAGGING":  2,
+	}
+)
+
+func (x StreamStatus_State) Enum() *StreamStatus_State {
+	p := new(StreamStatus_State)
+	*p = x
+	return p
+}
+
+func (x StreamStatus_State) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (StreamStatus_State) Descriptor() protoreflect.EnumDescriptor {
+	return file_stream_proto_enumTypes[2].Descriptor()
+}
+
+func (StreamStatus_State) Type() protoreflect.EnumType {
+	return &file_stream_proto_enumTypes[2]
+}
+
+func (x StreamStatus_State) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use StreamStatus_State.Descriptor instead.
+func (StreamStatus_State) EnumDescriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{10, 0}
+}
+
 // Request to subscribe to new blocks.
 type StreamBlocksRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -33,10 +188,16 @@ type StreamBlocksRequest struct {
 	// applied. The stream continues after it, replaying from the fork point when
 	// that header left the canonical chain. Both set, or neither; one alone is
 	// INVALID_ARGUMENT. Neither: the stream starts after the current head.
-	FromBlock     *uint64 `protobuf:"varint,3,opt,name=fromBlock,proto3,oneof" json:"fromBlock,omitempty"`
-	FromHash      []byte  `protobuf:"bytes,4,opt,name=fromHash,proto3,oneof" json:"fromHash,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	FromBlock *uint64  `protobuf:"varint,3,opt,name=fromBlock,proto3,oneof" json:"fromBlock,omitempty"`
+	FromHash  []byte   `protobuf:"bytes,4,opt,name=fromHash,proto3,oneof" json:"fromHash,omitempty"`
+	Finality  Finality `protobuf:"varint,5,opt,name=finality,proto3,enum=bds.evm.Finality" json:"finality,omitempty"`
+	// FINALITY_DEPTH only: 1..reorgWindow.
+	Depth uint32 `protobuf:"varint,6,opt,name=depth,proto3" json:"depth,omitempty"`
+	// Unset: header messages only, as before. Set: heartbeat and status
+	// messages too; 0 = server default, else 1..30.
+	HeartbeatSeconds *uint32 `protobuf:"varint,7,opt,name=heartbeatSeconds,proto3,oneof" json:"heartbeatSeconds,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *StreamBlocksRequest) Reset() {
@@ -97,11 +258,39 @@ func (x *StreamBlocksRequest) GetFromHash() []byte {
 	return nil
 }
 
-// A single new block pushed to the subscriber.
+func (x *StreamBlocksRequest) GetFinality() Finality {
+	if x != nil {
+		return x.Finality
+	}
+	return Finality_FINALITY_LATEST
+}
+
+func (x *StreamBlocksRequest) GetDepth() uint32 {
+	if x != nil {
+		return x.Depth
+	}
+	return 0
+}
+
+func (x *StreamBlocksRequest) GetHeartbeatSeconds() uint32 {
+	if x != nil && x.HeartbeatSeconds != nil {
+		return *x.HeartbeatSeconds
+	}
+	return 0
+}
+
+// One message of a StreamBlocks stream.
 type StreamBlocksResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The new block's header.
-	Header        *BlockHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
+	// `header` was a plain field before the oneof: moving it in is
+	// wire-compatible, so a header-only message encodes as it always did.
+	//
+	// Types that are valid to be assigned to Message:
+	//
+	//	*StreamBlocksResponse_Header
+	//	*StreamBlocksResponse_Heartbeat
+	//	*StreamBlocksResponse_Status
+	Message       isStreamBlocksResponse_Message `protobuf_oneof:"message"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -136,33 +325,837 @@ func (*StreamBlocksResponse) Descriptor() ([]byte, []int) {
 	return file_stream_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *StreamBlocksResponse) GetHeader() *BlockHeader {
+func (x *StreamBlocksResponse) GetMessage() isStreamBlocksResponse_Message {
 	if x != nil {
-		return x.Header
+		return x.Message
 	}
 	return nil
+}
+
+func (x *StreamBlocksResponse) GetHeader() *BlockHeader {
+	if x != nil {
+		if x, ok := x.Message.(*StreamBlocksResponse_Header); ok {
+			return x.Header
+		}
+	}
+	return nil
+}
+
+func (x *StreamBlocksResponse) GetHeartbeat() *Heartbeat {
+	if x != nil {
+		if x, ok := x.Message.(*StreamBlocksResponse_Heartbeat); ok {
+			return x.Heartbeat
+		}
+	}
+	return nil
+}
+
+func (x *StreamBlocksResponse) GetStatus() *StreamStatus {
+	if x != nil {
+		if x, ok := x.Message.(*StreamBlocksResponse_Status); ok {
+			return x.Status
+		}
+	}
+	return nil
+}
+
+type isStreamBlocksResponse_Message interface {
+	isStreamBlocksResponse_Message()
+}
+
+type StreamBlocksResponse_Header struct {
+	Header *BlockHeader `protobuf:"bytes,1,opt,name=header,proto3,oneof"`
+}
+
+type StreamBlocksResponse_Heartbeat struct {
+	Heartbeat *Heartbeat `protobuf:"bytes,2,opt,name=heartbeat,proto3,oneof"`
+}
+
+type StreamBlocksResponse_Status struct {
+	Status *StreamStatus `protobuf:"bytes,3,opt,name=status,proto3,oneof"`
+}
+
+func (*StreamBlocksResponse_Header) isStreamBlocksResponse_Message() {}
+
+func (*StreamBlocksResponse_Heartbeat) isStreamBlocksResponse_Message() {}
+
+func (*StreamBlocksResponse_Status) isStreamBlocksResponse_Message() {}
+
+// Request to subscribe to logs.
+type StreamLogsRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ChainId          *uint64                `protobuf:"varint,1,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
+	ChainGenesisHash []byte                 `protobuf:"bytes,2,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
+	// Resume position: both or neither, as StreamBlocksRequest.
+	FromBlock *uint64    `protobuf:"varint,3,opt,name=fromBlock,proto3,oneof" json:"fromBlock,omitempty"`
+	FromHash  []byte     `protobuf:"bytes,4,opt,name=fromHash,proto3,oneof" json:"fromHash,omitempty"`
+	Filter    *LogFilter `protobuf:"bytes,5,opt,name=filter,proto3" json:"filter,omitempty"`
+	Finality  Finality   `protobuf:"varint,6,opt,name=finality,proto3,enum=bds.evm.Finality" json:"finality,omitempty"`
+	// FINALITY_DEPTH only: 1..reorgWindow.
+	Depth uint32 `protobuf:"varint,7,opt,name=depth,proto3" json:"depth,omitempty"`
+	// REORG_NONE needs FINALITY_FINALIZED.
+	Reorg Reorg `protobuf:"varint,8,opt,name=reorg,proto3,enum=bds.evm.Reorg" json:"reorg,omitempty"`
+	// Unset or 0 = server default, else 1..30.
+	HeartbeatSeconds *uint32 `protobuf:"varint,9,opt,name=heartbeatSeconds,proto3,oneof" json:"heartbeatSeconds,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *StreamLogsRequest) Reset() {
+	*x = StreamLogsRequest{}
+	mi := &file_stream_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamLogsRequest) ProtoMessage() {}
+
+func (x *StreamLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_stream_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamLogsRequest.ProtoReflect.Descriptor instead.
+func (*StreamLogsRequest) Descriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *StreamLogsRequest) GetChainId() uint64 {
+	if x != nil && x.ChainId != nil {
+		return *x.ChainId
+	}
+	return 0
+}
+
+func (x *StreamLogsRequest) GetChainGenesisHash() []byte {
+	if x != nil {
+		return x.ChainGenesisHash
+	}
+	return nil
+}
+
+func (x *StreamLogsRequest) GetFromBlock() uint64 {
+	if x != nil && x.FromBlock != nil {
+		return *x.FromBlock
+	}
+	return 0
+}
+
+func (x *StreamLogsRequest) GetFromHash() []byte {
+	if x != nil {
+		return x.FromHash
+	}
+	return nil
+}
+
+func (x *StreamLogsRequest) GetFilter() *LogFilter {
+	if x != nil {
+		return x.Filter
+	}
+	return nil
+}
+
+func (x *StreamLogsRequest) GetFinality() Finality {
+	if x != nil {
+		return x.Finality
+	}
+	return Finality_FINALITY_LATEST
+}
+
+func (x *StreamLogsRequest) GetDepth() uint32 {
+	if x != nil {
+		return x.Depth
+	}
+	return 0
+}
+
+func (x *StreamLogsRequest) GetReorg() Reorg {
+	if x != nil {
+		return x.Reorg
+	}
+	return Reorg_REORG_UNDO
+}
+
+func (x *StreamLogsRequest) GetHeartbeatSeconds() uint32 {
+	if x != nil && x.HeartbeatSeconds != nil {
+		return *x.HeartbeatSeconds
+	}
+	return 0
+}
+
+// One message of a StreamLogs stream.
+type StreamLogsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Message:
+	//
+	//	*StreamLogsResponse_Block
+	//	*StreamLogsResponse_Undo
+	//	*StreamLogsResponse_Heartbeat
+	//	*StreamLogsResponse_Status
+	Message       isStreamLogsResponse_Message `protobuf_oneof:"message"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamLogsResponse) Reset() {
+	*x = StreamLogsResponse{}
+	mi := &file_stream_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamLogsResponse) ProtoMessage() {}
+
+func (x *StreamLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_stream_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamLogsResponse.ProtoReflect.Descriptor instead.
+func (*StreamLogsResponse) Descriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *StreamLogsResponse) GetMessage() isStreamLogsResponse_Message {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *StreamLogsResponse) GetBlock() *BlockLogs {
+	if x != nil {
+		if x, ok := x.Message.(*StreamLogsResponse_Block); ok {
+			return x.Block
+		}
+	}
+	return nil
+}
+
+func (x *StreamLogsResponse) GetUndo() *Undo {
+	if x != nil {
+		if x, ok := x.Message.(*StreamLogsResponse_Undo); ok {
+			return x.Undo
+		}
+	}
+	return nil
+}
+
+func (x *StreamLogsResponse) GetHeartbeat() *Heartbeat {
+	if x != nil {
+		if x, ok := x.Message.(*StreamLogsResponse_Heartbeat); ok {
+			return x.Heartbeat
+		}
+	}
+	return nil
+}
+
+func (x *StreamLogsResponse) GetStatus() *StreamStatus {
+	if x != nil {
+		if x, ok := x.Message.(*StreamLogsResponse_Status); ok {
+			return x.Status
+		}
+	}
+	return nil
+}
+
+type isStreamLogsResponse_Message interface {
+	isStreamLogsResponse_Message()
+}
+
+type StreamLogsResponse_Block struct {
+	Block *BlockLogs `protobuf:"bytes,1,opt,name=block,proto3,oneof"`
+}
+
+type StreamLogsResponse_Undo struct {
+	Undo *Undo `protobuf:"bytes,2,opt,name=undo,proto3,oneof"`
+}
+
+type StreamLogsResponse_Heartbeat struct {
+	Heartbeat *Heartbeat `protobuf:"bytes,3,opt,name=heartbeat,proto3,oneof"`
+}
+
+type StreamLogsResponse_Status struct {
+	Status *StreamStatus `protobuf:"bytes,4,opt,name=status,proto3,oneof"`
+}
+
+func (*StreamLogsResponse_Block) isStreamLogsResponse_Message() {}
+
+func (*StreamLogsResponse_Undo) isStreamLogsResponse_Message() {}
+
+func (*StreamLogsResponse_Heartbeat) isStreamLogsResponse_Message() {}
+
+func (*StreamLogsResponse_Status) isStreamLogsResponse_Message() {}
+
+// Logs of one block, or part of them.
+type BlockLogs struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// number, hash, parentHash.
+	Block *BlockRef `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
+	// At most 1,000 per message.
+	Logs []*Log `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
+	// The block's last message: its block end.
+	Complete      bool `protobuf:"varint,3,opt,name=complete,proto3" json:"complete,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockLogs) Reset() {
+	*x = BlockLogs{}
+	mi := &file_stream_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockLogs) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockLogs) ProtoMessage() {}
+
+func (x *BlockLogs) ProtoReflect() protoreflect.Message {
+	mi := &file_stream_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockLogs.ProtoReflect.Descriptor instead.
+func (*BlockLogs) Descriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *BlockLogs) GetBlock() *BlockRef {
+	if x != nil {
+		return x.Block
+	}
+	return nil
+}
+
+func (x *BlockLogs) GetLogs() []*Log {
+	if x != nil {
+		return x.Logs
+	}
+	return nil
+}
+
+func (x *BlockLogs) GetComplete() bool {
+	if x != nil {
+		return x.Complete
+	}
+	return false
+}
+
+// Request to subscribe to pending transactions.
+type StreamPendingTransactionsRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ChainId          *uint64                `protobuf:"varint,1,opt,name=chainId,proto3,oneof" json:"chainId,omitempty"`
+	ChainGenesisHash []byte                 `protobuf:"bytes,2,opt,name=chainGenesisHash,proto3,oneof" json:"chainGenesisHash,omitempty"`
+	FullTransactions bool                   `protobuf:"varint,3,opt,name=fullTransactions,proto3" json:"fullTransactions,omitempty"`
+	// Unset or 0 = server default, else 1..30.
+	HeartbeatSeconds *uint32 `protobuf:"varint,4,opt,name=heartbeatSeconds,proto3,oneof" json:"heartbeatSeconds,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *StreamPendingTransactionsRequest) Reset() {
+	*x = StreamPendingTransactionsRequest{}
+	mi := &file_stream_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamPendingTransactionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamPendingTransactionsRequest) ProtoMessage() {}
+
+func (x *StreamPendingTransactionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_stream_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamPendingTransactionsRequest.ProtoReflect.Descriptor instead.
+func (*StreamPendingTransactionsRequest) Descriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *StreamPendingTransactionsRequest) GetChainId() uint64 {
+	if x != nil && x.ChainId != nil {
+		return *x.ChainId
+	}
+	return 0
+}
+
+func (x *StreamPendingTransactionsRequest) GetChainGenesisHash() []byte {
+	if x != nil {
+		return x.ChainGenesisHash
+	}
+	return nil
+}
+
+func (x *StreamPendingTransactionsRequest) GetFullTransactions() bool {
+	if x != nil {
+		return x.FullTransactions
+	}
+	return false
+}
+
+func (x *StreamPendingTransactionsRequest) GetHeartbeatSeconds() uint32 {
+	if x != nil && x.HeartbeatSeconds != nil {
+		return *x.HeartbeatSeconds
+	}
+	return 0
+}
+
+// One message of a StreamPendingTransactions stream.
+type StreamPendingTransactionsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Message:
+	//
+	//	*StreamPendingTransactionsResponse_Transactions
+	//	*StreamPendingTransactionsResponse_Heartbeat
+	//	*StreamPendingTransactionsResponse_Status
+	Message       isStreamPendingTransactionsResponse_Message `protobuf_oneof:"message"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamPendingTransactionsResponse) Reset() {
+	*x = StreamPendingTransactionsResponse{}
+	mi := &file_stream_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamPendingTransactionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamPendingTransactionsResponse) ProtoMessage() {}
+
+func (x *StreamPendingTransactionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_stream_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamPendingTransactionsResponse.ProtoReflect.Descriptor instead.
+func (*StreamPendingTransactionsResponse) Descriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *StreamPendingTransactionsResponse) GetMessage() isStreamPendingTransactionsResponse_Message {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *StreamPendingTransactionsResponse) GetTransactions() *PendingTransactions {
+	if x != nil {
+		if x, ok := x.Message.(*StreamPendingTransactionsResponse_Transactions); ok {
+			return x.Transactions
+		}
+	}
+	return nil
+}
+
+func (x *StreamPendingTransactionsResponse) GetHeartbeat() *Heartbeat {
+	if x != nil {
+		if x, ok := x.Message.(*StreamPendingTransactionsResponse_Heartbeat); ok {
+			return x.Heartbeat
+		}
+	}
+	return nil
+}
+
+func (x *StreamPendingTransactionsResponse) GetStatus() *StreamStatus {
+	if x != nil {
+		if x, ok := x.Message.(*StreamPendingTransactionsResponse_Status); ok {
+			return x.Status
+		}
+	}
+	return nil
+}
+
+type isStreamPendingTransactionsResponse_Message interface {
+	isStreamPendingTransactionsResponse_Message()
+}
+
+type StreamPendingTransactionsResponse_Transactions struct {
+	Transactions *PendingTransactions `protobuf:"bytes,1,opt,name=transactions,proto3,oneof"`
+}
+
+type StreamPendingTransactionsResponse_Heartbeat struct {
+	Heartbeat *Heartbeat `protobuf:"bytes,2,opt,name=heartbeat,proto3,oneof"`
+}
+
+type StreamPendingTransactionsResponse_Status struct {
+	Status *StreamStatus `protobuf:"bytes,3,opt,name=status,proto3,oneof"`
+}
+
+func (*StreamPendingTransactionsResponse_Transactions) isStreamPendingTransactionsResponse_Message() {
+}
+
+func (*StreamPendingTransactionsResponse_Heartbeat) isStreamPendingTransactionsResponse_Message() {}
+
+func (*StreamPendingTransactionsResponse_Status) isStreamPendingTransactionsResponse_Message() {}
+
+// One batch of pending transactions.
+type PendingTransactions struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// fullTransactions false.
+	Hashes [][]byte `protobuf:"bytes,1,rep,name=hashes,proto3" json:"hashes,omitempty"`
+	// fullTransactions true; at most 1,000 per message.
+	Transactions  []*Transaction `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PendingTransactions) Reset() {
+	*x = PendingTransactions{}
+	mi := &file_stream_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PendingTransactions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PendingTransactions) ProtoMessage() {}
+
+func (x *PendingTransactions) ProtoReflect() protoreflect.Message {
+	mi := &file_stream_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PendingTransactions.ProtoReflect.Descriptor instead.
+func (*PendingTransactions) Descriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *PendingTransactions) GetHashes() [][]byte {
+	if x != nil {
+		return x.Hashes
+	}
+	return nil
+}
+
+func (x *PendingTransactions) GetTransactions() []*Transaction {
+	if x != nil {
+		return x.Transactions
+	}
+	return nil
+}
+
+// The blocks above forkPoint left the canonical chain; the stream resumes at
+// forkPoint.number + 1.
+type Undo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ForkPoint     *BlockRef              `protobuf:"bytes,1,opt,name=forkPoint,proto3" json:"forkPoint,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Undo) Reset() {
+	*x = Undo{}
+	mi := &file_stream_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Undo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Undo) ProtoMessage() {}
+
+func (x *Undo) ProtoReflect() protoreflect.Message {
+	mi := &file_stream_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Undo.ProtoReflect.Descriptor instead.
+func (*Undo) Descriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *Undo) GetForkPoint() *BlockRef {
+	if x != nil {
+		return x.ForkPoint
+	}
+	return nil
+}
+
+// Sent when no other message went out for heartbeatSeconds.
+type Heartbeat struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Head      *BlockRef              `protobuf:"bytes,1,opt,name=head,proto3" json:"head,omitempty"`
+	Finalized uint64                 `protobuf:"varint,2,opt,name=finalized,proto3" json:"finalized,omitempty"`
+	// 0 while the server does not compute a safe block.
+	Safe          uint64 `protobuf:"varint,3,opt,name=safe,proto3" json:"safe,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Heartbeat) Reset() {
+	*x = Heartbeat{}
+	mi := &file_stream_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Heartbeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Heartbeat) ProtoMessage() {}
+
+func (x *Heartbeat) ProtoReflect() protoreflect.Message {
+	mi := &file_stream_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Heartbeat.ProtoReflect.Descriptor instead.
+func (*Heartbeat) Descriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Heartbeat) GetHead() *BlockRef {
+	if x != nil {
+		return x.Head
+	}
+	return nil
+}
+
+func (x *Heartbeat) GetFinalized() uint64 {
+	if x != nil {
+		return x.Finalized
+	}
+	return 0
+}
+
+func (x *Heartbeat) GetSafe() uint64 {
+	if x != nil {
+		return x.Safe
+	}
+	return 0
+}
+
+// The server's view of its own progress, sent when it changes.
+type StreamStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	State         StreamStatus_State     `protobuf:"varint,1,opt,name=state,proto3,enum=bds.evm.StreamStatus_State" json:"state,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamStatus) Reset() {
+	*x = StreamStatus{}
+	mi := &file_stream_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamStatus) ProtoMessage() {}
+
+func (x *StreamStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_stream_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamStatus.ProtoReflect.Descriptor instead.
+func (*StreamStatus) Descriptor() ([]byte, []int) {
+	return file_stream_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *StreamStatus) GetState() StreamStatus_State {
+	if x != nil {
+		return x.State
+	}
+	return StreamStatus_STATE_OK
+}
+
+func (x *StreamStatus) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
 }
 
 var File_stream_proto protoreflect.FileDescriptor
 
 const file_stream_proto_rawDesc = "" +
 	"\n" +
-	"\fstream.proto\x12\abds.evm\x1a\fmodels.proto\"\xe5\x01\n" +
+	"\fstream.proto\x12\abds.evm\x1a\fmodels.proto\x1a\vquery.proto\"\xf0\x02\n" +
 	"\x13StreamBlocksRequest\x12\x1d\n" +
 	"\achainId\x18\x01 \x01(\x04H\x00R\achainId\x88\x01\x01\x12/\n" +
 	"\x10chainGenesisHash\x18\x02 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01\x12!\n" +
 	"\tfromBlock\x18\x03 \x01(\x04H\x02R\tfromBlock\x88\x01\x01\x12\x1f\n" +
-	"\bfromHash\x18\x04 \x01(\fH\x03R\bfromHash\x88\x01\x01B\n" +
+	"\bfromHash\x18\x04 \x01(\fH\x03R\bfromHash\x88\x01\x01\x12-\n" +
+	"\bfinality\x18\x05 \x01(\x0e2\x11.bds.evm.FinalityR\bfinality\x12\x14\n" +
+	"\x05depth\x18\x06 \x01(\rR\x05depth\x12/\n" +
+	"\x10heartbeatSeconds\x18\a \x01(\rH\x04R\x10heartbeatSeconds\x88\x01\x01B\n" +
 	"\n" +
 	"\b_chainIdB\x13\n" +
 	"\x11_chainGenesisHashB\f\n" +
 	"\n" +
 	"_fromBlockB\v\n" +
-	"\t_fromHash\"D\n" +
-	"\x14StreamBlocksResponse\x12,\n" +
-	"\x06header\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x06header2^\n" +
+	"\t_fromHashB\x13\n" +
+	"\x11_heartbeatSeconds\"\xb6\x01\n" +
+	"\x14StreamBlocksResponse\x12.\n" +
+	"\x06header\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderH\x00R\x06header\x122\n" +
+	"\theartbeat\x18\x02 \x01(\v2\x12.bds.evm.HeartbeatH\x00R\theartbeat\x12/\n" +
+	"\x06status\x18\x03 \x01(\v2\x15.bds.evm.StreamStatusH\x00R\x06statusB\t\n" +
+	"\amessage\"\xc0\x03\n" +
+	"\x11StreamLogsRequest\x12\x1d\n" +
+	"\achainId\x18\x01 \x01(\x04H\x00R\achainId\x88\x01\x01\x12/\n" +
+	"\x10chainGenesisHash\x18\x02 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01\x12!\n" +
+	"\tfromBlock\x18\x03 \x01(\x04H\x02R\tfromBlock\x88\x01\x01\x12\x1f\n" +
+	"\bfromHash\x18\x04 \x01(\fH\x03R\bfromHash\x88\x01\x01\x12*\n" +
+	"\x06filter\x18\x05 \x01(\v2\x12.bds.evm.LogFilterR\x06filter\x12-\n" +
+	"\bfinality\x18\x06 \x01(\x0e2\x11.bds.evm.FinalityR\bfinality\x12\x14\n" +
+	"\x05depth\x18\a \x01(\rR\x05depth\x12$\n" +
+	"\x05reorg\x18\b \x01(\x0e2\x0e.bds.evm.ReorgR\x05reorg\x12/\n" +
+	"\x10heartbeatSeconds\x18\t \x01(\rH\x04R\x10heartbeatSeconds\x88\x01\x01B\n" +
+	"\n" +
+	"\b_chainIdB\x13\n" +
+	"\x11_chainGenesisHashB\f\n" +
+	"\n" +
+	"_fromBlockB\v\n" +
+	"\t_fromHashB\x13\n" +
+	"\x11_heartbeatSeconds\"\xd5\x01\n" +
+	"\x12StreamLogsResponse\x12*\n" +
+	"\x05block\x18\x01 \x01(\v2\x12.bds.evm.BlockLogsH\x00R\x05block\x12#\n" +
+	"\x04undo\x18\x02 \x01(\v2\r.bds.evm.UndoH\x00R\x04undo\x122\n" +
+	"\theartbeat\x18\x03 \x01(\v2\x12.bds.evm.HeartbeatH\x00R\theartbeat\x12/\n" +
+	"\x06status\x18\x04 \x01(\v2\x15.bds.evm.StreamStatusH\x00R\x06statusB\t\n" +
+	"\amessage\"r\n" +
+	"\tBlockLogs\x12'\n" +
+	"\x05block\x18\x01 \x01(\v2\x11.bds.evm.BlockRefR\x05block\x12 \n" +
+	"\x04logs\x18\x02 \x03(\v2\f.bds.evm.LogR\x04logs\x12\x1a\n" +
+	"\bcomplete\x18\x03 \x01(\bR\bcomplete\"\x85\x02\n" +
+	" StreamPendingTransactionsRequest\x12\x1d\n" +
+	"\achainId\x18\x01 \x01(\x04H\x00R\achainId\x88\x01\x01\x12/\n" +
+	"\x10chainGenesisHash\x18\x02 \x01(\fH\x01R\x10chainGenesisHash\x88\x01\x01\x12*\n" +
+	"\x10fullTransactions\x18\x03 \x01(\bR\x10fullTransactions\x12/\n" +
+	"\x10heartbeatSeconds\x18\x04 \x01(\rH\x02R\x10heartbeatSeconds\x88\x01\x01B\n" +
+	"\n" +
+	"\b_chainIdB\x13\n" +
+	"\x11_chainGenesisHashB\x13\n" +
+	"\x11_heartbeatSeconds\"\xd7\x01\n" +
+	"!StreamPendingTransactionsResponse\x12B\n" +
+	"\ftransactions\x18\x01 \x01(\v2\x1c.bds.evm.PendingTransactionsH\x00R\ftransactions\x122\n" +
+	"\theartbeat\x18\x02 \x01(\v2\x12.bds.evm.HeartbeatH\x00R\theartbeat\x12/\n" +
+	"\x06status\x18\x03 \x01(\v2\x15.bds.evm.StreamStatusH\x00R\x06statusB\t\n" +
+	"\amessage\"g\n" +
+	"\x13PendingTransactions\x12\x16\n" +
+	"\x06hashes\x18\x01 \x03(\fR\x06hashes\x128\n" +
+	"\ftransactions\x18\x02 \x03(\v2\x14.bds.evm.TransactionR\ftransactions\"7\n" +
+	"\x04Undo\x12/\n" +
+	"\tforkPoint\x18\x01 \x01(\v2\x11.bds.evm.BlockRefR\tforkPoint\"d\n" +
+	"\tHeartbeat\x12%\n" +
+	"\x04head\x18\x01 \x01(\v2\x11.bds.evm.BlockRefR\x04head\x12\x1c\n" +
+	"\tfinalized\x18\x02 \x01(\x04R\tfinalized\x12\x12\n" +
+	"\x04safe\x18\x03 \x01(\x04R\x04safe\"\x97\x01\n" +
+	"\fStreamStatus\x121\n" +
+	"\x05state\x18\x01 \x01(\x0e2\x1b.bds.evm.StreamStatus.StateR\x05state\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"<\n" +
+	"\x05State\x12\f\n" +
+	"\bSTATE_OK\x10\x00\x12\x12\n" +
+	"\x0eSTATE_DEGRADED\x10\x01\x12\x11\n" +
+	"\rSTATE_LAGGING\x10\x02*^\n" +
+	"\bFinality\x12\x13\n" +
+	"\x0fFINALITY_LATEST\x10\x00\x12\x11\n" +
+	"\rFINALITY_SAFE\x10\x01\x12\x16\n" +
+	"\x12FINALITY_FINALIZED\x10\x02\x12\x12\n" +
+	"\x0eFINALITY_DEPTH\x10\x03*'\n" +
+	"\x05Reorg\x12\x0e\n" +
+	"\n" +
+	"REORG_UNDO\x10\x00\x12\x0e\n" +
+	"\n" +
+	"REORG_NONE\x10\x012\x9d\x02\n" +
 	"\rStreamService\x12M\n" +
-	"\fStreamBlocks\x12\x1c.bds.evm.StreamBlocksRequest\x1a\x1d.bds.evm.StreamBlocksResponse0\x01B4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
+	"\fStreamBlocks\x12\x1c.bds.evm.StreamBlocksRequest\x1a\x1d.bds.evm.StreamBlocksResponse0\x01\x12G\n" +
+	"\n" +
+	"StreamLogs\x12\x1a.bds.evm.StreamLogsRequest\x1a\x1b.bds.evm.StreamLogsResponse0\x01\x12t\n" +
+	"\x19StreamPendingTransactions\x12).bds.evm.StreamPendingTransactionsRequest\x1a*.bds.evm.StreamPendingTransactionsResponse0\x01B4Z2github.com/blockchain-data-standards/manifesto/evmb\x06proto3"
 
 var (
 	file_stream_proto_rawDescOnce sync.Once
@@ -176,21 +1169,61 @@ func file_stream_proto_rawDescGZIP() []byte {
 	return file_stream_proto_rawDescData
 }
 
-var file_stream_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_stream_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_stream_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_stream_proto_goTypes = []any{
-	(*StreamBlocksRequest)(nil),  // 0: bds.evm.StreamBlocksRequest
-	(*StreamBlocksResponse)(nil), // 1: bds.evm.StreamBlocksResponse
-	(*BlockHeader)(nil),          // 2: bds.evm.BlockHeader
+	(Finality)(0),                             // 0: bds.evm.Finality
+	(Reorg)(0),                                // 1: bds.evm.Reorg
+	(StreamStatus_State)(0),                   // 2: bds.evm.StreamStatus.State
+	(*StreamBlocksRequest)(nil),               // 3: bds.evm.StreamBlocksRequest
+	(*StreamBlocksResponse)(nil),              // 4: bds.evm.StreamBlocksResponse
+	(*StreamLogsRequest)(nil),                 // 5: bds.evm.StreamLogsRequest
+	(*StreamLogsResponse)(nil),                // 6: bds.evm.StreamLogsResponse
+	(*BlockLogs)(nil),                         // 7: bds.evm.BlockLogs
+	(*StreamPendingTransactionsRequest)(nil),  // 8: bds.evm.StreamPendingTransactionsRequest
+	(*StreamPendingTransactionsResponse)(nil), // 9: bds.evm.StreamPendingTransactionsResponse
+	(*PendingTransactions)(nil),               // 10: bds.evm.PendingTransactions
+	(*Undo)(nil),                              // 11: bds.evm.Undo
+	(*Heartbeat)(nil),                         // 12: bds.evm.Heartbeat
+	(*StreamStatus)(nil),                      // 13: bds.evm.StreamStatus
+	(*BlockHeader)(nil),                       // 14: bds.evm.BlockHeader
+	(*LogFilter)(nil),                         // 15: bds.evm.LogFilter
+	(*BlockRef)(nil),                          // 16: bds.evm.BlockRef
+	(*Log)(nil),                               // 17: bds.evm.Log
+	(*Transaction)(nil),                       // 18: bds.evm.Transaction
 }
 var file_stream_proto_depIdxs = []int32{
-	2, // 0: bds.evm.StreamBlocksResponse.header:type_name -> bds.evm.BlockHeader
-	0, // 1: bds.evm.StreamService.StreamBlocks:input_type -> bds.evm.StreamBlocksRequest
-	1, // 2: bds.evm.StreamService.StreamBlocks:output_type -> bds.evm.StreamBlocksResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0,  // 0: bds.evm.StreamBlocksRequest.finality:type_name -> bds.evm.Finality
+	14, // 1: bds.evm.StreamBlocksResponse.header:type_name -> bds.evm.BlockHeader
+	12, // 2: bds.evm.StreamBlocksResponse.heartbeat:type_name -> bds.evm.Heartbeat
+	13, // 3: bds.evm.StreamBlocksResponse.status:type_name -> bds.evm.StreamStatus
+	15, // 4: bds.evm.StreamLogsRequest.filter:type_name -> bds.evm.LogFilter
+	0,  // 5: bds.evm.StreamLogsRequest.finality:type_name -> bds.evm.Finality
+	1,  // 6: bds.evm.StreamLogsRequest.reorg:type_name -> bds.evm.Reorg
+	7,  // 7: bds.evm.StreamLogsResponse.block:type_name -> bds.evm.BlockLogs
+	11, // 8: bds.evm.StreamLogsResponse.undo:type_name -> bds.evm.Undo
+	12, // 9: bds.evm.StreamLogsResponse.heartbeat:type_name -> bds.evm.Heartbeat
+	13, // 10: bds.evm.StreamLogsResponse.status:type_name -> bds.evm.StreamStatus
+	16, // 11: bds.evm.BlockLogs.block:type_name -> bds.evm.BlockRef
+	17, // 12: bds.evm.BlockLogs.logs:type_name -> bds.evm.Log
+	10, // 13: bds.evm.StreamPendingTransactionsResponse.transactions:type_name -> bds.evm.PendingTransactions
+	12, // 14: bds.evm.StreamPendingTransactionsResponse.heartbeat:type_name -> bds.evm.Heartbeat
+	13, // 15: bds.evm.StreamPendingTransactionsResponse.status:type_name -> bds.evm.StreamStatus
+	18, // 16: bds.evm.PendingTransactions.transactions:type_name -> bds.evm.Transaction
+	16, // 17: bds.evm.Undo.forkPoint:type_name -> bds.evm.BlockRef
+	16, // 18: bds.evm.Heartbeat.head:type_name -> bds.evm.BlockRef
+	2,  // 19: bds.evm.StreamStatus.state:type_name -> bds.evm.StreamStatus.State
+	3,  // 20: bds.evm.StreamService.StreamBlocks:input_type -> bds.evm.StreamBlocksRequest
+	5,  // 21: bds.evm.StreamService.StreamLogs:input_type -> bds.evm.StreamLogsRequest
+	8,  // 22: bds.evm.StreamService.StreamPendingTransactions:input_type -> bds.evm.StreamPendingTransactionsRequest
+	4,  // 23: bds.evm.StreamService.StreamBlocks:output_type -> bds.evm.StreamBlocksResponse
+	6,  // 24: bds.evm.StreamService.StreamLogs:output_type -> bds.evm.StreamLogsResponse
+	9,  // 25: bds.evm.StreamService.StreamPendingTransactions:output_type -> bds.evm.StreamPendingTransactionsResponse
+	23, // [23:26] is the sub-list for method output_type
+	20, // [20:23] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_stream_proto_init() }
@@ -199,19 +1232,39 @@ func file_stream_proto_init() {
 		return
 	}
 	file_models_proto_init()
+	file_query_proto_init()
 	file_stream_proto_msgTypes[0].OneofWrappers = []any{}
+	file_stream_proto_msgTypes[1].OneofWrappers = []any{
+		(*StreamBlocksResponse_Header)(nil),
+		(*StreamBlocksResponse_Heartbeat)(nil),
+		(*StreamBlocksResponse_Status)(nil),
+	}
+	file_stream_proto_msgTypes[2].OneofWrappers = []any{}
+	file_stream_proto_msgTypes[3].OneofWrappers = []any{
+		(*StreamLogsResponse_Block)(nil),
+		(*StreamLogsResponse_Undo)(nil),
+		(*StreamLogsResponse_Heartbeat)(nil),
+		(*StreamLogsResponse_Status)(nil),
+	}
+	file_stream_proto_msgTypes[5].OneofWrappers = []any{}
+	file_stream_proto_msgTypes[6].OneofWrappers = []any{
+		(*StreamPendingTransactionsResponse_Transactions)(nil),
+		(*StreamPendingTransactionsResponse_Heartbeat)(nil),
+		(*StreamPendingTransactionsResponse_Status)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_stream_proto_rawDesc), len(file_stream_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   2,
+			NumEnums:      3,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_stream_proto_goTypes,
 		DependencyIndexes: file_stream_proto_depIdxs,
+		EnumInfos:         file_stream_proto_enumTypes,
 		MessageInfos:      file_stream_proto_msgTypes,
 	}.Build()
 	File_stream_proto = out.File

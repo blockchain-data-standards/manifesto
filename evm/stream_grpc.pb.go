@@ -19,7 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	StreamService_StreamBlocks_FullMethodName = "/bds.evm.StreamService/StreamBlocks"
+	StreamService_StreamBlocks_FullMethodName              = "/bds.evm.StreamService/StreamBlocks"
+	StreamService_StreamLogs_FullMethodName                = "/bds.evm.StreamService/StreamLogs"
+	StreamService_StreamPendingTransactions_FullMethodName = "/bds.evm.StreamService/StreamPendingTransactions"
 )
 
 // StreamServiceClient is the client API for StreamService service.
@@ -33,23 +35,30 @@ const (
 // item as the chain advances. A provider feeds it from whatever head source it
 // has (a state poller, a gap-free chain view, …); the wire contract is the same
 // everywhere.
+//
+// Status codes that end a stream:
+//
+//	OUT_OF_RANGE  the server cannot continue from the resume position (too
+//	              old, or a block it cannot place); backfill with unary
+//	              calls, then reopen.
+//	UNAVAILABLE   the server stopped making progress, or the client read too
+//	              slowly; reopen with a resume position.
 type StreamServiceClient interface {
-	// Stream block headers as the chain head advances: one StreamBlocksResponse
-	// per canonical block, ascending, with no number skipped, until the client
+	// Stream block headers as the chain head advances: one header message per
+	// canonical block, ascending, with no number skipped, until the client
 	// cancels the stream. After a reorg the server restarts at the fork point: it
 	// resends from the first block of the new branch. Client rule: a header whose
 	// number is at or below the last one received replaces that number and every
 	// number above it. Each header carries hash and parentHash, so a client can
 	// check linkage itself.
-	//
-	// Status codes that end the stream:
-	//
-	//	OUT_OF_RANGE  the server cannot continue from the resume position (too
-	//	              old, or a block it cannot place); backfill with unary
-	//	              calls, then reopen.
-	//	UNAVAILABLE   the server stopped making progress, or the client read too
-	//	              slowly; reopen with a resume position.
 	StreamBlocks(ctx context.Context, in *StreamBlocksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamBlocksResponse], error)
+	// Stream the logs matching a filter, one block at a time, ascending. A
+	// block's logs arrive in one or more BlockLogs messages; the last sets
+	// complete. A reorg sends Undo with the fork point, then the new branch
+	// from the fork point + 1 (REORG_UNDO).
+	StreamLogs(ctx context.Context, in *StreamLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamLogsResponse], error)
+	// Stream transactions as they enter the provider's mempool view.
+	StreamPendingTransactions(ctx context.Context, in *StreamPendingTransactionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamPendingTransactionsResponse], error)
 }
 
 type streamServiceClient struct {
@@ -79,6 +88,44 @@ func (c *streamServiceClient) StreamBlocks(ctx context.Context, in *StreamBlocks
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type StreamService_StreamBlocksClient = grpc.ServerStreamingClient[StreamBlocksResponse]
 
+func (c *streamServiceClient) StreamLogs(ctx context.Context, in *StreamLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamLogsResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &StreamService_ServiceDesc.Streams[1], StreamService_StreamLogs_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamLogsRequest, StreamLogsResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StreamService_StreamLogsClient = grpc.ServerStreamingClient[StreamLogsResponse]
+
+func (c *streamServiceClient) StreamPendingTransactions(ctx context.Context, in *StreamPendingTransactionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamPendingTransactionsResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &StreamService_ServiceDesc.Streams[2], StreamService_StreamPendingTransactions_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamPendingTransactionsRequest, StreamPendingTransactionsResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StreamService_StreamPendingTransactionsClient = grpc.ServerStreamingClient[StreamPendingTransactionsResponse]
+
 // StreamServiceServer is the server API for StreamService service.
 // All implementations must embed UnimplementedStreamServiceServer
 // for forward compatibility.
@@ -90,23 +137,30 @@ type StreamService_StreamBlocksClient = grpc.ServerStreamingClient[StreamBlocksR
 // item as the chain advances. A provider feeds it from whatever head source it
 // has (a state poller, a gap-free chain view, …); the wire contract is the same
 // everywhere.
+//
+// Status codes that end a stream:
+//
+//	OUT_OF_RANGE  the server cannot continue from the resume position (too
+//	              old, or a block it cannot place); backfill with unary
+//	              calls, then reopen.
+//	UNAVAILABLE   the server stopped making progress, or the client read too
+//	              slowly; reopen with a resume position.
 type StreamServiceServer interface {
-	// Stream block headers as the chain head advances: one StreamBlocksResponse
-	// per canonical block, ascending, with no number skipped, until the client
+	// Stream block headers as the chain head advances: one header message per
+	// canonical block, ascending, with no number skipped, until the client
 	// cancels the stream. After a reorg the server restarts at the fork point: it
 	// resends from the first block of the new branch. Client rule: a header whose
 	// number is at or below the last one received replaces that number and every
 	// number above it. Each header carries hash and parentHash, so a client can
 	// check linkage itself.
-	//
-	// Status codes that end the stream:
-	//
-	//	OUT_OF_RANGE  the server cannot continue from the resume position (too
-	//	              old, or a block it cannot place); backfill with unary
-	//	              calls, then reopen.
-	//	UNAVAILABLE   the server stopped making progress, or the client read too
-	//	              slowly; reopen with a resume position.
 	StreamBlocks(*StreamBlocksRequest, grpc.ServerStreamingServer[StreamBlocksResponse]) error
+	// Stream the logs matching a filter, one block at a time, ascending. A
+	// block's logs arrive in one or more BlockLogs messages; the last sets
+	// complete. A reorg sends Undo with the fork point, then the new branch
+	// from the fork point + 1 (REORG_UNDO).
+	StreamLogs(*StreamLogsRequest, grpc.ServerStreamingServer[StreamLogsResponse]) error
+	// Stream transactions as they enter the provider's mempool view.
+	StreamPendingTransactions(*StreamPendingTransactionsRequest, grpc.ServerStreamingServer[StreamPendingTransactionsResponse]) error
 	mustEmbedUnimplementedStreamServiceServer()
 }
 
@@ -119,6 +173,12 @@ type UnimplementedStreamServiceServer struct{}
 
 func (UnimplementedStreamServiceServer) StreamBlocks(*StreamBlocksRequest, grpc.ServerStreamingServer[StreamBlocksResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamBlocks not implemented")
+}
+func (UnimplementedStreamServiceServer) StreamLogs(*StreamLogsRequest, grpc.ServerStreamingServer[StreamLogsResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamLogs not implemented")
+}
+func (UnimplementedStreamServiceServer) StreamPendingTransactions(*StreamPendingTransactionsRequest, grpc.ServerStreamingServer[StreamPendingTransactionsResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamPendingTransactions not implemented")
 }
 func (UnimplementedStreamServiceServer) mustEmbedUnimplementedStreamServiceServer() {}
 func (UnimplementedStreamServiceServer) testEmbeddedByValue()                       {}
@@ -152,6 +212,28 @@ func _StreamService_StreamBlocks_Handler(srv interface{}, stream grpc.ServerStre
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type StreamService_StreamBlocksServer = grpc.ServerStreamingServer[StreamBlocksResponse]
 
+func _StreamService_StreamLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamLogsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(StreamServiceServer).StreamLogs(m, &grpc.GenericServerStream[StreamLogsRequest, StreamLogsResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StreamService_StreamLogsServer = grpc.ServerStreamingServer[StreamLogsResponse]
+
+func _StreamService_StreamPendingTransactions_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamPendingTransactionsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(StreamServiceServer).StreamPendingTransactions(m, &grpc.GenericServerStream[StreamPendingTransactionsRequest, StreamPendingTransactionsResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StreamService_StreamPendingTransactionsServer = grpc.ServerStreamingServer[StreamPendingTransactionsResponse]
+
 // StreamService_ServiceDesc is the grpc.ServiceDesc for StreamService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -163,6 +245,16 @@ var StreamService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamBlocks",
 			Handler:       _StreamService_StreamBlocks_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "StreamLogs",
+			Handler:       _StreamService_StreamLogs_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "StreamPendingTransactions",
+			Handler:       _StreamService_StreamPendingTransactions_Handler,
 			ServerStreams: true,
 		},
 	},

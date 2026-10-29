@@ -4,6 +4,7 @@ package bds.evm;
 option go_package = "github.com/blockchain-data-standards/manifesto/evm";
 
 import "models.proto";
+import "query.proto";
 
 // Service for streaming subscriptions over chain data.
 //
@@ -12,22 +13,51 @@ import "models.proto";
 // item as the chain advances. A provider feeds it from whatever head source it
 // has (a state poller, a gap-free chain view, …); the wire contract is the same
 // everywhere.
+//
+// Status codes that end a stream:
+//   OUT_OF_RANGE  the server cannot continue from the resume position (too
+//                 old, or a block it cannot place); backfill with unary
+//                 calls, then reopen.
+//   UNAVAILABLE   the server stopped making progress, or the client read too
+//                 slowly; reopen with a resume position.
 service StreamService {
-  // Stream block headers as the chain head advances: one StreamBlocksResponse
-  // per canonical block, ascending, with no number skipped, until the client
+  // Stream block headers as the chain head advances: one header message per
+  // canonical block, ascending, with no number skipped, until the client
   // cancels the stream. After a reorg the server restarts at the fork point: it
   // resends from the first block of the new branch. Client rule: a header whose
   // number is at or below the last one received replaces that number and every
   // number above it. Each header carries hash and parentHash, so a client can
   // check linkage itself.
-  //
-  // Status codes that end the stream:
-  //   OUT_OF_RANGE  the server cannot continue from the resume position (too
-  //                 old, or a block it cannot place); backfill with unary
-  //                 calls, then reopen.
-  //   UNAVAILABLE   the server stopped making progress, or the client read too
-  //                 slowly; reopen with a resume position.
   rpc StreamBlocks(StreamBlocksRequest) returns (stream StreamBlocksResponse);
+
+  // Stream the logs matching a filter, one block at a time, ascending. A
+  // block's logs arrive in one or more BlockLogs messages; the last sets
+  // complete. A reorg sends Undo with the fork point, then the new branch
+  // from the fork point + 1 (REORG_UNDO).
+  rpc StreamLogs(StreamLogsRequest) returns (stream StreamLogsResponse);
+
+  // Stream transactions as they enter the provider's mempool view.
+  rpc StreamPendingTransactions(StreamPendingTransactionsRequest) returns (stream StreamPendingTransactionsResponse);
+}
+
+// Which blocks a stream delivers.
+enum Finality {
+  // Every block from the canonical head.
+  FINALITY_LATEST = 0;
+  // Blocks at or below the safe block.
+  FINALITY_SAFE = 1;
+  // Blocks at or below the finalized block.
+  FINALITY_FINALIZED = 2;
+  // Blocks at least `depth` below the head.
+  FINALITY_DEPTH = 3;
+}
+
+// How a stream reports a reorg.
+enum Reorg {
+  // Undo with the fork point, then the new branch.
+  REORG_UNDO = 0;
+  // No reorg handling; valid with FINALITY_FINALIZED only.
+  REORG_NONE = 1;
 }
 
 // Request to subscribe to new blocks.
@@ -46,15 +76,121 @@ message StreamBlocksRequest {
   optional uint64 fromBlock = 3;
   optional bytes fromHash = 4;
 
-  // Content-selection flags are added here as the stream is extended beyond
-  // headers (transaction hashes, full transactions, logs, …). Header-only today.
+  Finality finality = 5;
+
+  // FINALITY_DEPTH only: 1..reorgWindow.
+  uint32 depth = 6;
+
+  // Unset: header messages only, as before. Set: heartbeat and status
+  // messages too; 0 = server default, else 1..30.
+  optional uint32 heartbeatSeconds = 7;
 }
 
-// A single new block pushed to the subscriber.
+// One message of a StreamBlocks stream.
 message StreamBlocksResponse {
-  // The new block's header.
-  BlockHeader header = 1;
+  // `header` was a plain field before the oneof: moving it in is
+  // wire-compatible, so a header-only message encodes as it always did.
+  oneof message {
+    BlockHeader header = 1;
+    Heartbeat heartbeat = 2;
+    StreamStatus status = 3;
+  }
+}
 
-  // Transactions / logs / etc. are added here alongside the header as the stream
-  // is extended, gated by the request's content-selection flags. Header-only today.
+// Request to subscribe to logs.
+message StreamLogsRequest {
+  optional uint64 chainId = 1;
+  optional bytes chainGenesisHash = 2;
+
+  // Resume position: both or neither, as StreamBlocksRequest.
+  optional uint64 fromBlock = 3;
+  optional bytes fromHash = 4;
+
+  LogFilter filter = 5;
+  Finality finality = 6;
+
+  // FINALITY_DEPTH only: 1..reorgWindow.
+  uint32 depth = 7;
+
+  // REORG_NONE needs FINALITY_FINALIZED.
+  Reorg reorg = 8;
+
+  // Unset or 0 = server default, else 1..30.
+  optional uint32 heartbeatSeconds = 9;
+}
+
+// One message of a StreamLogs stream.
+message StreamLogsResponse {
+  oneof message {
+    BlockLogs block = 1;
+    Undo undo = 2;
+    Heartbeat heartbeat = 3;
+    StreamStatus status = 4;
+  }
+}
+
+// Logs of one block, or part of them.
+message BlockLogs {
+  // number, hash, parentHash.
+  BlockRef block = 1;
+
+  // At most 1,000 per message.
+  repeated Log logs = 2;
+
+  // The block's last message: its block end.
+  bool complete = 3;
+}
+
+// Request to subscribe to pending transactions.
+message StreamPendingTransactionsRequest {
+  optional uint64 chainId = 1;
+  optional bytes chainGenesisHash = 2;
+  bool fullTransactions = 3;
+
+  // Unset or 0 = server default, else 1..30.
+  optional uint32 heartbeatSeconds = 4;
+}
+
+// One message of a StreamPendingTransactions stream.
+message StreamPendingTransactionsResponse {
+  oneof message {
+    PendingTransactions transactions = 1;
+    Heartbeat heartbeat = 2;
+    StreamStatus status = 3;
+  }
+}
+
+// One batch of pending transactions.
+message PendingTransactions {
+  // fullTransactions false.
+  repeated bytes hashes = 1;
+
+  // fullTransactions true; at most 1,000 per message.
+  repeated Transaction transactions = 2;
+}
+
+// The blocks above forkPoint left the canonical chain; the stream resumes at
+// forkPoint.number + 1.
+message Undo {
+  BlockRef forkPoint = 1;
+}
+
+// Sent when no other message went out for heartbeatSeconds.
+message Heartbeat {
+  BlockRef head = 1;
+  uint64 finalized = 2;
+
+  // 0 while the server does not compute a safe block.
+  uint64 safe = 3;
+}
+
+// The server's view of its own progress, sent when it changes.
+message StreamStatus {
+  enum State {
+    STATE_OK = 0;
+    STATE_DEGRADED = 1;
+    STATE_LAGGING = 2;
+  }
+  State state = 1;
+  string reason = 2;
 }
