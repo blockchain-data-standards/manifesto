@@ -2,6 +2,7 @@ package evm
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -40,7 +41,7 @@ func TestReceiptL1BlobBaseFeeConversion(t *testing.T) {
 	}
 
 	// Test Proto to JsonRpc conversion
-	jsonRpcMap := ReceiptToJsonRpc(protoReceipt)
+	jsonRpcMap := decoded(t, receiptJSON(t, protoReceipt))
 
 	// Check that l1BlobBaseFee is properly converted back to hex
 	if l1BlobBaseFee, ok := jsonRpcMap["l1BlobBaseFee"]; !ok {
@@ -81,7 +82,7 @@ func TestReceiptL1BlobBaseFeeOmitted(t *testing.T) {
 	}
 
 	// Test Proto to JsonRpc conversion
-	jsonRpcMap := ReceiptToJsonRpc(protoReceipt)
+	jsonRpcMap := decoded(t, receiptJSON(t, protoReceipt))
 
 	// Check that l1BlobBaseFee is not in the output when nil
 	if _, ok := jsonRpcMap["l1BlobBaseFee"]; ok {
@@ -92,6 +93,34 @@ func TestReceiptL1BlobBaseFeeOmitted(t *testing.T) {
 func mustHex(t *testing.T, s string) []byte {
 	t.Helper()
 	b, err := hex.DecodeString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// decoded parses a rendered JSON-RPC object.
+func decoded(t *testing.T, b []byte) map[string]interface{} {
+	t.Helper()
+	var m map[string]interface{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("invalid JSON %s: %v", b, err)
+	}
+	return m
+}
+
+func receiptJSON(t testing.TB, r *Receipt) []byte {
+	t.Helper()
+	b, err := AppendReceiptJsonRpc(nil, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func receiptsJSON(t testing.TB, rs []*Receipt) []byte {
+	t.Helper()
+	b, err := AppendReceiptsJsonRpc(nil, rs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +152,7 @@ func TestSignatureRAndSRenderAsQuantities(t *testing.T) {
 					S:       s,
 				}},
 			}
-			out := TransactionToJsonRpc(tx, SignatureQuantity)
+			out := decoded(t, AppendTransactionJsonRpc(nil, tx, SignatureQuantity))
 			auth := out["authorizationList"].([]interface{})[0].(map[string]interface{})
 			for _, c := range []struct {
 				field string
@@ -184,9 +213,9 @@ func TestSignatureRAndSFollowEncoding(t *testing.T) {
 		{"fixed 32-byte data", SignatureFixedData32, "0x" + strings.Repeat("0", 63) + "1", "0x" + strings.Repeat("0", 24) + addr},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			out := TransactionToJsonRpc(tx, tc.sig)
+			out := decoded(t, AppendTransactionJsonRpc(nil, tx, tc.sig))
 			auth := out["authorizationList"].([]interface{})[0].(map[string]interface{})
-			block := BlockToJsonRpc(&BlockHeader{}, nil, []*Transaction{tx}, nil, tc.sig)
+			block := decoded(t, AppendBlockJsonRpc(nil, &BlockHeader{}, nil, []*Transaction{tx}, nil, tc.sig))
 			inBlock := block["transactions"].([]interface{})[0].(map[string]interface{})
 			for _, c := range []struct {
 				field string

@@ -17,14 +17,14 @@ A confirmed block on an EVM-compatible blockchain containing transactions and st
 
 - [json_rpc.go -> JsonRpcBlock](./json_rpc.go#L44)
 - [json_rpc.go -> JsonRpcBlock.ToProto()](./json_rpc.go#L84)
-- [json_rpc.go -> BlockToJsonRpc()](./json_rpc.go#L1163)
+- [json_rpc.go -> AppendBlockJsonRpc()](./json_rpc.go)
 
 ### Transaction
 
 Represents a transaction on an EVM-compatible blockchain.
 
 - [json_rpc.go -> ParseJsonRpcTransaction()](./json_rpc.go#L1287)
-- [json_rpc.go -> TransactionToJsonRpc()](./json_rpc.go#L741)
+- [json_rpc.go -> AppendTransactionJsonRpc()](./json_rpc.go)
 
 ### Log
 
@@ -32,7 +32,7 @@ An event emitted by a smart contract during transaction execution on an EVM-comp
 
 - [json_rpc.go -> JsonRpcLog](./json_rpc.go#L632)
 - [json_rpc.go -> JsonRpcLog.ToProto()](./json_rpc.go#L644)
-- [json_rpc.go -> LogToJsonRpc()](./json_rpc.go#L702)
+- [json_rpc.go -> AppendLogsJsonRpc()](./json_rpc.go)
 
 ### Receipt
 
@@ -40,7 +40,7 @@ Represents the result of executing a transaction on an EVM blockchain.
 
 - [json_rpc.go -> JsonRpcReceipt](./json_rpc.go#L375)
 - [json_rpc.go -> JsonRpcReceipt.ToProto()](./json_rpc.go#L409)
-- [json_rpc.go -> ReceiptToJsonRpc()](./json_rpc.go#L1012)
+- [json_rpc.go -> AppendReceiptJsonRpc(), AppendReceiptsJsonRpc()](./json_rpc.go)
 
 ## Usage
 

@@ -712,43 +712,51 @@ func (l *JsonRpcLog) ToProto() (*Log, error) {
 	}, nil
 }
 
-// LogToJsonRpc serialises a *Log into a JSON-RPC compatible map[string]interface{}.
-func LogToJsonRpc(l *Log) map[string]interface{} {
-	if l == nil {
-		return nil
-	}
-	topics := make([]string, len(l.Topics))
-	for i, t := range l.Topics {
-		topics[i] = BytesToHex(t)
-	}
-
-	result := map[string]interface{}{
-		"address":          BytesToHex(l.Address),
-		"topics":           topics,
-		"data":             BytesToHex(l.Data),
-		"blockNumber":      fmt.Sprintf("0x%x", l.BlockNumber),
-		"transactionHash":  BytesToHex(l.TransactionHash),
-		"transactionIndex": fmt.Sprintf("0x%x", l.TransactionIndex),
-		"blockHash":        BytesToHex(l.BlockHash),
-		"logIndex":         fmt.Sprintf("0x%x", l.LogIndex),
-		"removed":          false,
-	}
-
-	// Include optional block timestamp when present
-	if l.BlockTimestamp != nil {
-		result["blockTimestamp"] = fmt.Sprintf("0x%x", *l.BlockTimestamp)
-	}
-
-	return result
+// AppendLogsJsonRpc appends logs as the JSON-RPC array eth_getLogs returns.
+func AppendLogsJsonRpc(b []byte, logs []*Log) []byte {
+	w := jsonWriter{b: b}
+	w.logs(logs)
+	return w.b
 }
 
-// LogsToJsonRpc converts a slice of *Log to []interface{} for JSON-RPC responses.
-func LogsToJsonRpc(logs []*Log) []interface{} {
-	out := make([]interface{}, len(logs))
-	for i, l := range logs {
-		out[i] = LogToJsonRpc(l)
+func (w *jsonWriter) logs(logs []*Log) {
+	w.open('[')
+	for _, l := range logs {
+		w.sep()
+		w.log(l)
 	}
-	return out
+	w.close(']')
+}
+
+func (w *jsonWriter) log(l *Log) {
+	if l == nil {
+		w.null()
+		return
+	}
+	w.open('{')
+	w.key("address")
+	w.data(l.Address)
+	w.key("blockHash")
+	w.data(l.BlockHash)
+	w.key("blockNumber")
+	w.quantity(l.BlockNumber)
+	if l.BlockTimestamp != nil {
+		w.key("blockTimestamp")
+		w.quantity(*l.BlockTimestamp)
+	}
+	w.key("data")
+	w.data(l.Data)
+	w.key("logIndex")
+	w.quantity(uint64(l.LogIndex))
+	w.key("removed")
+	w.boolean(false)
+	w.key("topics")
+	w.dataList(l.Topics)
+	w.key("transactionHash")
+	w.data(l.TransactionHash)
+	w.key("transactionIndex")
+	w.quantity(uint64(l.TransactionIndex))
+	w.close('}')
 }
 
 // SignatureEncoding selects how a transaction's signature r and s render in
@@ -781,8 +789,8 @@ func (e SignatureEncoding) hex(b []byte) string {
 	return BytesToQuantityHex(b)
 }
 
-// TransactionToJsonRpc converts a *Transaction into the JSON-RPC transaction
-// object a node sends for eth_getTransactionByHash and full blocks.
+// AppendTransactionJsonRpc appends the JSON-RPC transaction object a node
+// sends for eth_getTransactionByHash and full blocks, or null for nil.
 // sig selects the r/s encoding; pass SignatureEncodingForChain(chainId).
 //
 // A BDS Transaction also carries its receipt's execution figures (gasUsed,
@@ -790,44 +798,14 @@ func (e SignatureEncoding) hex(b []byte) string {
 // have. Nodes send those figures on the receipt only, and omit a field the
 // transaction does not have rather than sending null, so this leaves them
 // out: a value the record carries is never invented or nulled.
-// TransactionRecordToJsonRpc renders every field the record holds.
 //
 // The shape follows what providers send (2026-10-08 survey: 22 chains, 2-8
 // providers each): an empty accessList only on the types that define one, no
 // chainId on an OP deposit (0x7e) or a pre-EIP-155 legacy transaction.
-func TransactionToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]interface{} {
-	o := TransactionRecordToJsonRpc(tx, sig)
-	if o == nil {
-		return nil
-	}
-	for k, v := range o {
-		// "to" is null on a contract creation, and nodes send it that way.
-		if v == nil && k != "to" {
-			delete(o, k)
-		}
-	}
-	for _, k := range receiptFiguresOnTransaction {
-		delete(o, k)
-	}
-	if len(tx.AccessList) == 0 && !accessListTypes[tx.Type] {
-		// Legacy, deposit (0x7e), Arbitrum (0x6a), zkSync (0x71) and other
-		// types without one: nodes send no accessList key at all.
-		delete(o, "accessList")
-	}
-	switch tx.Type {
-	case 0:
-		// A legacy transaction names a chainId only when its signature does
-		// (EIP-155: v = chainId*2 + 35 or 36, else 27 or 28).
-		if v, ok := o["v"].(string); ok {
-			if n, err := HexToUint64(v); err == nil && n < 35 {
-				delete(o, "chainId")
-			}
-		}
-	case 0x7e:
-		// An OP deposit is not signed by its sender and names no chainId.
-		delete(o, "chainId")
-	}
-	return o
+func AppendTransactionJsonRpc(b []byte, tx *Transaction, sig SignatureEncoding) []byte {
+	w := jsonWriter{b: b}
+	w.transaction(tx, sig)
+	return w.b
 }
 
 // accessListTypes are the transaction types that define an access list, so
@@ -835,573 +813,455 @@ func TransactionToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]int
 // (3), EIP-7702 (4) and Celo's CIP-64 (0x7b).
 var accessListTypes = map[uint32]bool{1: true, 2: true, 3: true, 4: true, 0x7b: true}
 
-// receiptFiguresOnTransaction are the execution results a BDS Transaction
-// copies from its receipt. Nodes send them on the receipt only.
-var receiptFiguresOnTransaction = []string{
-	"gasUsed", "effectiveGasPrice", "blobGasUsed", "blobGasPrice",
-	"l1Fee", "l1GasUsed", "l1GasPrice", "l1FeeScalar", "l1BlobBaseFee", "l1BlobBaseFeeScalar",
+// sendsChainId says whether a node names tx's chainId: an OP deposit is not
+// signed by its sender, and a legacy transaction names one only when its
+// signature does (EIP-155: v = chainId*2 + 35 or 36, else 27 or 28).
+func sendsChainId(tx *Transaction) bool {
+	switch tx.Type {
+	case 0x7e:
+		return false
+	case 0:
+		if tx.V == nil {
+			return true
+		}
+		v := tx.V
+		for len(v) > 0 && v[0] == 0 {
+			v = v[1:]
+		}
+		return len(v) > 1 || (len(v) == 1 && v[0] >= 35)
+	}
+	return true
 }
 
-// TransactionRecordToJsonRpc renders every field a BDS Transaction holds,
-// including its receipt's execution figures. The eth_query* methods do not use
-// it: they render a MIP-16 field selection (queryTransactionToJsonRpc).
-// sig selects the r/s encoding; pass SignatureEncodingForChain(chainId).
-func TransactionRecordToJsonRpc(tx *Transaction, sig SignatureEncoding) map[string]interface{} {
+func (w *jsonWriter) transaction(tx *Transaction, sig SignatureEncoding) {
 	if tx == nil {
-		return nil
+		w.null()
+		return
 	}
-
-	o := map[string]interface{}{
-		"hash":  BytesToHex(tx.Hash),
-		"nonce": fmt.Sprintf("0x%x", tx.Nonce),
-		"from":  BytesToHex(tx.From),
-		"gas":   fmt.Sprintf("0x%x", tx.GasLimit),
-		"input": BytesToHex(tx.Input),
-		"type":  fmt.Sprintf("0x%x", tx.Type),
-	}
-
-	if len(tx.To) > 0 {
-		o["to"] = BytesToHex(tx.To)
-	} else {
-		o["to"] = nil
-	}
-
-	if tx.BlockHash != nil {
-		o["blockHash"] = BytesToHex(tx.BlockHash)
-	}
-	if tx.BlockNumber != nil {
-		o["blockNumber"] = fmt.Sprintf("0x%x", *tx.BlockNumber)
-	}
-	if tx.TransactionIndex != nil {
-		o["transactionIndex"] = fmt.Sprintf("0x%x", *tx.TransactionIndex)
-	}
-	if tx.BlockTimestamp != nil {
-		o["blockTimestamp"] = fmt.Sprintf("0x%x", *tx.BlockTimestamp)
-	}
-
-	// Value (decimal -> hex)
-	if tx.Value != "" {
-		if hex, err := DecimalStringToHex(tx.Value); err == nil {
-			o["value"] = hex
-		}
-	}
-
-	// L2 mint value (decimal -> hex)
-	if tx.Mint != nil {
-		if hex, err := DecimalStringToHex(*tx.Mint); err == nil {
-			o["mint"] = hex
-		}
-	}
-
-	// Fee related fields – pointers to decimal strings
-	if tx.GasPrice != nil {
-		if hex, err := DecimalStringToHex(*tx.GasPrice); err == nil {
-			o["gasPrice"] = hex
-		}
-	}
-	if tx.MaxFeePerGas != nil {
-		if hex, err := DecimalStringToHex(*tx.MaxFeePerGas); err == nil {
-			o["maxFeePerGas"] = hex
-		}
-	}
-	if tx.MaxPriorityFeePerGas != nil {
-		if hex, err := DecimalStringToHex(*tx.MaxPriorityFeePerGas); err == nil {
-			o["maxPriorityFeePerGas"] = hex
-		}
-	}
-
-	// Execution result fields (only available for mined transactions)
-	if tx.GasUsed != nil {
-		o["gasUsed"] = fmt.Sprintf("0x%x", *tx.GasUsed)
-	}
-	if tx.EffectiveGasPrice != nil {
-		if hex, err := DecimalStringToHex(*tx.EffectiveGasPrice); err == nil {
-			o["effectiveGasPrice"] = hex
-		}
-	}
-
-	if tx.R != nil {
-		o["r"] = sig.hex(tx.R)
-	}
-	if tx.S != nil {
-		o["s"] = sig.hex(tx.S)
-	}
-	if tx.V != nil {
-		// v is QUANTITY
-		o["v"] = BytesToQuantityHex(tx.V)
-	}
-
-	// Source hash (bytes)
-	if len(tx.SourceHash) > 0 {
-		o["sourceHash"] = BytesToHex(tx.SourceHash)
-	}
-
-	// Chain ID (optional)
-	if tx.ChainId != nil {
-		o["chainId"] = fmt.Sprintf("0x%x", *tx.ChainId)
-	} else {
-		o["chainId"] = nil
-	}
-
-	// yParity (optional)
-	if tx.YParity != nil {
-		o["yParity"] = fmt.Sprintf("0x%x", *tx.YParity)
-	} else {
-		o["yParity"] = nil
-	}
-
-	// Access list (EIP-2930)
-	accessList := make([]interface{}, 0, len(tx.AccessList))
-	for _, item := range tx.AccessList {
-		if item == nil {
-			continue
-		}
-		obj := map[string]interface{}{
-			"address": BytesToHex(item.Address),
-		}
-		if len(item.StorageKeys) > 0 {
-			keys := make([]string, len(item.StorageKeys))
-			for i, k := range item.StorageKeys {
-				keys[i] = BytesToHex(k)
+	w.open('{')
+	if len(tx.AccessList) > 0 || accessListTypes[tx.Type] {
+		w.key("accessList")
+		w.open('[')
+		for _, item := range tx.AccessList {
+			if item == nil {
+				continue
 			}
-			obj["storageKeys"] = keys
-		} else {
-			obj["storageKeys"] = []interface{}{}
+			w.sep()
+			w.open('{')
+			w.key("address")
+			w.data(item.Address)
+			w.key("storageKeys")
+			w.dataList(item.StorageKeys)
+			w.close('}')
 		}
-		accessList = append(accessList, obj)
+		w.close(']')
 	}
-	o["accessList"] = accessList
-
-	// EIP-4844 fields
-	if tx.MaxFeePerBlobGas != nil {
-		if hex, err := DecimalStringToHex(*tx.MaxFeePerBlobGas); err == nil {
-			o["maxFeePerBlobGas"] = hex
-		}
-	}
-	if len(tx.BlobVersionedHashes) > 0 {
-		hashes := make([]string, len(tx.BlobVersionedHashes))
-		for i, h := range tx.BlobVersionedHashes {
-			hashes[i] = BytesToHex(h)
-		}
-		o["blobVersionedHashes"] = hashes
-	}
-	if tx.BlobGasUsed != nil {
-		o["blobGasUsed"] = fmt.Sprintf("0x%x", *tx.BlobGasUsed)
-	}
-	if tx.BlobGasPrice != nil {
-		if hex, err := DecimalStringToHex(*tx.BlobGasPrice); err == nil {
-			o["blobGasPrice"] = hex
-		}
-	}
-
-	// EIP-7702 authorization list
 	if len(tx.AuthorizationList) > 0 {
-		authList := make([]interface{}, 0, len(tx.AuthorizationList))
+		w.key("authorizationList")
+		w.open('[')
 		for _, auth := range tx.AuthorizationList {
 			if auth == nil {
 				continue
 			}
-			authItem := map[string]interface{}{
-				"chainId": fmt.Sprintf("0x%x", auth.ChainId),
-				"address": BytesToHex(auth.Address),
-				"nonce":   fmt.Sprintf("0x%x", auth.Nonce),
-				"r":       sig.hex(auth.R),
-				"s":       sig.hex(auth.S),
-				"yParity": fmt.Sprintf("0x%x", auth.YParity),
-			}
-			// Optional authority (bytes) – include when present
+			w.sep()
+			w.open('{')
+			w.key("address")
+			w.data(auth.Address)
 			if len(auth.Authority) > 0 {
-				authItem["authority"] = BytesToHex(auth.Authority)
+				w.key("authority")
+				w.data(auth.Authority)
 			}
-			authList = append(authList, authItem)
+			w.key("chainId")
+			w.quantity(auth.ChainId)
+			w.key("nonce")
+			w.quantity(auth.Nonce)
+			w.key("r")
+			w.signature(auth.R, sig)
+			w.key("s")
+			w.signature(auth.S, sig)
+			w.key("yParity")
+			w.quantity(uint64(auth.YParity))
+			w.close('}')
 		}
-		o["authorizationList"] = authList
+		w.close(']')
 	}
-
-	// L2 fee breakdown & miscellaneous fields
-	if tx.L1Fee != nil {
-		if hex, err := DecimalStringToHex(*tx.L1Fee); err == nil {
-			o["l1Fee"] = hex
-		} else {
-			o["l1Fee"] = nil
-		}
-	} else {
-		o["l1Fee"] = nil
-	}
-	if tx.L1GasUsed != nil {
-		if hex, err := DecimalStringToHex(*tx.L1GasUsed); err == nil {
-			o["l1GasUsed"] = hex
-		}
-	}
-	if tx.L1GasPrice != nil {
-		if hex, err := DecimalStringToHex(*tx.L1GasPrice); err == nil {
-			o["l1GasPrice"] = hex
-		}
-	}
-	if tx.L1FeeScalar != nil {
-		o["l1FeeScalar"] = *tx.L1FeeScalar
-	}
-	if tx.L1BlobBaseFee != nil {
-		if hex, err := DecimalStringToHex(*tx.L1BlobBaseFee); err == nil {
-			o["l1BlobBaseFee"] = hex
-		}
-	}
-	if tx.L1BlobBaseFeeScalar != nil {
-		o["l1BlobBaseFeeScalar"] = fmt.Sprintf("0x%x", *tx.L1BlobBaseFeeScalar)
-	}
-	if tx.GatewayFee != nil {
-		if hex, err := DecimalStringToHex(*tx.GatewayFee); err == nil {
-			o["gatewayFee"] = hex
-		}
-	}
-	if len(tx.FeeCurrency) > 0 {
-		o["feeCurrency"] = BytesToHex(tx.FeeCurrency)
-	}
-	if len(tx.GatewayFeeRecipient) > 0 {
-		o["gatewayFeeRecipient"] = BytesToHex(tx.GatewayFeeRecipient)
-	}
-
-	// Arbitrum retryable ticket fields
 	if len(tx.Beneficiary) > 0 {
-		o["beneficiary"] = BytesToHex(tx.Beneficiary)
+		w.key("beneficiary")
+		w.data(tx.Beneficiary)
 	}
-	if tx.DepositValue != nil {
-		if hex, err := DecimalStringToHex(*tx.DepositValue); err == nil {
-			o["depositValue"] = hex
-		}
+	if len(tx.BlobVersionedHashes) > 0 {
+		w.key("blobVersionedHashes")
+		w.dataList(tx.BlobVersionedHashes)
 	}
-	if tx.L1BaseFee != nil {
-		if hex, err := DecimalStringToHex(*tx.L1BaseFee); err == nil {
-			o["l1BaseFee"] = hex
-		}
+	if tx.BlockHash != nil {
+		w.key("blockHash")
+		w.data(tx.BlockHash)
 	}
-	if tx.MaxSubmissionFee != nil {
-		if hex, err := DecimalStringToHex(*tx.MaxSubmissionFee); err == nil {
-			o["maxSubmissionFee"] = hex
-		}
+	if tx.BlockNumber != nil {
+		w.key("blockNumber")
+		w.quantity(*tx.BlockNumber)
+	}
+	if tx.BlockTimestamp != nil {
+		w.key("blockTimestamp")
+		w.quantity(*tx.BlockTimestamp)
+	}
+	if tx.ChainId != nil && sendsChainId(tx) {
+		w.key("chainId")
+		w.quantity(*tx.ChainId)
+	}
+	w.quantityField("depositReceiptVersion", tx.DepositReceiptVersion)
+	w.quantityField("depositValue", tx.DepositValue)
+	if len(tx.FeeCurrency) > 0 {
+		w.key("feeCurrency")
+		w.data(tx.FeeCurrency)
+	}
+	w.key("from")
+	w.data(tx.From)
+	w.key("gas")
+	w.quantity(tx.GasLimit)
+	w.quantityField("gasPrice", tx.GasPrice)
+	w.quantityField("gatewayFee", tx.GatewayFee)
+	if len(tx.GatewayFeeRecipient) > 0 {
+		w.key("gatewayFeeRecipient")
+		w.data(tx.GatewayFeeRecipient)
+	}
+	w.key("hash")
+	w.data(tx.Hash)
+	w.key("input")
+	w.data(tx.Input)
+	if tx.IsSystemTx != nil {
+		w.key("isSystemTx")
+		w.boolean(*tx.IsSystemTx)
+	}
+	w.quantityField("l1BaseFee", tx.L1BaseFee)
+	w.quantityField("maxFeePerBlobGas", tx.MaxFeePerBlobGas)
+	w.quantityField("maxFeePerGas", tx.MaxFeePerGas)
+	w.quantityField("maxPriorityFeePerGas", tx.MaxPriorityFeePerGas)
+	w.quantityField("maxRefund", tx.MaxRefund)
+	w.quantityField("maxSubmissionFee", tx.MaxSubmissionFee)
+	w.quantityField("mint", tx.Mint)
+	w.key("nonce")
+	w.quantity(tx.Nonce)
+	if tx.R != nil {
+		w.key("r")
+		w.signature(tx.R, sig)
 	}
 	if len(tx.RefundTo) > 0 {
-		o["refundTo"] = BytesToHex(tx.RefundTo)
+		w.key("refundTo")
+		w.data(tx.RefundTo)
 	}
 	if len(tx.RequestId) > 0 {
-		o["requestId"] = BytesToHex(tx.RequestId)
+		w.key("requestId")
+		w.data(tx.RequestId)
 	}
 	if len(tx.RetryData) > 0 {
-		o["retryData"] = BytesToHex(tx.RetryData)
+		w.key("retryData")
+		w.data(tx.RetryData)
 	}
 	if len(tx.RetryTo) > 0 {
-		o["retryTo"] = BytesToHex(tx.RetryTo)
+		w.key("retryTo")
+		w.data(tx.RetryTo)
 	}
-	if tx.RetryValue != nil {
-		if hex, err := DecimalStringToHex(*tx.RetryValue); err == nil {
-			o["retryValue"] = hex
-		}
+	w.quantityField("retryValue", tx.RetryValue)
+	if tx.S != nil {
+		w.key("s")
+		w.signature(tx.S, sig)
 	}
-	if tx.MaxRefund != nil {
-		if hex, err := DecimalStringToHex(*tx.MaxRefund); err == nil {
-			o["maxRefund"] = hex
-		}
+	if len(tx.SourceHash) > 0 {
+		w.key("sourceHash")
+		w.data(tx.SourceHash)
 	}
-	if tx.SubmissionFeeRefund != nil {
-		if hex, err := DecimalStringToHex(*tx.SubmissionFeeRefund); err == nil {
-			o["submissionFeeRefund"] = hex
-		}
-	}
+	w.quantityField("submissionFeeRefund", tx.SubmissionFeeRefund)
 	if len(tx.TicketId) > 0 {
-		o["ticketId"] = BytesToHex(tx.TicketId)
+		w.key("ticketId")
+		w.data(tx.TicketId)
 	}
-
-	// Base-specific fields
-	if tx.IsSystemTx != nil {
-		o["isSystemTx"] = *tx.IsSystemTx
+	// "to" is null on a contract creation, and nodes send it that way.
+	w.key("to")
+	w.dataOrNull(tx.To)
+	if tx.TransactionIndex != nil {
+		w.key("transactionIndex")
+		w.quantity(uint64(*tx.TransactionIndex))
 	}
-	if tx.DepositReceiptVersion != nil {
-		if hex, err := DecimalStringToHex(*tx.DepositReceiptVersion); err == nil {
-			o["depositReceiptVersion"] = hex
-		}
+	w.key("type")
+	w.quantity(uint64(tx.Type))
+	if tx.V != nil {
+		w.key("v")
+		w.bytesQuantity(tx.V)
 	}
-
-	return o
+	if tx.Value != "" {
+		w.quantityField("value", &tx.Value)
+	}
+	if tx.YParity != nil {
+		w.key("yParity")
+		w.quantity(uint64(*tx.YParity))
+	}
+	w.close('}')
 }
 
-// ReceiptsToJsonRpc converts a slice of *Receipt to []interface{} for JSON-RPC responses.
-func ReceiptsToJsonRpc(receipts []*Receipt) []interface{} {
-	out := make([]interface{}, len(receipts))
-	for i, r := range receipts {
-		out[i] = ReceiptToJsonRpc(r)
+// AppendReceiptsJsonRpc appends receipts as the JSON-RPC array
+// eth_getBlockReceipts returns. A NaN or infinite l1FeeScalar, which no node
+// sends, is an error; b then holds a partial result, returned so a caller can
+// reuse its buffer.
+func AppendReceiptsJsonRpc(b []byte, receipts []*Receipt) ([]byte, error) {
+	w := jsonWriter{b: b}
+	w.open('[')
+	for _, r := range receipts {
+		w.sep()
+		w.receipt(r)
 	}
-	return out
+	w.close(']')
+	return w.b, w.err
 }
 
-// ReceiptToJsonRpc converts a *Receipt into JSON-RPC representation.
-func ReceiptToJsonRpc(r *Receipt) map[string]interface{} {
+// AppendReceiptJsonRpc appends the JSON-RPC receipt object, or null for nil.
+// L2 fee fields appear only on chains that have them: a node elsewhere omits
+// them rather than sending null. No blockTimestamp: no provider sends one on
+// a receipt (it is on the receipt's logs instead). Errors as
+// AppendReceiptsJsonRpc does.
+func AppendReceiptJsonRpc(b []byte, r *Receipt) ([]byte, error) {
+	w := jsonWriter{b: b}
+	w.receipt(r)
+	return w.b, w.err
+}
+
+func (w *jsonWriter) receipt(r *Receipt) {
 	if r == nil {
-		return nil
+		w.null()
+		return
 	}
-
-	out := map[string]interface{}{
-		"transactionHash":   BytesToHex(r.TransactionHash),
-		"transactionIndex":  fmt.Sprintf("0x%x", r.TransactionIndex),
-		"blockHash":         BytesToHex(r.BlockHash),
-		"blockNumber":       fmt.Sprintf("0x%x", r.BlockNumber),
-		"from":              BytesToHex(r.From),
-		"cumulativeGasUsed": fmt.Sprintf("0x%x", r.CumulativeGasUsed),
-		"gasUsed":           fmt.Sprintf("0x%x", r.GasUsed),
-		"logsBloom":         BytesToHex(r.LogsBloom),
-		"logs":              LogsToJsonRpc(r.Logs),
-		"contractAddress":   nil,
-	}
-
-	// Add "to" field - can be null for contract creation
-	if len(r.To) > 0 {
-		out["to"] = BytesToHex(r.To)
-	} else {
-		out["to"] = nil
-	}
-
-	if r.Status != nil {
-		out["status"] = fmt.Sprintf("0x%x", *r.Status)
-	}
-	if len(r.ContractAddress) > 0 {
-		out["contractAddress"] = BytesToHex(r.ContractAddress)
-	}
-	out["type"] = fmt.Sprintf("0x%x", r.Type)
-
-	if r.EffectiveGasPrice != "" {
-		if hex, err := DecimalStringToHex(r.EffectiveGasPrice); err == nil {
-			out["effectiveGasPrice"] = hex
-		}
-	}
-
-	// Add root field for pre-Byzantium compatibility
-	if len(r.Root) > 0 {
-		out["root"] = BytesToHex(r.Root)
-	}
-
-	// No blockTimestamp: no provider sends one on a receipt (it is on the
-	// receipt's logs instead).
-
-	if r.GasUsedForL1 != nil {
-		out["gasUsedForL1"] = fmt.Sprintf("0x%x", *r.GasUsedForL1)
-	}
-
-	if r.L1BlockNumber != nil {
-		out["l1BlockNumber"] = fmt.Sprintf("0x%x", *r.L1BlockNumber)
-	}
-
-	// Additional L2 fee breakdown fields, present only on chains that have
-	// them: a node elsewhere omits them rather than sending null.
-	if r.L1Fee != nil {
-		if hex, err := DecimalStringToHex(*r.L1Fee); err == nil {
-			out["l1Fee"] = hex
-		}
-	}
-	if r.L1GasUsed != nil {
-		if hex, err := DecimalStringToHex(*r.L1GasUsed); err == nil {
-			out["l1GasUsed"] = hex
-		}
-	}
-	if r.L1GasPrice != nil {
-		if hex, err := DecimalStringToHex(*r.L1GasPrice); err == nil {
-			out["l1GasPrice"] = hex
-		}
-	}
-	if r.GatewayFee != nil {
-		if hex, err := DecimalStringToHex(*r.GatewayFee); err == nil {
-			out["gatewayFee"] = hex
-		}
-	}
-
+	w.open('{')
+	w.quantityField("blobGasPrice", r.BlobGasPrice)
 	if r.BlobGasUsed != nil {
-		out["blobGasUsed"] = fmt.Sprintf("0x%x", *r.BlobGasUsed)
+		w.key("blobGasUsed")
+		w.quantity(*r.BlobGasUsed)
 	}
-	if r.BlobGasPrice != nil {
-		if hex, err := DecimalStringToHex(*r.BlobGasPrice); err == nil {
-			out["blobGasPrice"] = hex
-		}
-	}
-	if r.L1FeeScalar != nil {
-		out["l1FeeScalar"] = *r.L1FeeScalar
-	}
-	if r.L1BaseFeeScalar != nil {
-		out["l1BaseFeeScalar"] = fmt.Sprintf("0x%x", *r.L1BaseFeeScalar)
-	}
-	if r.L1BlobBaseFee != nil {
-		if hex, err := DecimalStringToHex(*r.L1BlobBaseFee); err == nil {
-			out["l1BlobBaseFee"] = hex
-		}
-	}
-	if r.L1BlobBaseFeeScalar != nil {
-		out["l1BlobBaseFeeScalar"] = fmt.Sprintf("0x%x", *r.L1BlobBaseFeeScalar)
-	}
+	w.key("blockHash")
+	w.data(r.BlockHash)
+	w.key("blockNumber")
+	w.quantity(r.BlockNumber)
+	w.key("contractAddress")
+	w.dataOrNull(r.ContractAddress)
+	w.key("cumulativeGasUsed")
+	w.quantity(r.CumulativeGasUsed)
 	if r.DaFootprintGasScalar != nil {
-		out["daFootprintGasScalar"] = fmt.Sprintf("0x%x", *r.DaFootprintGasScalar)
+		w.key("daFootprintGasScalar")
+		w.quantity(*r.DaFootprintGasScalar)
 	}
-	if r.DepositNonce != nil {
-		if hex, err := DecimalStringToHex(*r.DepositNonce); err == nil {
-			out["depositNonce"] = hex
-		}
+	w.quantityField("depositNonce", r.DepositNonce)
+	w.quantityField("depositReceiptVersion", r.DepositReceiptVersion)
+	if r.EffectiveGasPrice != "" {
+		w.quantityField("effectiveGasPrice", &r.EffectiveGasPrice)
 	}
-	if r.DepositReceiptVersion != nil {
-		if hex, err := DecimalStringToHex(*r.DepositReceiptVersion); err == nil {
-			out["depositReceiptVersion"] = hex
-		}
+	w.key("from")
+	w.data(r.From)
+	w.key("gasUsed")
+	w.quantity(r.GasUsed)
+	if r.GasUsedForL1 != nil {
+		w.key("gasUsedForL1")
+		w.quantity(*r.GasUsedForL1)
+	}
+	w.quantityField("gatewayFee", r.GatewayFee)
+	if r.L1BaseFeeScalar != nil {
+		w.key("l1BaseFeeScalar")
+		w.quantity(*r.L1BaseFeeScalar)
+	}
+	w.quantityField("l1BlobBaseFee", r.L1BlobBaseFee)
+	if r.L1BlobBaseFeeScalar != nil {
+		w.key("l1BlobBaseFeeScalar")
+		w.quantity(*r.L1BlobBaseFeeScalar)
+	}
+	if r.L1BlockNumber != nil {
+		w.key("l1BlockNumber")
+		w.quantity(*r.L1BlockNumber)
+	}
+	w.quantityField("l1Fee", r.L1Fee)
+	w.floatTextField("l1FeeScalar", r.L1FeeScalar)
+	w.quantityField("l1GasPrice", r.L1GasPrice)
+	w.quantityField("l1GasUsed", r.L1GasUsed)
+	w.key("logs")
+	w.logs(r.Logs)
+	w.key("logsBloom")
+	w.data(r.LogsBloom)
+	// Pre-Byzantium receipts carry a state root instead of a status.
+	if len(r.Root) > 0 {
+		w.key("root")
+		w.data(r.Root)
+	}
+	if r.Status != nil {
+		w.key("status")
+		w.quantity(uint64(*r.Status))
 	}
 	if r.Timeboosted != nil {
-		out["timeboosted"] = *r.Timeboosted
+		w.key("timeboosted")
+		w.boolean(*r.Timeboosted)
 	}
-
-	return out
+	// "to" is null on a contract creation.
+	w.key("to")
+	w.dataOrNull(r.To)
+	w.key("transactionHash")
+	w.data(r.TransactionHash)
+	w.key("transactionIndex")
+	w.quantity(uint64(r.TransactionIndex))
+	w.key("type")
+	w.quantity(uint64(r.Type))
+	w.close('}')
 }
 
-// WithdrawalToJsonRpc converts a *Withdrawal into JSON-RPC representation.
-func WithdrawalToJsonRpc(w *Withdrawal) map[string]interface{} {
-	if w == nil {
-		return nil
+func (w *jsonWriter) withdrawal(wd *Withdrawal) {
+	if wd == nil {
+		w.null()
+		return
 	}
-
-	return map[string]interface{}{
-		"index":          fmt.Sprintf("0x%x", w.Index),
-		"validatorIndex": fmt.Sprintf("0x%x", w.ValidatorIndex),
-		"address":        BytesToHex(w.Address),
-		"amount":         fmt.Sprintf("0x%x", w.Amount),
-	}
+	w.open('{')
+	w.key("address")
+	w.data(wd.Address)
+	w.key("amount")
+	w.quantity(wd.Amount)
+	w.key("index")
+	w.quantity(wd.Index)
+	w.key("validatorIndex")
+	w.quantity(wd.ValidatorIndex)
+	w.close('}')
 }
 
-// WithdrawalsToJsonRpc converts a slice of *Withdrawal to []interface{} for JSON-RPC responses.
-func WithdrawalsToJsonRpc(withdrawals []*Withdrawal) []interface{} {
-	out := make([]interface{}, len(withdrawals))
-	for i, w := range withdrawals {
-		out[i] = WithdrawalToJsonRpc(w)
-	}
-	return out
-}
-
-// BlockToJsonRpc converts an EVM BlockHeader plus optional transactions to JSON-RPC format.
-// If fullTxs is supplied it will be used; otherwise transaction hashes are used.
-// If withdrawals are supplied, they will be included in the response.
+// AppendBlockJsonRpc appends the JSON-RPC block object for header, or null
+// for nil. Its transactions are fullTxs when given, else txHashes.
 // sig selects the r/s encoding of full transactions; pass SignatureEncodingForChain(chainId).
-func BlockToJsonRpc(header *BlockHeader, txHashes [][]byte, fullTxs []*Transaction, withdrawals []*Withdrawal, sig SignatureEncoding) map[string]interface{} {
+func AppendBlockJsonRpc(b []byte, header *BlockHeader, txHashes [][]byte, fullTxs []*Transaction, withdrawals []*Withdrawal, sig SignatureEncoding) []byte {
+	w := jsonWriter{b: b}
 	if header == nil {
-		return nil
+		w.null()
+		return w.b
 	}
-
-	res := map[string]interface{}{
-		"number":           fmt.Sprintf("0x%x", header.Number),
-		"hash":             BytesToHex(header.Hash),
-		"parentHash":       BytesToHex(header.ParentHash),
-		"sha3Uncles":       BytesToHex(header.Sha3Uncles),
-		"logsBloom":        BytesToHex(header.LogsBloom),
-		"transactionsRoot": BytesToHex(header.TransactionsRoot),
-		"stateRoot":        BytesToHex(header.StateRoot),
-		"receiptsRoot":     BytesToHex(header.ReceiptsRoot),
-		"miner":            BytesToHex(header.Miner),
-		"extraData":        BytesToHex(header.ExtraData),
-		"size":             fmt.Sprintf("0x%x", header.Size),
-		"gasLimit":         fmt.Sprintf("0x%x", header.GasLimit),
-		"gasUsed":          fmt.Sprintf("0x%x", header.GasUsed),
-		"timestamp":        fmt.Sprintf("0x%x", header.Timestamp),
-	}
-
-	if header.Nonce != nil {
-		res["nonce"] = fmt.Sprintf("0x%016x", *header.Nonce)
-	}
-	if header.BaseFeePerGas != nil {
-		if hex, err := DecimalStringToHex(*header.BaseFeePerGas); err == nil {
-			res["baseFeePerGas"] = hex
-		}
-	}
-	if header.Difficulty != nil {
-		if hex, err := DecimalStringToHex(*header.Difficulty); err == nil {
-			res["difficulty"] = hex
-		}
-	}
-	if header.TotalDifficulty != nil {
-		if hex, err := DecimalStringToHex(*header.TotalDifficulty); err == nil {
-			res["totalDifficulty"] = hex
-		}
-	}
-	if header.MixHash != nil {
-		res["mixHash"] = BytesToHex(header.MixHash)
-	}
-	if header.WithdrawalsRoot != nil {
-		res["withdrawalsRoot"] = BytesToHex(header.WithdrawalsRoot)
-	}
-	if header.RequestsHash != nil {
-		res["requestsHash"] = BytesToHex(header.RequestsHash)
-	}
+	w.open('{')
+	w.quantityField("baseFeePerGas", header.BaseFeePerGas)
 	if header.BlobGasUsed != nil {
-		res["blobGasUsed"] = fmt.Sprintf("0x%x", *header.BlobGasUsed)
+		w.key("blobGasUsed")
+		w.quantity(*header.BlobGasUsed)
+	}
+	if header.CanonicalRlp != nil {
+		w.key("canonicalRlp")
+		w.data(header.CanonicalRlp)
+	}
+	w.quantityField("difficulty", header.Difficulty)
+	if header.Epoch != nil {
+		w.key("epoch")
+		w.quantity(*header.Epoch)
 	}
 	if header.ExcessBlobGas != nil {
-		res["excessBlobGas"] = fmt.Sprintf("0x%x", *header.ExcessBlobGas)
+		w.key("excessBlobGas")
+		w.quantity(*header.ExcessBlobGas)
 	}
-	if header.ParentBeaconBlockRoot != nil {
-		res["parentBeaconBlockRoot"] = BytesToHex(header.ParentBeaconBlockRoot)
-	}
+	w.key("extraData")
+	w.data(header.ExtraData)
+	w.key("gasLimit")
+	w.quantity(header.GasLimit)
+	w.key("gasUsed")
+	w.quantity(header.GasUsed)
+	w.key("hash")
+	w.data(header.Hash)
 	if header.L1BlockNumber != nil {
-		res["l1BlockNumber"] = fmt.Sprintf("0x%x", *header.L1BlockNumber)
+		w.key("l1BlockNumber")
+		w.quantity(*header.L1BlockNumber)
 	}
-	if header.SendCount != nil {
-		res["sendCount"] = fmt.Sprintf("0x%x", *header.SendCount)
+	w.key("logsBloom")
+	w.data(header.LogsBloom)
+	w.key("miner")
+	w.data(header.Miner)
+	if header.MixHash != nil {
+		w.key("mixHash")
+		w.data(header.MixHash)
 	}
-	if header.SendRoot != nil {
-		res["sendRoot"] = BytesToHex(header.SendRoot)
+	if header.Nonce != nil {
+		// A block nonce is 8-byte DATA, not a QUANTITY.
+		var digits [16]byte
+		d := strconv.AppendUint(digits[:0], *header.Nonce, 16)
+		w.key("nonce")
+		w.b = append(w.b, '"', '0', 'x')
+		w.b = append(w.b, "0000000000000000"[len(d):]...)
+		w.b = append(w.b, d...)
+		w.b = append(w.b, '"')
 	}
-	if header.Epoch != nil {
-		res["epoch"] = fmt.Sprintf("0x%x", *header.Epoch)
+	w.key("number")
+	w.quantity(header.Number)
+	if header.ParentBeaconBlockRoot != nil {
+		w.key("parentBeaconBlockRoot")
+		w.data(header.ParentBeaconBlockRoot)
 	}
-	if header.Slot != nil {
-		res["slot"] = fmt.Sprintf("0x%x", *header.Slot)
-	}
+	w.key("parentHash")
+	w.data(header.ParentHash)
 	if header.ProposerIndex != nil {
-		res["proposerIndex"] = fmt.Sprintf("0x%x", *header.ProposerIndex)
-	}
-	if header.TransactionCount != nil {
-		res["transactionCount"] = fmt.Sprintf("0x%x", *header.TransactionCount)
+		w.key("proposerIndex")
+		w.quantity(*header.ProposerIndex)
 	}
 	if header.ProposerPublicKey != nil {
-		res["proposerPublicKey"] = *header.ProposerPublicKey
+		w.key("proposerPublicKey")
+		w.text(*header.ProposerPublicKey)
 	}
+	w.key("receiptsRoot")
+	w.data(header.ReceiptsRoot)
+	if header.RequestsHash != nil {
+		w.key("requestsHash")
+		w.data(header.RequestsHash)
+	}
+	if header.SendCount != nil {
+		w.key("sendCount")
+		w.quantity(*header.SendCount)
+	}
+	if header.SendRoot != nil {
+		w.key("sendRoot")
+		w.data(header.SendRoot)
+	}
+	w.key("sha3Uncles")
+	w.data(header.Sha3Uncles)
+	w.key("size")
+	w.quantity(header.Size)
+	if header.Slot != nil {
+		w.key("slot")
+		w.quantity(*header.Slot)
+	}
+	w.key("stateRoot")
+	w.data(header.StateRoot)
+	w.key("timestamp")
+	w.quantity(header.Timestamp)
+	w.quantityField("totalDifficulty", header.TotalDifficulty)
+	if header.TransactionCount != nil {
+		w.key("transactionCount")
+		w.quantity(uint64(*header.TransactionCount))
+	}
+	w.key("transactions")
+	if len(fullTxs) > 0 {
+		w.open('[')
+		for _, tx := range fullTxs {
+			w.sep()
+			w.transaction(tx, sig)
+		}
+		w.close(']')
+	} else {
+		w.dataList(txHashes)
+	}
+	w.key("transactionsRoot")
+	w.data(header.TransactionsRoot)
+	w.key("uncles")
+	w.dataList(header.Uncles)
 	// A header with withdrawalsRoot always carries a withdrawals list, which
 	// proto decodes as nil when empty; JSON-RPC nodes return [] for it.
 	if withdrawals != nil || header.WithdrawalsRoot != nil {
-		res["withdrawals"] = WithdrawalsToJsonRpc(withdrawals)
-	}
-	if header.CanonicalRlp != nil {
-		res["canonicalRlp"] = BytesToHex(header.CanonicalRlp)
-	}
-
-	// Uncles
-	if len(header.Uncles) > 0 {
-		uncles := make([]string, len(header.Uncles))
-		for i, u := range header.Uncles {
-			uncles[i] = BytesToHex(u)
+		w.key("withdrawals")
+		w.open('[')
+		for _, wd := range withdrawals {
+			w.sep()
+			w.withdrawal(wd)
 		}
-		res["uncles"] = uncles
-	} else {
-		res["uncles"] = []interface{}{}
+		w.close(']')
 	}
-
-	// Transactions
-	switch {
-	case len(fullTxs) > 0:
-		txs := make([]interface{}, len(fullTxs))
-		for i, t := range fullTxs {
-			txs[i] = TransactionToJsonRpc(t, sig)
-		}
-		res["transactions"] = txs
-	case len(txHashes) > 0:
-		hashes := make([]string, len(txHashes))
-		for i, h := range txHashes {
-			hashes[i] = BytesToHex(h)
-		}
-		res["transactions"] = hashes
-	default:
-		res["transactions"] = []interface{}{}
+	if header.WithdrawalsRoot != nil {
+		w.key("withdrawalsRoot")
+		w.data(header.WithdrawalsRoot)
 	}
-
-	return res
+	w.close('}')
+	return w.b
 }
 
 // ParseJsonRpcTransaction parses a JSON-RPC transaction into a proto Transaction.
