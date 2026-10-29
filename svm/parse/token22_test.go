@@ -180,6 +180,47 @@ func TestToken22DirectVectors(t *testing.T) {
 				k(1), k(2), k(3), k(4), k(5)),
 		},
 		{
+			// Seen as an inner instruction on mainnet slot 447761250.
+			name:      "unwrapLamports with amount",
+			programID: parse.TokenProgramID,
+			data:      cat([]byte{45, 1}, le64(101919568)),
+			accounts:  accs(1, 2, 3),
+			program:   "spl-token",
+			parsed: fmt.Sprintf(`{"type":"unwrapLamports","info":{
+				"source":%q,"destination":%q,"amount":"101919568","authority":%q}}`, k(1), k(2), k(3)),
+		},
+		{
+			name:      "unwrapLamports whole balance multisig",
+			programID: parse.Token2022ID,
+			data:      []byte{45, 0},
+			accounts:  accs(1, 2, 3, 4),
+			program:   "spl-token",
+			parsed: fmt.Sprintf(`{"type":"unwrapLamports","info":{
+				"source":%q,"destination":%q,"multisigAuthority":%q,"signers":[%q]}}`, k(1), k(2), k(3), k(4)),
+		},
+		{
+			name:      "permissionedBurnChecked",
+			programID: parse.Token2022ID,
+			data:      cat([]byte{46, 2}, le64(1500), []byte{2}),
+			accounts:  accs(1, 2, 3, 4),
+			program:   "spl-token",
+			parsed: fmt.Sprintf(`{"type":"permissionedBurnChecked","info":{
+				"account":%q,"mint":%q,"permissionedBurnAuthority":%q,"authority":%q,
+				"tokenAmount":{"uiAmount":15,"decimals":2,"amount":"1500","uiAmountString":"15"}}}`,
+				k(1), k(2), k(3), k(4)),
+		},
+		{
+			// Records split the outer account list in order.
+			name:      "batch of transfer and syncNative",
+			programID: parse.TokenProgramID,
+			data:      cat([]byte{255, 3, 9, 3}, le64(7), []byte{1, 1, 17}),
+			accounts:  accs(1, 2, 3, 4),
+			program:   "spl-token",
+			parsed: fmt.Sprintf(`{"type":"batch","info":{"instructions":[
+				{"type":"transfer","info":{"source":%q,"destination":%q,"amount":"7","authority":%q}},
+				{"type":"syncNative","info":{"account":%q}}]}}`, k(1), k(2), k(3), k(4)),
+		},
+		{
 			// Base-set trailing tolerance under the 2022 program id.
 			name:      "base transfer trailing bytes tolerated",
 			programID: parse.Token2022ID,
@@ -1174,10 +1215,20 @@ func TestToken22NotParsable(t *testing.T) {
 		{"withdrawExcessLamports 2 accounts", []byte{38}, accs(1, 2)},
 
 		// Unknown extension types at unpack level (falls to TLV, no match).
-		{"reallocate unknown extension type", cat([]byte{29}, le16(28)), accs(1, 2, 3, 4)},
+		{"reallocate unknown extension type", cat([]byte{29}, le16(29)), accs(1, 2, 3, 4)},
 		{"reallocate odd extension bytes", []byte{29, 1}, accs(1, 2, 3, 4)},
-		{"unknown discriminant 45", []byte{45}, accs(1)},
-		{"unknown discriminant 45 with TLV-length payload", cat([]byte{45}, rep(15, 0)), accs(1)},
+		{"unknown discriminant 47", []byte{47}, accs(1)},
+		{"unknown discriminant 47 with TLV-length payload", cat([]byte{47}, rep(15, 0)), accs(1)},
+		{"unwrapLamports missing COption tag", []byte{45}, accs(1, 2, 3)},
+		{"unwrapLamports bad COption tag", []byte{45, 2}, accs(1, 2, 3)},
+		{"unwrapLamports truncated amount", []byte{45, 1, 0, 0}, accs(1, 2, 3)},
+		{"unwrapLamports too few accounts", []byte{45, 0}, accs(1, 2)},
+		{"permissionedBurn unknown sub-instruction", []byte{46, 4}, accs(1, 2, 3, 4)},
+		{"permissionedBurn burn trailing byte", cat([]byte{46, 1}, le64(1), []byte{0}), accs(1, 2, 3, 4)},
+		{"batch nested batch", []byte{255, 1, 1, 255}, accs(1)},
+		{"batch record past data", []byte{255, 1, 9, 9}, accs(1)},
+		{"batch record past accounts", cat([]byte{255, 2, 1}, []byte{17}), accs(1)},
+		{"batch record with no accounts", []byte{255, 0, 1, 17}, accs(1)},
 	}
 	for _, tc := range cases {
 		env, err := parse.Parse(parse.Token2022ID, tc.data, tc.accounts, nil)

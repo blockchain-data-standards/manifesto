@@ -498,6 +498,15 @@ func TestMemoVectors(t *testing.T) {
 			program:   "spl-memo",
 			parsed:    `"gm"`,
 		},
+		{
+			// Agave 4.x registry; seen on mainnet slot 462326546.
+			name:      "memo v4 shares the parser",
+			programID: parse.MemoV4ID,
+			data:      []byte(`{"intentId":"1"}`),
+			accounts:  nil,
+			program:   "spl-memo",
+			parsed:    `"{\"intentId\":\"1\"}"`,
+		},
 	})
 }
 
@@ -569,7 +578,7 @@ func TestNotParsableVectors(t *testing.T) {
 		{"system unknown discriminant 13", parse.SystemProgramID, cat(le32(13)), accs(1)},
 		{"token disc 25 bad COption tag falls to TLV and refuses", parse.TokenProgramID,
 			cat([]byte{25}, kb(5)), accs(1)},
-		{"token unknown discriminant 255", parse.TokenProgramID, []byte{255}, accs(1)},
+		{"token unknown discriminant 254", parse.TokenProgramID, []byte{254}, accs(1)},
 		{"ata unknown discriminant 3", parse.AssociatedID, []byte{3}, accs(1, 2, 3, 4, 5, 6, 7)},
 
 		// Too-few accounts (check_num_accounts is a minimum).
@@ -602,7 +611,7 @@ func TestNotParsableVectors(t *testing.T) {
 		{"token transferChecked missing decimals", parse.TokenProgramID,
 			cat([]byte{12}, le64(1)), accs(1, 2, 3, 4)},
 		{"token setAuthority unknown authority type", parse.TokenProgramID,
-			[]byte{6, 17, 0}, accs(1, 2)},
+			[]byte{6, 18, 0}, accs(1, 2)},
 		{"token getAccountDataSize odd extension bytes", parse.TokenProgramID,
 			[]byte{21, 6}, accs(1)},
 		{"token uiAmountToAmount non-utf8", parse.TokenProgramID,

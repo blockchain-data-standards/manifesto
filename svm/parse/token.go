@@ -2,6 +2,7 @@ package parse
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -17,12 +18,21 @@ import (
 // unchanged.
 var errTokenUnpack = fmt.Errorf("%w: does not decode as a token instruction", ErrNotParsable)
 
-// parseToken ports Agave's parse_token.rs for the BASE instruction set,
-// discriminants 0..=24 — the layouts shared verbatim by spl-token and
-// spl-token-2022. Token-2022 extension discriminants (25+) and the
-// group/metadata interface instructions are phase 2: they return
-// ErrNotParsable and render partiallyDecoded, which is also what any
-// pre-extension validator renders for them.
+// parseTokenInstruction is Agave's parse_token minus its key guard (the
+// caller's): the TokenInstruction arms, then the TokenGroup and
+// TokenMetadata TLV interfaces — tried only when TokenInstruction::unpack
+// itself failed, never when a decoded arm errs (e.g. on account counts).
+func parseTokenInstruction(data []byte, accounts []string) (typeInfo, error) {
+	parsed, err := parseToken(data, accounts)
+	if err != nil && errors.Is(err, errTokenUnpack) {
+		return parseTokenInterface(data, accounts)
+	}
+	return parsed, err
+}
+
+// parseToken ports Agave's parse_token.rs TokenInstruction arms: the base
+// set, discriminants 0..=24, shared verbatim by spl-token and
+// spl-token-2022, here; everything past it in parseTokenExtension.
 func parseToken(data []byte, accounts []string) (typeInfo, error) {
 	if len(data) == 0 {
 		return typeInfo{}, fmt.Errorf("%w: empty data", errTokenUnpack)
@@ -427,7 +437,7 @@ func authorityTypeName(b byte) (string, bool) {
 		"transferFeeConfig", "withheldWithdraw", "closeMint", "interestRate",
 		"permanentDelegate", "confidentialTransferMint", "transferHookProgramId",
 		"confidentialTransferFeeConfig", "metadataPointer", "groupPointer",
-		"groupMemberPointer", "scaledUiAmount", "pause",
+		"groupMemberPointer", "scaledUiAmount", "pause", "permissionedBurn",
 	}
 	if int(b) < len(names) {
 		return names[int(b)], true

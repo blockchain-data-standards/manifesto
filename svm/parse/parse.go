@@ -50,7 +50,7 @@ import (
 	"fmt"
 )
 
-// Program ids, base58. The two memo ids and the two token ids are distinct
+// Program ids, base58. The three memo ids and the two token ids are distinct
 // deployed programs that share a parser, exactly as in Agave's registry.
 const (
 	SystemProgramID = "11111111111111111111111111111111"
@@ -59,6 +59,7 @@ const (
 	AssociatedID    = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 	MemoV1ID        = "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo"
 	MemoV3ID        = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+	MemoV4ID        = "Memo4c2pN8afCj432Lb7RMVKi9PbQnnW7ewFFaV3oAH"
 	VoteProgramID   = "Vote111111111111111111111111111111111111111"
 	StakeProgramID  = "Stake11111111111111111111111111111111111111"
 	// LookupTableID is the address-lookup-table program.
@@ -111,7 +112,7 @@ func Parse(programID string, data []byte, accounts []string, stackHeight *uint32
 	// accounts. Index range itself is the caller's concern (accounts arrive
 	// pre-resolved), so emptiness is the only reachable half of the guard.
 	switch programID {
-	case MemoV1ID, MemoV3ID:
+	case MemoV1ID, MemoV3ID, MemoV4ID:
 	default:
 		if len(accounts) == 0 {
 			return nil, fmt.Errorf("%w: no accounts", ErrNotParsable)
@@ -123,17 +124,11 @@ func Parse(programID string, data []byte, accounts []string, stackHeight *uint32
 		parsed, err = parseSystem(data, accounts)
 	case TokenProgramID, Token2022ID:
 		program = "spl-token"
-		parsed, err = parseToken(data, accounts)
-		// Agave tries the TokenGroup then TokenMetadata TLV interfaces only
-		// when TokenInstruction::unpack itself failed — never when a decoded
-		// arm errs (e.g. on account counts).
-		if err != nil && errors.Is(err, errTokenUnpack) {
-			parsed, err = parseTokenInterface(data, accounts)
-		}
+		parsed, err = parseTokenInstruction(data, accounts)
 	case AssociatedID:
 		program = "spl-associated-token-account"
 		parsed, err = parseAssociatedToken(data, accounts)
-	case MemoV1ID, MemoV3ID:
+	case MemoV1ID, MemoV3ID, MemoV4ID:
 		program = "spl-memo"
 		parsed, err = parseMemo(data)
 	case VoteProgramID:
