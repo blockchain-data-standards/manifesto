@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func TestReceiptL1BlobBaseFeeConversion(t *testing.T) {
@@ -232,6 +234,35 @@ func TestSignatureRAndSFollowEncoding(t *testing.T) {
 				if c.got != c.want {
 					t.Errorf("%s = %v, want %s", c.field, c.got, c.want)
 				}
+			}
+		})
+	}
+}
+
+// An Arbitrum submit retryable (0x69) without calldata has retryData "0x",
+// and its hash covers the field: a present empty value must render, through
+// the proto wire as a reader sends it, and an unset one must not.
+func TestRetryDataRendersWhenPresentButEmpty(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		retryData []byte
+		want      interface{}
+	}{
+		{"empty", []byte{}, "0x"},
+		{"calldata", []byte{0xa9, 0x05, 0x9c, 0xbb}, "0xa9059cbb"},
+		{"unset", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wire, err := proto.Marshal(&Transaction{Type: 0x69, RetryData: tc.retryData})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tx := &Transaction{}
+			if err := proto.Unmarshal(wire, tx); err != nil {
+				t.Fatal(err)
+			}
+			if got := decoded(t, AppendTransactionJsonRpc(nil, tx, SignatureQuantity))["retryData"]; got != tc.want {
+				t.Errorf("retryData = %v, want %v", got, tc.want)
 			}
 		})
 	}
