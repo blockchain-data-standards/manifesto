@@ -2,7 +2,8 @@ package evm
 
 // The map converters these writers replaced, verbatim from manifesto
 // aea005ce6ae7 with an oracle prefix, except the receipt's l1FeeScalar, now a
-// string as nodes send it: the fuzz oracle for the writers.
+// string as nodes send it, and a present but empty retryData, now rendered:
+// the fuzz oracle for the writers.
 
 import (
 	"fmt"
@@ -354,7 +355,7 @@ func oracleTransactionRecordToJsonRpc(tx *Transaction, sig SignatureEncoding) ma
 	if len(tx.RequestId) > 0 {
 		o["requestId"] = BytesToHex(tx.RequestId)
 	}
-	if len(tx.RetryData) > 0 {
+	if tx.RetryData != nil {
 		o["retryData"] = BytesToHex(tx.RetryData)
 	}
 	if len(tx.RetryTo) > 0 {

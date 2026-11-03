@@ -954,7 +954,8 @@ func (w *jsonWriter) transaction(tx *Transaction, sig SignatureEncoding) {
 		w.key("requestId")
 		w.data(tx.RequestId)
 	}
-	if len(tx.RetryData) > 0 {
+	// Arbitrum sends retryData "0x" for a retryable without calldata, and the 0x69 hash covers it.
+	if tx.RetryData != nil {
 		w.key("retryData")
 		w.data(tx.RetryData)
 	}
