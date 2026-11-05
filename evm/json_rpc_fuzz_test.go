@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -409,5 +411,50 @@ func FuzzBlockJsonRpc(f *testing.F) {
 			tx = txs[0]
 		}
 		expectSame(t, dst, AppendTransactionJsonRpc(dst, tx, sig), nil, oracleTransactionToJsonRpc(tx, sig))
+	})
+}
+
+// otherBlockFields skips values with a scan of its own; a map decode of the
+// same object, filtered by blockFieldKeys, is its oracle. go test
+// -fuzz=FuzzOtherBlockFields.
+func FuzzOtherBlockFields(f *testing.F) {
+	for _, name := range []string{"tempo-block-hashes", "avalanche-block-hashes"} {
+		raw, err := os.ReadFile(filepath.Join("..", "rust", "tests", "fixtures", name+".json"))
+		if err != nil {
+			f.Fatal(err)
+		}
+		var envelope struct{ Result json.RawMessage }
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			f.Fatal(err)
+		}
+		f.Add([]byte(envelope.Result))
+	}
+	f.Add([]byte(` { "h\u0061sh" : "0x1" , "a\"b": {"x": ["}", "\\", "\"]"]}, "z": 1e3, "hash":null, "q": "\\\"" } `))
+	f.Add([]byte(`{"transactions":[{"input":"0x\"}"}],"aOther":[],"aOther":true}`))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var all map[string]json.RawMessage
+		if json.Unmarshal(data, &all) != nil || all == nil {
+			return
+		}
+		want := map[string]json.RawMessage{}
+		for k, v := range all {
+			if !blockFieldKeys[k] {
+				want[k] = v
+			}
+		}
+		got, err := otherBlockFields(data)
+		if err != nil {
+			t.Fatalf("otherBlockFields: %v", err)
+		}
+		if len(want) == 0 {
+			if got != nil {
+				t.Fatalf("got %s, want none", *got)
+			}
+			return
+		}
+		w, _ := json.Marshal(want)
+		if got == nil || *got != string(w) {
+			t.Fatalf("got %v, want %s", got, w)
+		}
 	})
 }
