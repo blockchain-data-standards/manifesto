@@ -46,12 +46,12 @@ fn bench(c: &mut Criterion) {
     group.sample_size(40);
     group.bench_function("300 full transactions", |b| {
         b.iter(|| {
-            let v = j::block_to_json(&header, &hashes, &txs, &withdrawals, sig);
+            let v = j::block_to_json(&header, &hashes, &txs, &withdrawals, sig).expect("block");
             std::hint::black_box(&v);
         });
     });
     // The second half of the real cost: handing those bytes to the caller.
-    let value = j::block_to_json(&header, &hashes, &txs, &withdrawals, sig);
+    let value = j::block_to_json(&header, &hashes, &txs, &withdrawals, sig).expect("block");
     group.bench_function("serialize the mapped Value", |b| {
         b.iter_batched(
             || (),

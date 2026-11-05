@@ -127,6 +127,15 @@ func receiptsJSON(t testing.TB, rs []*Receipt) []byte {
 	return b
 }
 
+func blockJSON(t testing.TB, header *BlockHeader, txHashes [][]byte, fullTxs []*Transaction, withdrawals []*Withdrawal, sig SignatureEncoding) []byte {
+	t.Helper()
+	b, err := AppendBlockJsonRpc(nil, header, txHashes, fullTxs, withdrawals, sig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
 func TestSignatureRAndSRenderAsQuantities(t *testing.T) {
 	addr := "c20699185c15d0a2fd65779bb5d69f5b0b113c00"
 	fullR := "0a" + strings.Repeat("1b", 31)
@@ -215,7 +224,7 @@ func TestSignatureRAndSFollowEncoding(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			out := decoded(t, AppendTransactionJsonRpc(nil, tx, tc.sig))
 			auth := out["authorizationList"].([]interface{})[0].(map[string]interface{})
-			block := decoded(t, AppendBlockJsonRpc(nil, &BlockHeader{}, nil, []*Transaction{tx}, nil, tc.sig))
+			block := decoded(t, blockJSON(t, &BlockHeader{}, nil, []*Transaction{tx}, nil, tc.sig))
 			inBlock := block["transactions"].([]interface{})[0].(map[string]interface{})
 			for _, c := range []struct {
 				field string

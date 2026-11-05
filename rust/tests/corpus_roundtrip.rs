@@ -8,13 +8,15 @@
 //! transaction types in production today — `0x0` legacy, `0x1` (EIP-2930),
 //! `0x2` (EIP-1559), `0x3` (EIP-4844, with blob fields), `0x4` (EIP-7702, with
 //! authorization lists) and `0x7e` (L2 deposit) — plus withdrawals, access
-//! lists, contract-creation receipts, and the OP-stack L1 fee fields.
+//! lists, contract-creation receipts, and the OP-stack L1 fee fields. Two more
+//! are blocks as their public nodes sent them on 2026-11-05, for the header
+//! keys only their chains have: Tempo 47464537 and Avalanche C-Chain 99445131.
 //!
-//! The fixtures were rendered by the BDS converters as they were then, which
-//! sent fields no node sends where they were put (see `node_shaped`). Every
-//! fixture must round-trip to its node-shaped form, byte for byte, except the
-//! one documented case below. A new difference means the mapping changed
-//! behaviour.
+//! The `edge-boost` fixtures were rendered by the BDS converters as they were
+//! then, which sent fields no node sends where they were put, and left out
+//! some that nodes send (see `node_shaped`). Every fixture must round-trip to
+//! its node-shaped form, byte for byte, except the one documented case below.
+//! A new difference means the mapping changed behaviour.
 
 use std::collections::BTreeSet;
 
@@ -110,7 +112,9 @@ const RECEIPT_FIGURES_ON_TRANSACTION: &[&str] = &[
 ///   defines one (0x1-0x4, 0x7b) or it has entries, and no `chainId` on an OP
 ///   deposit (0x7e) or a pre-EIP-155 legacy transaction (v 27 or 28);
 /// - a receipt carries no null field but `to` and `contractAddress`, and no
-///   `blockTimestamp`.
+///   `blockTimestamp`;
+/// - a block with a `withdrawalsRoot` carries a `withdrawals` list, `[]` when
+///   it has none.
 fn node_shaped(name: &str, original: &Value) -> Value {
     fn transaction(tx: &mut Value) {
         let Value::Object(o) = tx else { return };
@@ -144,6 +148,13 @@ fn node_shaped(name: &str, original: &Value) -> Value {
         }
     }
     let mut v = original.clone();
+    if let Some(block) = v.as_object_mut().filter(|_| name.contains("block-")) {
+        if block.contains_key("withdrawalsRoot") {
+            block
+                .entry("withdrawals")
+                .or_insert_with(|| Value::Array(Vec::new()));
+        }
+    }
     if name.contains("block-full") {
         for tx in v["transactions"].as_array_mut().into_iter().flatten() {
             transaction(tx);
@@ -191,13 +202,14 @@ fn round_trip(name: &str, original: &Value) -> Option<Value> {
     if name.contains("block-full") || name.contains("block-hashes") {
         let r = j::get_block_response_from_json(original).ok()?;
         let header = r.block.as_ref()?;
-        Some(j::block_to_json(
+        j::block_to_json(
             header,
             &r.transactions,
             &r.full_transactions,
             &r.withdrawals,
             j::SignatureEncoding::Quantity,
-        ))
+        )
+        .ok()
     } else if name.contains("-tx") {
         let r = j::get_transaction_by_hash_response_from_json(original).ok()?;
         r.transaction

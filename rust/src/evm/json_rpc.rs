@@ -837,7 +837,7 @@ impl RpcQueryCall {
                     .instrument(rpc_span())
                     .await?
                     .into_inner();
-                Ok(to_json_span().in_scope(|| get_block_response_to_json(&resp, sig)))
+                to_json_span().in_scope(|| get_block_response_to_json(&resp, sig))
             }
             Self::GetBlockByHash(req) => {
                 let resp = client
@@ -845,7 +845,7 @@ impl RpcQueryCall {
                     .instrument(rpc_span())
                     .await?
                     .into_inner();
-                Ok(to_json_span().in_scope(|| get_block_response_to_json(&resp, sig)))
+                to_json_span().in_scope(|| get_block_response_to_json(&resp, sig))
             }
             Self::GetTransactionByHash(req) => {
                 let resp = client
@@ -970,15 +970,22 @@ pub fn get_balance_response_to_json(resp: &GetBalanceResponse) -> Value {
     Value::String(bytes_to_quantity_hex(&resp.balance))
 }
 
-fn get_block_response_to_json(resp: &GetBlockResponse, sig: SignatureEncoding) -> Option<Value> {
-    let header = resp.block.as_ref()?;
-    Some(block_to_json(
+fn get_block_response_to_json(
+    resp: &GetBlockResponse,
+    sig: SignatureEncoding,
+) -> Result<Option<Value>, tonic::Status> {
+    let Some(header) = resp.block.as_ref() else {
+        return Ok(None);
+    };
+    block_to_json(
         header,
         &resp.transactions,
         &resp.full_transactions,
         &resp.withdrawals,
         sig,
-    ))
+    )
+    .map(Some)
+    .map_err(|e| tonic::Status::internal(format!("block otherFields is not a JSON object: {e}")))
 }
 
 /// How a transaction's signature `r` and `s` render in JSON-RPC output.
@@ -1018,14 +1025,19 @@ impl SignatureEncoding {
 /// full objects, whichever the server populated) and withdrawals — into the
 /// exact JSON-RPC block object shape. Mirrors `evm.AppendBlockJsonRpc` in
 /// `evm/json_rpc.go`. `sig` selects the `r`/`s` encoding of full transactions.
-#[must_use]
+/// The keys of `header.other_fields` join the object; a key it already has
+/// keeps its value.
+///
+/// # Errors
+///
+/// Returns the parse error when `other_fields` is not a JSON object.
 pub fn block_to_json(
     header: &BlockHeader,
     transaction_hashes: &[Bytes],
     full_transactions: &[Transaction],
     withdrawals: &[Withdrawal],
     sig: SignatureEncoding,
-) -> Value {
+) -> Result<Value, serde_json::Error> {
     let mut o = Map::new();
     o.insert("number".into(), Value::String(quantity_hex(header.number)));
     o.insert("hash".into(), Value::String(bytes_to_hex(&header.hash)));
@@ -1132,12 +1144,10 @@ pub fn block_to_json(
     if let Some(v) = &header.proposer_public_key {
         o.insert("proposerPublicKey".into(), Value::String(v.clone()));
     }
-    // `withdrawals` is a `repeated` proto field, which cannot distinguish
-    // "not applicable" (pre-Shanghai chain) from "explicitly empty" on the
-    // wire — an empty repeated field is simply never sent. json_rpc.go's
-    // `withdrawals != nil` check is therefore equivalent to "non-empty" once
-    // it has round-tripped through protobuf, which is what we check here.
-    if !withdrawals.is_empty() {
+    // `withdrawals` is a `repeated` proto field, so an empty list arrives as
+    // none. A header with a `withdrawalsRoot` always has the list, and nodes
+    // send `[]` for it, as `json_rpc.go` does.
+    if !withdrawals.is_empty() || header.withdrawals_root.is_some() {
         o.insert(
             "withdrawals".into(),
             Value::Array(withdrawals.iter().map(withdrawal_to_json).collect()),
@@ -1178,7 +1188,13 @@ pub fn block_to_json(
     };
     o.insert("transactions".into(), transactions);
 
-    Value::Object(o)
+    if let Some(other) = header.other_fields.as_deref() {
+        for (k, v) in serde_json::from_str::<Map<String, Value>>(other)? {
+            o.entry(k).or_insert(v);
+        }
+    }
+
+    Ok(Value::Object(o))
 }
 
 /// Converts a BDS `Transaction` into the JSON-RPC transaction object a node
@@ -2425,10 +2441,53 @@ fn transaction_from_json_object(
     })
 }
 
+/// The block object keys that [`block_header_from_json`] and
+/// [`get_block_response_from_json`] map to fields; every other key goes to
+/// `otherFields`.
+const BLOCK_FIELD_KEYS: &[&str] = &[
+    "baseFeePerGas",
+    "blobGasUsed",
+    "canonicalRlp",
+    "difficulty",
+    "epoch",
+    "excessBlobGas",
+    "extraData",
+    "gasLimit",
+    "gasUsed",
+    "hash",
+    "l1BlockNumber",
+    "logsBloom",
+    "miner",
+    "mixHash",
+    "nonce",
+    "number",
+    "parentBeaconBlockRoot",
+    "parentHash",
+    "proposerIndex",
+    "proposerPublicKey",
+    "receiptsRoot",
+    "requestsHash",
+    "sendCount",
+    "sendRoot",
+    "sha3Uncles",
+    "size",
+    "slot",
+    "stateRoot",
+    "timestamp",
+    "totalDifficulty",
+    "transactionCount",
+    "transactions",
+    "transactionsRoot",
+    "uncles",
+    "withdrawals",
+    "withdrawalsRoot",
+];
+
 /// Converts a JSON-RPC block object's header fields into a BDS
 /// `BlockHeader` (the `transactions`/`withdrawals` arrays are handled by
 /// [`get_block_response_from_json`]). Mirrors the header portion of
-/// `(*JsonRpcBlock).ToProto` in `evm/json_rpc.go`.
+/// `(*JsonRpcBlock).ToProto` in `evm/json_rpc.go`, and keeps the keys no
+/// field holds in `other_fields`.
 ///
 /// # Errors
 ///
@@ -2436,6 +2495,11 @@ fn transaction_from_json_object(
 /// missing/malformed.
 pub fn block_header_from_json(v: &Value) -> Result<BlockHeader, FromJsonError> {
     let o = as_object(v, "a block object")?;
+    let other: Map<String, Value> = o
+        .iter()
+        .filter(|(k, _)| !BLOCK_FIELD_KEYS.contains(&k.as_str()))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
 
     let uncles = match field(o, "uncles") {
         None => Vec::new(),
@@ -2499,6 +2563,7 @@ pub fn block_header_from_json(v: &Value) -> Result<BlockHeader, FromJsonError> {
         canonical_rlp: opt_bytes(o, "canonicalRlp")?,
         uncles,
         requests_hash: opt_bytes(o, "requestsHash")?,
+        other_fields: (!other.is_empty()).then(|| Value::Object(other).to_string()),
     })
 }
 
@@ -3452,7 +3517,8 @@ mod tests {
         for (sig, want_r, want_s) in cases {
             let v = transaction_to_json(&tx, sig);
             let auth = &v["authorizationList"][0];
-            let block = block_to_json(&base_header(), &[], std::slice::from_ref(&tx), &[], sig);
+            let block =
+                block_to_json(&base_header(), &[], std::slice::from_ref(&tx), &[], sig).unwrap();
             let in_block = &block["transactions"][0];
             assert_eq!(v["r"], want_r, "{sig:?} tx r");
             assert_eq!(v["s"], want_s, "{sig:?} tx s");
@@ -3728,6 +3794,7 @@ mod tests {
             canonical_rlp: None,
             uncles: Vec::new(),
             requests_hash: None,
+            other_fields: None,
         }
     }
 
@@ -3735,19 +3802,19 @@ mod tests {
     fn block_to_json_nonce_is_fixed_16_digits() {
         let mut h = base_header();
         h.nonce = Some(0x42);
-        let v = block_to_json(&h, &[], &[], &[], SignatureEncoding::Quantity);
+        let v = block_to_json(&h, &[], &[], &[], SignatureEncoding::Quantity).unwrap();
         assert_eq!(v["nonce"], "0x0000000000000042");
     }
 
     #[test]
     fn block_to_json_uncles_always_present() {
-        let v = block_to_json(&base_header(), &[], &[], &[], SignatureEncoding::Quantity);
+        let v = block_to_json(&base_header(), &[], &[], &[], SignatureEncoding::Quantity).unwrap();
         assert_eq!(v["uncles"], json!([]));
     }
 
     #[test]
     fn block_to_json_withdrawals_omitted_when_empty() {
-        let v = block_to_json(&base_header(), &[], &[], &[], SignatureEncoding::Quantity);
+        let v = block_to_json(&base_header(), &[], &[], &[], SignatureEncoding::Quantity).unwrap();
         assert!(v.get("withdrawals").is_none());
 
         let withdrawals = vec![Withdrawal {
@@ -3762,7 +3829,8 @@ mod tests {
             &[],
             &withdrawals,
             SignatureEncoding::Quantity,
-        );
+        )
+        .unwrap();
         assert_eq!(v["withdrawals"].as_array().unwrap().len(), 1);
     }
 
@@ -3775,7 +3843,8 @@ mod tests {
             &[],
             &[],
             SignatureEncoding::Quantity,
-        );
+        )
+        .unwrap();
         assert_eq!(v["transactions"], json!([format!("0x{}", "aa".repeat(32))]));
 
         let full = vec![base_transaction()];
@@ -3785,7 +3854,8 @@ mod tests {
             &full,
             &[],
             SignatureEncoding::Quantity,
-        );
+        )
+        .unwrap();
         // full transactions win when both are populated.
         assert_eq!(v["transactions"].as_array().unwrap().len(), 1);
         assert!(v["transactions"][0].is_object());
@@ -3793,7 +3863,7 @@ mod tests {
 
     #[test]
     fn block_to_json_transactions_empty_when_neither_present() {
-        let v = block_to_json(&base_header(), &[], &[], &[], SignatureEncoding::Quantity);
+        let v = block_to_json(&base_header(), &[], &[], &[], SignatureEncoding::Quantity).unwrap();
         assert_eq!(v["transactions"], json!([]));
     }
 
@@ -3801,7 +3871,7 @@ mod tests {
     fn block_to_json_base_fee_per_gas_decimal_to_hex() {
         let mut h = base_header();
         h.base_fee_per_gas = Some("1000000000".to_string());
-        let v = block_to_json(&h, &[], &[], &[], SignatureEncoding::Quantity);
+        let v = block_to_json(&h, &[], &[], &[], SignatureEncoding::Quantity).unwrap();
         assert_eq!(v["baseFeePerGas"], "0x3b9aca00");
     }
 
@@ -4382,7 +4452,7 @@ mod tests {
         let h = block_header_from_json(&v).unwrap();
         assert_eq!(h.nonce, Some(0x42));
         assert_eq!(
-            block_to_json(&h, &[], &[], &[], SignatureEncoding::Quantity)["nonce"],
+            block_to_json(&h, &[], &[], &[], SignatureEncoding::Quantity).unwrap()["nonce"],
             "0x0000000000000042"
         );
     }
@@ -4543,7 +4613,8 @@ mod tests {
             &resp.full_transactions,
             &resp.withdrawals,
             SignatureEncoding::Quantity,
-        );
+        )
+        .unwrap();
 
         assert_eq!(out["number"], "0x2a");
         assert_eq!(out["nonce"], "0x0000000000000042");

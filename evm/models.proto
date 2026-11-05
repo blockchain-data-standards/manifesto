@@ -116,6 +116,9 @@ message BlockHeader {
 
   // Root hash of the requests trie containing consensus layer requests (EIP-7685). Introduced to support validator deposits, withdrawals, and consolidations. Part of block hash calculation after Prague/Electra upgrade. Essential for consensus layer to execution layer communication
   optional bytes requestsHash = 35;
+
+  // Header keys the node sent that no other field of this message holds, as one JSON object of their values verbatim: Tempo's timestampMillis and consensusContext, Avalanche C-Chain's extDataHash and blockExtraData. They are part of what the block hash covers on such chains, so a block without them cannot be verified. Unset when there are none. JSON-RPC renderers add each key to the block object; a key another field renders keeps that field's value
+  optional string otherFields = 36;
 }
 
 // A full block with its header, transactions, and logs.

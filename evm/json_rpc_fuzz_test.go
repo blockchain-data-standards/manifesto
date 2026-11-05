@@ -266,7 +266,45 @@ func (g *gen) header() *BlockHeader {
 		k := string(g.bytesV()) // arbitrary bytes, invalid UTF-8 included
 		h.ProposerPublicKey = &k
 	}
+	h.OtherFields = g.otherFields()
 	return h
+}
+
+// Keys that sort before, between and after the rendered ones, that collide
+// with an always, a conditionally and a never-rendered field, or need escaping.
+var otherKeys = []string{
+	"", "aOther", "baseFeePerGas", "consensusContext", "extDataHash", "hash", "transactions",
+	"withdrawals", "zOther", `a"<&>`, "é", "timestampMillis",
+}
+
+// Values as sent, some to compact or escape on the way out.
+var otherValues = []string{
+	`"0x1"`, `{"view": 2, "epoch" : 1}`, `[1, null, true]`, `"<&>"`, `null`, `"\u2028"`, `1e400`, `""`,
+}
+
+// Not JSON objects, and {}, which holds no members.
+var otherNonObjects = []string{"", "[]", "null", "{", `{"a":}`, `"x"`, `{"a":1} x`, "{}"}
+
+func (g *gen) otherFields() *string {
+	switch g.next() % 4 {
+	case 0:
+		return nil
+	case 1:
+		s := otherNonObjects[int(g.next())%len(otherNonObjects)]
+		return &s
+	}
+	b := []byte{'{'}
+	for i := range 1 + int(g.next()%6) {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		k, _ := json.Marshal(otherKeys[int(g.next())%len(otherKeys)])
+		b = append(b, k...)
+		b = append(b, ':')
+		b = append(b, otherValues[int(g.next())%len(otherValues)]...)
+	}
+	s := string(append(b, '}'))
+	return &s
 }
 
 // dst starts some fuzz runs with a prefix, as a pooled caller's buffer does.
@@ -340,6 +378,7 @@ func FuzzBlockJsonRpc(f *testing.F) {
 	f.Add(bytes.Repeat([]byte{0xff}, 512))
 	f.Add(bytes.Repeat([]byte{1}, 512))
 	f.Add(bytes.Repeat([]byte{3, 7}, 256))
+	f.Add(bytes.Repeat([]byte{2, 5, 11, 4, 9}, 120))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		g := &gen{data: data}
 		dst := g.dst()
@@ -363,8 +402,8 @@ func FuzzBlockJsonRpc(f *testing.F) {
 		case 2:
 			withdrawals = []*Withdrawal{{Index: g.u64(), ValidatorIndex: g.u64(), Address: g.bytesV(), Amount: g.u64()}, nil}
 		}
-		got := AppendBlockJsonRpc(dst, header, hashes, txs, withdrawals, sig)
-		expectSame(t, dst, got, nil, oracleBlockToJsonRpc(header, hashes, txs, withdrawals, sig))
+		got, err := AppendBlockJsonRpc(dst, header, hashes, txs, withdrawals, sig)
+		expectSame(t, dst, got, err, oracleBlockToJsonRpc(header, hashes, txs, withdrawals, sig))
 		var tx *Transaction
 		if len(txs) > 0 {
 			tx = txs[0]
