@@ -2,13 +2,20 @@ package evm
 
 // The map converters these writers replaced, verbatim from manifesto
 // aea005ce6ae7 with an oracle prefix, except the receipt's l1FeeScalar, now a
-// string as nodes send it: the fuzz oracle for the writers.
+// string as nodes send it, and the block's otherFields, added since: the fuzz
+// oracle for the writers.
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
 )
+
+// marshalError fails json.Marshal, as the writer fails for the same input.
+type marshalError struct{ err error }
+
+func (m marshalError) MarshalJSON() ([]byte, error) { return nil, m.err }
 
 // oracleLogToJsonRpc serialises a *Log into a JSON-RPC compatible map[string]interface{}.
 func oracleLogToJsonRpc(l *Log) map[string]interface{} {
@@ -672,6 +679,18 @@ func oracleBlockToJsonRpc(header *BlockHeader, txHashes [][]byte, fullTxs []*Tra
 		res["transactions"] = hashes
 	default:
 		res["transactions"] = []interface{}{}
+	}
+
+	if header.OtherFields != nil {
+		var other map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(*header.OtherFields), &other); err != nil || other == nil {
+			return map[string]interface{}{"otherFields": marshalError{fmt.Errorf("not a JSON object: %v", err)}}
+		}
+		for k, v := range other {
+			if _, rendered := res[k]; !rendered {
+				res[k] = v
+			}
+		}
 	}
 
 	return res

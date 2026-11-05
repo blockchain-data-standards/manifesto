@@ -320,7 +320,9 @@ type BlockHeader struct {
 	// Array of uncle (ommer) block hashes included in this block. Uncle blocks are valid blocks mined at the same height but not included in the canonical chain. Ethereum rewarded up to 2 uncles per block to reduce mining centralization. Always empty post-merge. Some indexers store as JSON array
 	Uncles [][]byte `protobuf:"bytes,34,rep,name=uncles,proto3" json:"uncles,omitempty"`
 	// Root hash of the requests trie containing consensus layer requests (EIP-7685). Introduced to support validator deposits, withdrawals, and consolidations. Part of block hash calculation after Prague/Electra upgrade. Essential for consensus layer to execution layer communication
-	RequestsHash  []byte `protobuf:"bytes,35,opt,name=requestsHash,proto3,oneof" json:"requestsHash,omitempty"`
+	RequestsHash []byte `protobuf:"bytes,35,opt,name=requestsHash,proto3,oneof" json:"requestsHash,omitempty"`
+	// Header keys the node sent that no other field of this message holds, as one JSON object of their values verbatim: Tempo's timestampMillis and consensusContext, Avalanche C-Chain's extDataHash and blockExtraData. They are part of what the block hash covers on such chains, so a block without them cannot be verified. Unset when there are none. JSON-RPC renderers add each key to the block object; a key another field renders keeps that field's value
+	OtherFields   *string `protobuf:"bytes,36,opt,name=otherFields,proto3,oneof" json:"otherFields,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -598,6 +600,13 @@ func (x *BlockHeader) GetRequestsHash() []byte {
 		return x.RequestsHash
 	}
 	return nil
+}
+
+func (x *BlockHeader) GetOtherFields() string {
+	if x != nil && x.OtherFields != nil {
+		return *x.OtherFields
+	}
+	return ""
 }
 
 // A full block with its header, transactions, and logs.
@@ -2354,7 +2363,7 @@ const file_models_proto_rawDesc = "" +
 	"\x04hash\x18\x02 \x01(\fR\x04hash\x12\x1e\n" +
 	"\n" +
 	"parentHash\x18\x03 \x01(\fR\n" +
-	"parentHash\"\xa3\f\n" +
+	"parentHash\"\xda\f\n" +
 	"\vBlockHeader\x12\x16\n" +
 	"\x06number\x18\x01 \x01(\x04R\x06number\x12\x1c\n" +
 	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x12\x1a\n" +
@@ -2398,7 +2407,8 @@ const file_models_proto_rawDesc = "" +
 	"\vwithdrawals\x18  \x01(\fH\x11R\vwithdrawals\x88\x01\x01\x12'\n" +
 	"\fcanonicalRlp\x18! \x01(\fH\x12R\fcanonicalRlp\x88\x01\x01\x12\x16\n" +
 	"\x06uncles\x18\" \x03(\fR\x06uncles\x12'\n" +
-	"\frequestsHash\x18# \x01(\fH\x13R\frequestsHash\x88\x01\x01B\b\n" +
+	"\frequestsHash\x18# \x01(\fH\x13R\frequestsHash\x88\x01\x01\x12%\n" +
+	"\votherFields\x18$ \x01(\tH\x14R\votherFields\x88\x01\x01B\b\n" +
 	"\x06_nonceB\x0e\n" +
 	"\f_blobGasUsedB\x10\n" +
 	"\x0e_excessBlobGasB\x10\n" +
@@ -2420,7 +2430,8 @@ const file_models_proto_rawDesc = "" +
 	"\x12_proposerPublicKeyB\x0e\n" +
 	"\f_withdrawalsB\x0f\n" +
 	"\r_canonicalRlpB\x0f\n" +
-	"\r_requestsHash\"\xfe\x01\n" +
+	"\r_requestsHashB\x0e\n" +
+	"\f_otherFields\"\xfe\x01\n" +
 	"\x05Block\x12,\n" +
 	"\x06header\x18\x01 \x01(\v2\x14.bds.evm.BlockHeaderR\x06header\x12,\n" +
 	"\x11transactionHashes\x18\x02 \x03(\fR\x11transactionHashes\x12@\n" +
