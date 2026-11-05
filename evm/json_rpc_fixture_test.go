@@ -223,8 +223,9 @@ func renderings(t testing.TB) map[string][]byte {
 
 // The expected files were rendered by the map-based converters these writers
 // replaced, with encoding/json, which sorts object keys; the writers write
-// keys in that order, so the bytes match too. One change since: l1FeeScalar
-// is a string, as nodes send it (oracleL1FeeScalar).
+// keys in that order, so the bytes match too. Two changes since: l1FeeScalar
+// is a string, as nodes send it (oracleL1FeeScalar), and a block whose node
+// sent no totalDifficulty has none, where ToProto used to make up "0x0".
 func TestJsonRpcRenderingsMatchFixtures(t *testing.T) {
 	for _, b := range [][]byte{
 		receiptJSON(t, nil),
@@ -262,6 +263,44 @@ func TestJsonRpcRenderingsMatchFixtures(t *testing.T) {
 				i++
 			}
 			t.Errorf("%s: bytes differ at %d: got …%s… want …%s…", name, i, snippet(got, i), snippet(want, i))
+		}
+	}
+}
+
+// Blocks as their public nodes sent them, shared with the Rust corpus: Tempo
+// and Avalanche C-Chain headers carry keys BlockHeader has no field for.
+// Through ToProto, the wire and AppendBlockJsonRpc, every key comes back.
+func TestNodeBlocksKeepEveryKey(t *testing.T) {
+	for _, name := range []string{"tempo-block-hashes", "avalanche-block-hashes"} {
+		raw, err := os.ReadFile(filepath.Join("..", "rust", "tests", "fixtures", name+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var envelope struct{ Result json.RawMessage }
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			t.Fatal(err)
+		}
+		block, err := ParseJsonRpcBlock(envelope.Result, json.Unmarshal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp := wire(t, &GetBlockResponse{Block: block.Header, Transactions: block.TransactionHashes, Withdrawals: block.Withdrawals})
+		var got, want map[string]interface{}
+		if err := json.Unmarshal(blockJSON(t, resp.Block, resp.Transactions, nil, resp.Withdrawals, SignatureQuantity), &got); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(envelope.Result, &want); err != nil {
+			t.Fatal(err)
+		}
+		for k, v := range want {
+			if !reflect.DeepEqual(got[k], v) {
+				t.Errorf("%s: %s = %v, node sent %v", name, k, got[k], v)
+			}
+		}
+		for k := range got {
+			if _, ok := want[k]; !ok {
+				t.Errorf("%s: %s, which the node did not send", name, k)
+			}
 		}
 	}
 }

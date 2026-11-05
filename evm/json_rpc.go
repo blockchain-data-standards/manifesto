@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -85,6 +86,135 @@ type JsonRpcBlock struct {
 	CanonicalRlp          string               `json:"canonicalRlp"`
 	Transactions          []interface{}        `json:"transactions"`
 	Timeboosted           bool                 `json:"timeboosted"`
+	// OtherFields holds the keys no BlockHeader field holds, as a JSON
+	// object; ParseJsonRpcBlock fills it.
+	OtherFields *string `json:"-"`
+}
+
+// blockFieldKeys are the block object keys that Block holds a field for;
+// ParseJsonRpcBlock keeps every other key a node sends in OtherFields.
+var blockFieldKeys = map[string]bool{
+	"baseFeePerGas": true, "blobGasUsed": true, "canonicalRlp": true, "difficulty": true,
+	"epoch": true, "excessBlobGas": true, "extraData": true, "gasLimit": true, "gasUsed": true,
+	"hash": true, "l1BlockNumber": true, "logsBloom": true, "miner": true, "mixHash": true,
+	"nonce": true, "number": true, "parentBeaconBlockRoot": true, "parentHash": true,
+	"proposerIndex": true, "proposerPublicKey": true, "receiptsRoot": true, "requestsHash": true,
+	"sendCount": true, "sendRoot": true, "sha3Uncles": true, "size": true, "slot": true,
+	"stateRoot": true, "timestamp": true, "totalDifficulty": true, "transactionCount": true,
+	"transactions": true, "transactionsRoot": true, "uncles": true, "withdrawals": true,
+	"withdrawalsRoot": true,
+}
+
+// ParseJsonRpcBlock converts a JSON-RPC block object to a Block, with the
+// header keys no BlockHeader field holds in OtherFields. unmarshal decodes
+// the fields: json.Unmarshal, or a faster drop-in. A JsonRpcBlock decoded
+// alone and converted with ToProto has no OtherFields.
+func ParseJsonRpcBlock(raw []byte, unmarshal func([]byte, any) error) (*Block, error) {
+	var b JsonRpcBlock
+	if err := unmarshal(raw, &b); err != nil {
+		return nil, err
+	}
+	other, err := otherBlockFields(raw)
+	if err != nil {
+		return nil, err
+	}
+	b.OtherFields = other
+	return b.ToProto()
+}
+
+// otherBlockFields returns the members of the block object data whose keys
+// blockFieldKeys lacks, as one JSON object; nil when there are none. data is
+// JSON that unmarshal accepted, so the scan skips values without checking
+// them and never copies the transactions.
+func otherBlockFields(data []byte) (*string, error) {
+	i := skipJSONSpace(data, 0)
+	if i == len(data) || data[i] != '{' {
+		return nil, nil // null: no block
+	}
+	var other map[string]json.RawMessage
+	for i = skipJSONSpace(data, i+1); i < len(data) && data[i] != '}'; {
+		keyEnd := skipJSONValue(data, i)
+		rawKey := data[i:keyEnd]
+		start := skipJSONSpace(data, skipJSONSpace(data, keyEnd)+1) // past ':'
+		end := skipJSONValue(data, start)
+		if i = skipJSONSpace(data, end); i < len(data) && data[i] == ',' {
+			i = skipJSONSpace(data, i+1)
+		}
+		// A key without escapes is its bytes: the lookup copies nothing.
+		if bytes.IndexByte(rawKey, '\\') < 0 && blockFieldKeys[string(rawKey[1:len(rawKey)-1])] {
+			continue
+		}
+		var key string
+		if err := json.Unmarshal(rawKey, &key); err != nil {
+			return nil, err
+		}
+		if blockFieldKeys[key] {
+			continue
+		}
+		if other == nil {
+			other = map[string]json.RawMessage{}
+		}
+		other[key] = data[start:end]
+	}
+	if other == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(other) // keys sorted, values compacted
+	if err != nil {
+		return nil, err
+	}
+	s := string(b)
+	return &s, nil
+}
+
+func skipJSONSpace(data []byte, i int) int {
+	for i < len(data) && (data[i] == ' ' || data[i] == '\t' || data[i] == '\n' || data[i] == '\r') {
+		i++
+	}
+	return i
+}
+
+// skipJSONValue returns the index just past the valid JSON value at data[i].
+func skipJSONValue(data []byte, i int) int {
+	depth := 0
+	for ; i < len(data); i++ {
+		switch c := data[i]; c {
+		case '"':
+			for {
+				j := bytes.IndexByte(data[i+1:], '"')
+				if j < 0 {
+					return len(data)
+				}
+				i += 1 + j
+				// The quote closes the string unless an odd run of backslashes escapes it.
+				k := i - 1
+				for data[k] == '\\' {
+					k--
+				}
+				if (i-1-k)%2 == 0 {
+					break
+				}
+			}
+			if depth == 0 {
+				return i + 1
+			}
+		case '{', '[':
+			depth++
+		case '}', ']':
+			if depth == 0 {
+				return i // the end of a scalar: the enclosing object closes
+			}
+			depth--
+			if depth == 0 {
+				return i + 1
+			}
+		case ',', ' ', '\t', '\n', '\r', ':':
+			if depth == 0 {
+				return i // the end of a scalar
+			}
+		}
+	}
+	return i
 }
 
 func (b *JsonRpcBlock) ToProto() (*Block, error) {
@@ -298,6 +428,14 @@ func (b *JsonRpcBlock) ToProto() (*Block, error) {
 		}
 	}
 
+	// A quantity the node left out stays unset: "" would render as 0x0.
+	optional := func(s *string) *string {
+		if *s == "" {
+			return nil
+		}
+		return s
+	}
+
 	header := &BlockHeader{
 		Number:                number,
 		Timestamp:             timestamp,
@@ -327,12 +465,13 @@ func (b *JsonRpcBlock) ToProto() (*Block, error) {
 		Slot:                  slot,
 		ProposerIndex:         proposerIndex,
 		TransactionCount:      transactionCount,
-		BaseFeePerGas:         &b.BaseFeePerGas,
-		Difficulty:            &b.Difficulty,
-		TotalDifficulty:       &b.TotalDifficulty,
+		BaseFeePerGas:         optional(&b.BaseFeePerGas),
+		Difficulty:            optional(&b.Difficulty),
+		TotalDifficulty:       optional(&b.TotalDifficulty),
 		Uncles:                uncles,
 		ProposerPublicKey:     proposerPublicKey,
 		CanonicalRlp:          canonicalRlp,
+		OtherFields:           b.OtherFields,
 	}
 
 	hashes, txs, err := ParseJsonRpcTransactions(b.Transactions, header)
