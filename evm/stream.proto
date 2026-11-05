@@ -13,10 +13,20 @@ import "models.proto";
 // has (a state poller, a gap-free chain view, …); the wire contract is the same
 // everywhere.
 service StreamService {
-  // Stream block headers as the chain head advances. The server sends one
-  // StreamBlocksResponse per new block, in ascending block-number order, until
-  // the client cancels the stream. A provider that observes a head jump backfills
-  // the intervening blocks so no block number is skipped.
+  // Stream block headers as the chain head advances: one StreamBlocksResponse
+  // per canonical block, ascending, with no number skipped, until the client
+  // cancels the stream. After a reorg the server restarts at the fork point: it
+  // resends from the first block of the new branch. Client rule: a header whose
+  // number is at or below the last one received replaces that number and every
+  // number above it. Each header carries hash and parentHash, so a client can
+  // check linkage itself.
+  //
+  // Status codes that end the stream:
+  //   OUT_OF_RANGE  the server cannot continue from the resume position (too
+  //                 old, or a block it cannot place); backfill with unary
+  //                 calls, then reopen.
+  //   UNAVAILABLE   the server stopped making progress, or the client read too
+  //                 slowly; reopen with a resume position.
   rpc StreamBlocks(StreamBlocksRequest) returns (stream StreamBlocksResponse);
 }
 
@@ -28,6 +38,13 @@ message StreamBlocksRequest {
 
   // Optional genesis hash to narrow down identical networks with the same chain ID.
   optional bytes chainGenesisHash = 2;
+
+  // Resume position: the number and hash of the last header the client
+  // applied. The stream continues after it, replaying from the fork point when
+  // that header left the canonical chain. Both set, or neither; one alone is
+  // INVALID_ARGUMENT. Neither: the stream starts after the current head.
+  optional uint64 fromBlock = 3;
+  optional bytes fromHash = 4;
 
   // Content-selection flags are added here as the stream is extended beyond
   // headers (transaction hashes, full transactions, logs, …). Header-only today.
