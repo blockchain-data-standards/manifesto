@@ -209,15 +209,15 @@ func renderings(t testing.TB) map[string][]byte {
 	for _, name := range nodeFixtures {
 		f := loadNodeFixture(t, name)
 		out[name+"-receipts"] = receiptsJSON(t, f.receipts.Receipts)
-		out[name+"-block-full"] = AppendBlockJsonRpc(nil, f.fullBlock.Block, f.fullBlock.Transactions, f.fullBlock.FullTransactions, f.fullBlock.Withdrawals, f.signatures)
-		out[name+"-block-hashes"] = AppendBlockJsonRpc(nil, f.hashBlock.Block, f.hashBlock.Transactions, f.hashBlock.FullTransactions, f.hashBlock.Withdrawals, f.signatures)
+		out[name+"-block-full"] = blockJSON(t, f.fullBlock.Block, f.fullBlock.Transactions, f.fullBlock.FullTransactions, f.fullBlock.Withdrawals, f.signatures)
+		out[name+"-block-hashes"] = blockJSON(t, f.hashBlock.Block, f.hashBlock.Transactions, f.hashBlock.FullTransactions, f.hashBlock.Withdrawals, f.signatures)
 		out[name+"-logs"] = AppendLogsJsonRpc(nil, f.blockLogs)
 	}
 	block, receipts := syntheticFixture()
-	out["synthetic-block-quantity"] = AppendBlockJsonRpc(nil, block.Block, nil, block.FullTransactions, block.Withdrawals, SignatureQuantity)
-	out["synthetic-block-fixed32"] = AppendBlockJsonRpc(nil, block.Block, nil, block.FullTransactions, block.Withdrawals, SignatureFixedData32)
+	out["synthetic-block-quantity"] = blockJSON(t, block.Block, nil, block.FullTransactions, block.Withdrawals, SignatureQuantity)
+	out["synthetic-block-fixed32"] = blockJSON(t, block.Block, nil, block.FullTransactions, block.Withdrawals, SignatureFixedData32)
 	out["synthetic-receipts"] = receiptsJSON(t, receipts)
-	out["synthetic-empty-block"] = AppendBlockJsonRpc(nil, &BlockHeader{}, nil, nil, nil, SignatureQuantity)
+	out["synthetic-empty-block"] = blockJSON(t, &BlockHeader{}, nil, nil, nil, SignatureQuantity)
 	return out
 }
 
@@ -229,7 +229,7 @@ func TestJsonRpcRenderingsMatchFixtures(t *testing.T) {
 	for _, b := range [][]byte{
 		receiptJSON(t, nil),
 		AppendTransactionJsonRpc(nil, nil, SignatureQuantity),
-		AppendBlockJsonRpc(nil, nil, nil, nil, nil, SignatureQuantity),
+		blockJSON(t, nil, nil, nil, nil, SignatureQuantity),
 	} {
 		if string(b) != "null" {
 			t.Errorf("nil rendered as %s, want null", b)

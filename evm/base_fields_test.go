@@ -125,7 +125,7 @@ func TestBaseChainFields(t *testing.T) {
 		}
 
 		// Test conversion back to JSON-RPC
-		jsonRpcMap := decoded(t, AppendBlockJsonRpc(nil, protoBlock.Header, nil, nil, nil, SignatureQuantity))
+		jsonRpcMap := decoded(t, blockJSON(t, protoBlock.Header, nil, nil, nil, SignatureQuantity))
 		if requestsHash, ok := jsonRpcMap["requestsHash"]; !ok || requestsHash != "0x7685abcdef1234567890abcdef1234567890abcdef1234567890abcdef123456" {
 			t.Errorf("Expected requestsHash in JSON-RPC output, got '%v'", requestsHash)
 		}
@@ -167,14 +167,14 @@ func TestBaseChainFields(t *testing.T) {
 		}
 
 		var got map[string]json.RawMessage
-		_ = json.Unmarshal(AppendBlockJsonRpc(nil, decoded.Header, nil, nil, decoded.Withdrawals, SignatureQuantity), &got)
+		_ = json.Unmarshal(blockJSON(t, decoded.Header, nil, nil, decoded.Withdrawals, SignatureQuantity), &got)
 		if string(got["withdrawals"]) != "[]" {
 			t.Errorf("withdrawals = %q, want []", got["withdrawals"])
 		}
 
 		decoded.Header.WithdrawalsRoot = nil
 		got = nil
-		_ = json.Unmarshal(AppendBlockJsonRpc(nil, decoded.Header, nil, nil, nil, SignatureQuantity), &got)
+		_ = json.Unmarshal(blockJSON(t, decoded.Header, nil, nil, nil, SignatureQuantity), &got)
 		if _, ok := got["withdrawals"]; ok {
 			t.Error("pre-Shanghai block must not gain a withdrawals key")
 		}
