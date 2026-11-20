@@ -228,6 +228,20 @@ message NetworkCapabilities {
   
   // Default availability for this network (can be overridden at service/model/method/field level)
   optional AvailabilityInfo defaultAvailability = 20;
+  
+  // Real-time stream behavior (StreamService) for this network
+  optional StreamSupport streamSupport = 30;
+}
+
+// Real-time stream behavior a client needs to resume a stream without loss
+message StreamSupport {
+  // How far behind the chain tip a resume position (fromBlock + fromHash) may be
+  // and still resume; an older position ends the stream with OUT_OF_RANGE
+  optional uint64 resumeWindowBlocks = 1;
+  
+  // How long the server keeps one stream before ending it with UNAVAILABLE
+  // (0 or absent = no limit)
+  optional uint64 maxStreamAgeSeconds = 2;
 }
 
 // List of service names with optional per-service availability

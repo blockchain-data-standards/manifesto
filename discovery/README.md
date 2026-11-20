@@ -31,6 +31,7 @@ The Discovery schema defines the structure for describing provider capabilities:
 - **Field Availability**: Specific fields within each model that the provider supports
 - **Transport Protocols**: Available methods for accessing the data (REST, GraphQL, WebSocket, gRPC)
 - **Query Capabilities**: Supported operations like bulk queries, real-time subscriptions, and historical data access
+- **Stream Support**: How far back a real-time stream can resume (`resumeWindowBlocks`) and how long one stream lasts (`maxStreamAgeSeconds`)
 
 For detailed schema definitions and implementation:
 

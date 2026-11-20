@@ -224,6 +224,10 @@
         "defaultAvailability": {
           "$ref": "#/definitions/AvailabilityInfo",
           "description": "Default availability for this network (can be overridden at service/model/method/field level)"
+        },
+        "streamSupport": {
+          "$ref": "#/definitions/StreamSupport",
+          "description": "Real-time stream behavior (StreamService) for this network"
         }
       },
       "allOf": [
@@ -242,6 +246,21 @@
           ]
         }
       ]
+    },
+    "StreamSupport": {
+      "type": "object",
+      "properties": {
+        "resumeWindowBlocks": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How far behind the chain tip a resume position (fromBlock + fromHash) may be and still resume; an older position ends the stream with OUT_OF_RANGE"
+        },
+        "maxStreamAgeSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How long the server keeps one stream before ending it with UNAVAILABLE (0 or absent = no limit)"
+        }
+      }
     },
     "AvailabilityInfo": {
       "type": "object",
