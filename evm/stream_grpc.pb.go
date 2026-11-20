@@ -42,13 +42,23 @@ type StreamServiceClient interface {
 	// number above it. Each header carries hash and parentHash, so a client can
 	// check linkage itself.
 	//
-	// Status codes that end the stream:
+	// How a stream ends, and what the client does next:
 	//
 	//	OUT_OF_RANGE  the server cannot continue from the resume position (too
 	//	              old, or a block it cannot place); backfill with unary
 	//	              calls, then reopen.
-	//	UNAVAILABLE   the server stopped making progress, or the client read too
-	//	              slowly; reopen with a resume position.
+	//	INVALID_ARGUMENT, UNAUTHENTICATED, PERMISSION_DENIED, UNIMPLEMENTED
+	//	              the request is wrong; do not retry it unchanged.
+	//	UNAVAILABLE   the server stopped making progress, the client read too
+	//	              slowly, the stream reached the server's maximum age, or
+	//	              the server is shutting down; reopen with a resume position.
+	//	any other status, or no status at all (the connection dropped)
+	//	              reopen with a resume position, with backoff.
+	//
+	// A reopen sends fromBlock + fromHash of the last header applied, so no
+	// block is lost. Discovery's StreamSupport advertises how far behind the head
+	// a resume position may be (resumeWindowBlocks) and how long the server keeps
+	// one stream (maxStreamAgeSeconds).
 	StreamBlocks(ctx context.Context, in *StreamBlocksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamBlocksResponse], error)
 }
 
@@ -99,13 +109,23 @@ type StreamServiceServer interface {
 	// number above it. Each header carries hash and parentHash, so a client can
 	// check linkage itself.
 	//
-	// Status codes that end the stream:
+	// How a stream ends, and what the client does next:
 	//
 	//	OUT_OF_RANGE  the server cannot continue from the resume position (too
 	//	              old, or a block it cannot place); backfill with unary
 	//	              calls, then reopen.
-	//	UNAVAILABLE   the server stopped making progress, or the client read too
-	//	              slowly; reopen with a resume position.
+	//	INVALID_ARGUMENT, UNAUTHENTICATED, PERMISSION_DENIED, UNIMPLEMENTED
+	//	              the request is wrong; do not retry it unchanged.
+	//	UNAVAILABLE   the server stopped making progress, the client read too
+	//	              slowly, the stream reached the server's maximum age, or
+	//	              the server is shutting down; reopen with a resume position.
+	//	any other status, or no status at all (the connection dropped)
+	//	              reopen with a resume position, with backoff.
+	//
+	// A reopen sends fromBlock + fromHash of the last header applied, so no
+	// block is lost. Discovery's StreamSupport advertises how far behind the head
+	// a resume position may be (resumeWindowBlocks) and how long the server keeps
+	// one stream (maxStreamAgeSeconds).
 	StreamBlocks(*StreamBlocksRequest, grpc.ServerStreamingServer[StreamBlocksResponse]) error
 	mustEmbedUnimplementedStreamServiceServer()
 }

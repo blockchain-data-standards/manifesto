@@ -34,6 +34,9 @@
                     "lastNBlocks": 10000
                   }
                 }
+              },
+              "StreamService": {
+                "allMethods": true
               }
             }
           },
@@ -94,6 +97,10 @@
           },
           "defaultAvailability": {
             "lastNBlocks": 1000
+          },
+          "streamSupport": {
+            "resumeWindowBlocks": 128,
+            "maxStreamAgeSeconds": 3600
           }
         }
       },
