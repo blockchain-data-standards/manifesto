@@ -203,7 +203,8 @@ message GetSignaturesForAddressRequest {
   optional bytes before = 2;
   // Exclusive cursor: stop when this signature is reached.
   optional bytes until = 3;
-  // 1..=1000; 0 => default 1000.
+  // 1..=1000; unset (0) => 1000. Agave rejects an explicit 0 with -32602, so
+  // a caller must not translate a client's `limit: 0` into an unset field.
   uint32 limit = 4;
   Commitment commitment = 5;
   optional bytes genesisHash = 6;
@@ -218,6 +219,8 @@ message SignatureInfo {
   // Agave-formatted memo string ("[len] text"; multiple joined by "; ").
   optional string memo = 4;
   optional int64 blockTime = 5;
+  // Position of the transaction in its block; Agave sets it on every row.
+  optional uint32 transactionIndex = 6;
 }
 
 message GetSignaturesForAddressResponse {

@@ -1142,7 +1142,8 @@ type GetSignaturesForAddressRequest struct {
 	Before []byte `protobuf:"bytes,2,opt,name=before,proto3,oneof" json:"before,omitempty"`
 	// Exclusive cursor: stop when this signature is reached.
 	Until []byte `protobuf:"bytes,3,opt,name=until,proto3,oneof" json:"until,omitempty"`
-	// 1..=1000; 0 => default 1000.
+	// 1..=1000; unset (0) => 1000. Agave rejects an explicit 0 with -32602, so
+	// a caller must not translate a client's `limit: 0` into an unset field.
 	Limit          uint32     `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	Commitment     Commitment `protobuf:"varint,5,opt,name=commitment,proto3,enum=bds.svm.Commitment" json:"commitment,omitempty"`
 	GenesisHash    []byte     `protobuf:"bytes,6,opt,name=genesisHash,proto3,oneof" json:"genesisHash,omitempty"`
@@ -1237,10 +1238,12 @@ type SignatureInfo struct {
 	// JSON-stringified TransactionError; absent = success.
 	Err *string `protobuf:"bytes,3,opt,name=err,proto3,oneof" json:"err,omitempty"`
 	// Agave-formatted memo string ("[len] text"; multiple joined by "; ").
-	Memo          *string `protobuf:"bytes,4,opt,name=memo,proto3,oneof" json:"memo,omitempty"`
-	BlockTime     *int64  `protobuf:"varint,5,opt,name=blockTime,proto3,oneof" json:"blockTime,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Memo      *string `protobuf:"bytes,4,opt,name=memo,proto3,oneof" json:"memo,omitempty"`
+	BlockTime *int64  `protobuf:"varint,5,opt,name=blockTime,proto3,oneof" json:"blockTime,omitempty"`
+	// Position of the transaction in its block; Agave sets it on every row.
+	TransactionIndex *uint32 `protobuf:"varint,6,opt,name=transactionIndex,proto3,oneof" json:"transactionIndex,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *SignatureInfo) Reset() {
@@ -1304,6 +1307,13 @@ func (x *SignatureInfo) GetMemo() string {
 func (x *SignatureInfo) GetBlockTime() int64 {
 	if x != nil && x.BlockTime != nil {
 		return *x.BlockTime
+	}
+	return 0
+}
+
+func (x *SignatureInfo) GetTransactionIndex() uint32 {
+	if x != nil && x.TransactionIndex != nil {
+		return *x.TransactionIndex
 	}
 	return 0
 }
@@ -1467,17 +1477,19 @@ const file_svm_rpc_proto_rawDesc = "" +
 	"\a_beforeB\b\n" +
 	"\x06_untilB\x0e\n" +
 	"\f_genesisHashB\x11\n" +
-	"\x0f_minContextSlot\"\xb3\x01\n" +
+	"\x0f_minContextSlot\"\xf9\x01\n" +
 	"\rSignatureInfo\x12\x1c\n" +
 	"\tsignature\x18\x01 \x01(\fR\tsignature\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\x04R\x04slot\x12\x15\n" +
 	"\x03err\x18\x03 \x01(\tH\x00R\x03err\x88\x01\x01\x12\x17\n" +
 	"\x04memo\x18\x04 \x01(\tH\x01R\x04memo\x88\x01\x01\x12!\n" +
-	"\tblockTime\x18\x05 \x01(\x03H\x02R\tblockTime\x88\x01\x01B\x06\n" +
+	"\tblockTime\x18\x05 \x01(\x03H\x02R\tblockTime\x88\x01\x01\x12/\n" +
+	"\x10transactionIndex\x18\x06 \x01(\rH\x03R\x10transactionIndex\x88\x01\x01B\x06\n" +
 	"\x04_errB\a\n" +
 	"\x05_memoB\f\n" +
 	"\n" +
-	"_blockTime\"Y\n" +
+	"_blockTimeB\x13\n" +
+	"\x11_transactionIndex\"Y\n" +
 	"\x1fGetSignaturesForAddressResponse\x126\n" +
 	"\n" +
 	"signatures\x18\x01 \x03(\v2\x16.bds.svm.SignatureInfoR\n" +
